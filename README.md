@@ -1,32 +1,6 @@
 # ระบบจัดการวิทยานิพนธ์ (Thesis Management System)
 
-ระบบยื่น ติดตาม และลงนามเอกสารวิทยานิพนธ์ออนไลน์ สำหรับคณะวิศวกรรมศาสตร์ — รองรับการทำงานแบบหลายบทบาท (role-based) ตามขั้นตอนการอนุมัติจริง 8 ขั้นตอน / 5 ระยะ
-
-> **สถานะปัจจุบัน: Mockup / Demo** — ข้อมูลทั้งหมดเก็บใน `localStorage` ของเบราว์เซอร์ ยังไม่มีฐานข้อมูลจริง ดูหัวข้อ *Going Live* ด้านล่างสำหรับการต่อ backend จริง
-
----
-
-## บทบาทในระบบ (Roles)
-
-| บทบาท | หน้าที่ |
-|---|---|
-| 🎓 นักศึกษา (Student) | ยื่นหัวข้อ อัปโหลดเอกสาร ติดตามสถานะ |
-| 👨‍🏫 อาจารย์ที่ปรึกษา (Advisor) | ตรวจสอบ/อนุมัติหัวข้อ ลงนาม บ.3 |
-| 🏛️ ประธานหลักสูตร (Program Chair) | อนุมัติหัวข้อระดับหลักสูตร |
-| 🗂️ เจ้าหน้าที่ภาควิชา (Dept Staff) | ออกหนังสือเชิญกรรมการ (บ.2) |
-| 📋 กรรมการสอบ (Exam Committee) | ประเมินก่อนสอบ — **มี 3 ท่าน ต้องลงนามครบทุกท่าน** |
-| 🏫 คณบดี (Faculty Dean) | อนุมัติวิทยานิพนธ์ระดับคณะ (บ.4) |
-| 🎯 บัณฑิตวิทยาลัย (Graduate School) | รับวิทยานิพนธ์ฉบับสมบูรณ์ |
-| 🛡️ ผู้ดูแลระบบ (Admin) | ดูภาพรวม จัดการ/แก้ไขทุกคำร้อง รีเซ็ตข้อมูลสาธิต |
-
-## ขั้นตอนการทำงาน (Workflow)
-
-```
-1 นักศึกษายื่น บ.วศ.1ก → 2 อาจารย์ที่ปรึกษาตรวจสอบ → 3 ประธานหลักสูตรอนุมัติ
-→ 4 เจ้าหน้าที่ออกหนังสือเชิญ (บ.2) → 5 กรรมการสอบประเมิน (บ.3, ลงนามครบ 3 ท่าน)
-→ 6 อาจารย์ที่ปรึกษาลงนาม บ.3 → 7 คณบดีอนุมัติ บ.4 → 8 บัณฑิตวิทยาลัยรับเล่มสมบูรณ์
-```
-เอกสารถูกส่งต่อให้บทบาทถัดไปโดยอัตโนมัติเมื่อลงนาม หากปฏิเสธ คำร้องจะถูกตีกลับให้นักศึกษาแก้ไขและยื่นใหม่ได้
+ระบบยื่น ติดตาม และลงนามเอกสารวิทยานิพนธ์ออนไลน์ สำหรับคณะวิศวกรรมศาสตร์ — รองรับการทำงานแบบหลายบทบาท (role-based) 
 
 ## ฟีเจอร์หลัก
 
@@ -43,54 +17,6 @@
 
 - **Next.js 16** (App Router) + **React 19** + **TypeScript**
 - **Tailwind CSS v4**
-- State แบบ mock: React Context + `localStorage` (`src/context/AppContext.tsx`)
-- เตรียมไว้สำหรับ: **Prisma + PostgreSQL**, **NextAuth**, **Supabase Storage** (โครง schema อยู่ใน `prisma/schema.prisma`)
+- **Prisma + PostgreSQL**, **NextAuth**, **Supabase Storage** 
 
-## เอกสารสำหรับนักพัฒนา (Developer docs)
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — โครงสร้างโค้ด, การไหลของข้อมูล, แนวคิดหลัก
-- [`docs/RECIPES.md`](docs/RECIPES.md) — วิธีเพิ่ม role / ขั้นตอน / แบบฟอร์ม / การแจ้งเตือน แบบทีละขั้น
-- [`AGENTS.md`](AGENTS.md) — บริบทโปรเจกต์สำหรับ AI/ผู้ช่วยเขียนโค้ด
-
-## รันในเครื่อง
-
-```bash
-npm install
-npm run dev      # http://localhost:3000
-npm run build    # production build
-```
-
-## โครงสร้างหลัก
-
-```
-src/
-  app/                     หน้าเว็บ (App Router)
-    login/                 หน้าเข้าสู่ระบบ + workflow
-    dashboard/             แดชบอร์ดแยกตามบทบาท + admin
-  components/              UI: Header, Timeline, FileUploader, SignatureButton, NotificationBell ...
-  context/AppContext.tsx   ข้อมูล mock + logic เวิร์กโฟลว์ทั้งหมด
-  context/ToastContext.tsx ระบบ toast
-  lib/utils.ts             labels, ธีมสี, ฟอร์แมต
-  types/index.ts           ชนิดข้อมูล
-prisma/schema.prisma       schema ฐานข้อมูลจริง (ยังไม่เปิดใช้)
-```
-
----
-
-## Going Live — สิ่งที่ต้องทำก่อนใช้งานจริง
-
-ระบบนี้ออกแบบให้ย้ายจาก mock ไป backend จริงได้ โดยตรรกะเวิร์กโฟลว์รวมศูนย์อยู่ใน `AppContext`
-
-**Checklist:**
-
-1. **ฐานข้อมูล** — สร้าง PostgreSQL (เช่น [Neon](https://neon.tech) หรือ Supabase) แล้วตั้ง `DATABASE_URL`, รัน `prisma migrate`
-2. **Auth** — เปิดใช้ NextAuth (โครงไฟล์มีอยู่แล้วใน `src/lib/auth.ts`); ลบปุ่ม "ทดสอบเข้าใช้ตามบทบาท" ในหน้า login และ seed users ออก
-3. **ไฟล์อัปโหลด** — ต่อ Supabase Storage จริงใน `src/lib/supabase.ts` แทนการเก็บแค่ชื่อไฟล์
-4. **แทนที่ AppContext** — เปลี่ยน mock functions ให้เรียก API/Server Actions ที่อ่าน-เขียนฐานข้อมูล (โครงสร้างฟังก์ชันเดิมใช้ซ้ำได้)
-5. **การแจ้งเตือนจริง** — ต่ออีเมล/LINE สำหรับ notification ที่ปัจจุบันเก็บใน state
-6. **ENV** — ตั้งค่าใน Vercel: `DATABASE_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`, คีย์ Supabase
-7. **ตรวจสิทธิ์ฝั่งเซิร์ฟเวอร์** — บังคับ role-based access ใน API ไม่ใช่แค่ฝั่ง UI
-
----
-
-🤖 พัฒนาด้วยความช่วยเหลือจาก [Claude Code](https://claude.com/claude-code)
