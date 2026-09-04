@@ -26,8 +26,9 @@ Repo-local git config set during the transfer: `core.fileMode=false`, `core.auto
 
 Also present in the working folder but **not** part of the app: the Thai PDF forms
 (`บ.วศ.1ก`, `บ.2`, `บ.3`, `บ.4`, exam-result form) sitting one level up in
-`Grad Tracking System\`, and a `_to_delete\` folder holding transfer scratch files that can be
-removed.
+`Grad Tracking System\` — these are reference form templates, not scratch files, and are kept.
+The `_to_delete\` folder (a stale git lock file and a 2026-08-17 pre-transfer backup tarball) was
+removed on 2026-09-04 once the transfer was fully verified.
 
 ## 2. Open work — status
 
