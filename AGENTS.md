@@ -11,29 +11,36 @@ A role-based thesis approval workflow app. **Fully live** — Next.js 16 App Rou
 ## Stack & deployment
 - **DB**: Prisma + `@prisma/adapter-pg` → Supabase PostgreSQL. Client in `src/lib/prisma.ts` (singleton always cached on `globalThis` — both dev and Vercel production).
 - **Auth**: NextAuth v5, credentials (email + password, bcrypt) plus one-time magic links in emails. `src/lib/auth.ts`. Login email is trimmed + lowercased before lookup.
-- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD` (~500 emails/day limit). Emails contain **only the plain `/login` URL as text** (no button, no magic links) plus a password note — Chula's Office365 filter blocked magic-link URLs (long random token on a vercel.app domain), so recipients sign in with email + password. `/api/auth/magic` still exists for previously sent links (tokens are not consumed on use; deleted at 48h expiry). No new tokens are issued.
-- **Storage**: Supabase Storage bucket `thesis-files`. Upload API at `POST /api/upload`.
-- **Deploy**: Vercel, auto-deploys on push to `main` (GitHub: Jukkruu/thesis-app).
+- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a **per-user magic-link URL** (`/api/auth/magic?t=<token>`, `src/lib/email.ts:171-184`) rendered as plain link text (no styled button) that auto-logs them in and deep-links to their specific submission page; the token is not consumed on use (SafeLinks prefetch safety) and expires after 48h. Falls back to a plain `/login` link if token creation fails. The email body also mentions signing in with email+password as an alternative, which still works regardless.
+- **Storage**: Supabase Storage bucket `thesis-files` — **private**, not publicly readable. `POST /api/upload` stores the object's storage path (not a public URL) on `FormUpload.fileUrl`; previews/downloads resolve a 1h signed URL on demand via `GET /api/upload/[uploadId]/signed-url` (gated by the same submission-involvement check used elsewhere in the API). See `src/lib/supabase.ts`. Do not store or serve a public URL directly — the bucket was briefly public before 2026-09-04 and every uploaded document was reachable by anyone with the link; that was a bug, not the design.
+- **Deploy**: Vercel (`thesis-app` project, account `sukhums-4319`), auto-deploys on push to `main` (GitHub: `sukhum-chula/thesis-app`).
 
 ### Required env vars (Vercel + local `.env.local`)
 ```
-DATABASE_URL          # Supabase pooler in TRANSACTION mode (port 6543, host aws-1-...pooler.supabase.com).
+DATABASE_URL          # Supabase pooler in TRANSACTION mode (port 6543, host aws-*-...pooler.supabase.com).
                       # Session mode (:5432) has a 15-client cap and caused EMAXCONNSESSION under real traffic.
-NEXTAUTH_SECRET
-NEXTAUTH_URL
+                      # Note: `prisma db push` needs the DIRECT connection (port 5432) instead — the
+                      # transaction pooler doesn't support the prepared statements the migration engine uses.
+AUTH_SECRET           # NextAuth v5 naming — NOT "NEXTAUTH_SECRET"
+NEXTAUTH_URL          # Production only; leave unset on Preview/Development so the VERCEL_URL fallback works
 GMAIL_USER            # Gmail address used as SMTP sender (fallback when SMTP_USER unset)
-GMAIL_APP_PASSWORD    # Google App Password (16 chars, requires 2FA)
+GMAIL_APP_PASSWORD    # Google App Password (16 chars, requires 2FA enabled on that account)
 SMTP_USER             # optional: Office365/generic SMTP sender, takes priority over Gmail
 SMTP_PASS             # password for SMTP_USER — mailbox needs "Authenticated SMTP" enabled
 SMTP_HOST             # optional, default smtp.office365.com
 SMTP_PORT             # optional, default 587 (STARTTLS)
 NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY  # or NEXT_PUBLIC_SUPABASE_ANON_KEY (either name works, src/lib/supabase.ts)
+SUPABASE_SERVICE_ROLE_KEY             # server-side only; storage admin ops + signed URLs
 FINANCE_EMAIL         # recipient for finance notifications
-DEMO_MODE             # "true" enables /demo page + passwordless demo login; unset in production
+CRON_SECRET           # guards /api/cron/exam-reminders; unset makes the endpoint publicly callable.
+                      # Vercel's own Cron scheduler (see vercel.json) sends the matching Bearer header
+                      # automatically when this is set in the project.
+DEMO_MODE             # "true" enables /api/auth/demo passwordless login; unset in production
+NEXT_PUBLIC_DEMO_MODE # "true" enables the /demo page; unset in production
 EMAIL_OVERRIDE_TO     # testing: when set, ALL emails go to this address instead of real recipients
-                      # (subject gets "[ถึง: <intended>]" suffix). REMOVED 2026-07-16 — system is live,
-                      # real recipients get email. Re-set it before any bulk testing.
+                      # (subject gets "[ถึง: <intended>]" suffix). Set on Preview/Development, unset on
+                      # Production, so test/preview deploys can never email real students or faculty.
 ```
 
 ---
@@ -46,8 +53,8 @@ EMAIL_OVERRIDE_TO     # testing: when set, ALL emails go to this address instead
 - **EXAM_COMMITTEE and CO_ADVISOR steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
-  PROPOSAL:       step 1 → [BW1A, BW1B],  step 4 → [B1C, B1D, FINANCE_DOC]
-  THESIS_DEFENSE: step 1 → [B2, B3],      step 9 → [SIGNED],   step 16 → [B4, THESIS]
+  PROPOSAL:       step 1 → [BW1A, BW1B, FINANCE_ATTACH],  step 4 → [B1C, B1D, FINANCE_DOC]
+  THESIS_DEFENSE: step 1 → [B2, B3, FINANCE_ATTACH],      step 9 → [SIGNED],   step 16 → [B4, THESIS]
   ```
   PROPOSAL step 4 requires both student docs AND admin FINANCE_DOC upload before student can advance. Admin uploads FINANCE_DOC via a yellow card shown on the admin panel whenever PROPOSAL step 4 is pending.
 - **Tailwind class names in lookup maps must be whole static strings** (no interpolation).
@@ -107,14 +114,14 @@ Applies to:
 - Admin detail step list (`src/app/dashboard/admin/[id]/page.tsx`): filter `sub.workflowSteps.filter(s => s.status !== "SKIPPED")` before mapping `StepCard`; pass `displayOrder={i + 1}` prop.
 
 ### File download vs preview
-Two distinct behaviors for file buttons:
+The bucket is private, so both paths first resolve a signed URL via `GET /api/upload/[uploadId]/signed-url`, then differ:
 
 | Context | Function | Behavior |
 |---|---|---|
-| "ดาวน์โหลดเอกสารเพื่อลงนาม" in `SignatureButton` / `CommitteeSignPanel` | `downloadFile()` | `fetch()` → blob URL → `<a download>` — forces real download even for cross-origin Supabase URLs |
-| All other file clicks (`FileList`, admin StepCard) | `previewFile()` | `window.open(url, "_blank")` — opens in new tab for preview |
+| "ดาวน์โหลดเอกสารเพื่อลงนาม" in `SignatureButton` / `CommitteeSignPanel` | `downloadFile()` | signed URL → `fetch()` → blob URL → `<a download>` — forces real download even for cross-origin Supabase URLs |
+| All other file clicks (`FileList`, admin StepCard) | `previewFile()` | signed URL → `window.open(url, "_blank")` — opens in new tab for preview |
 
-Both helpers are in `src/lib/utils.ts`. Cross-origin `<a download>` is silently ignored by browsers — that is why `downloadFile` uses fetch→blob instead of a plain link.
+Both helpers are in `src/lib/utils.ts`, both take the upload's `id` as their first argument (not a raw URL). Cross-origin `<a download>` is silently ignored by browsers — that is why `downloadFile` uses fetch→blob instead of a plain link.
 
 ### Admin detail — hide files on future steps
 In the admin "จัดการแต่ละขั้นตอน" tab (`src/app/dashboard/admin/[id]/page.tsx`), steps that are still PENDING and have not been reached yet receive an empty `stepUploads` array so no files are shown prematurely.
@@ -181,7 +188,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 #### Phase 1 (Steps 1–3): บ.วศ.1ก + บ.วศ.1ข
 | Step | Role | Action |
 |------|------|--------|
-| 1 | STUDENT | Upload BW1A (บ.วศ.1ก) + BW1B (บ.วศ.1ข) — **starts PENDING, student must submit** |
+| 1 | STUDENT | Upload BW1A (บ.วศ.1ก) + BW1B (บ.วศ.1ข) + FINANCE_ATTACH — **starts PENDING, student must submit** |
 | 2 | ADMIN | Review and approve |
 | 3 | PROGRAM_CHAIR | Sign บ.วศ.1ก → **triggers finance email** |
 
@@ -206,7 +213,7 @@ If rejected → goes back one step (e.g. step 9 → step 8, step 8 → step 7).
 #### Phase 3 (Steps 1–6): บ.2 + บ.3
 | Step | Role | Action |
 |------|------|--------|
-| 1 | STUDENT | Upload B2 (บ.2) + B3 (บ.3) — **starts PENDING, student must submit** |
+| 1 | STUDENT | Upload B2 (บ.2) + B3 (บ.3) + FINANCE_ATTACH — **starts PENDING, student must submit** |
 | 2 | EXAM_COMMITTEE | All members sign บ.3 (sequential) |
 | 3 | ADVISOR | Sign บ.2 |
 | 4 | CO_ADVISOR | Sign บ.2 — **auto-SKIPPED if no co-advisors assigned** |
