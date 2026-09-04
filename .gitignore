@@ -46,3 +46,6 @@ next-env.d.ts
 .env*
 
 .vercel
+
+# local-only credentials reference — never commit real account passwords
+credentials.local.html
