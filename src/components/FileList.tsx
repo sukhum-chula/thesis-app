@@ -125,7 +125,7 @@ export function FileList({ uploads, submissionTitle, submissionType, title = "�
             </p>
           </div>
           <button
-            onClick={() => previewFile(latest.fileUrl, latest.fileName)}
+            onClick={() => previewFile(latest.id, latest.fileUrl, latest.fileName)}
             className="shrink-0 flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
           >
             <Eye className="w-3.5 h-3.5" />
@@ -153,7 +153,7 @@ export function FileList({ uploads, submissionTitle, submissionType, title = "�
                       <p className="text-xs text-gray-400">{formatDate(u.uploadedAt)}</p>
                     </div>
                     <button
-                      onClick={() => previewFile(u.fileUrl, u.fileName)}
+                      onClick={() => previewFile(u.id, u.fileUrl, u.fileName)}
                       className="p-2 -m-1 shrink-0"
                       aria-label="ดูเอกสาร"
                     >

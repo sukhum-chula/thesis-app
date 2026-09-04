@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import { randomBytes } from "crypto";
 import { prisma } from "./prisma";
 import { ROLE_LABELS } from "./utils";
+import { getSignedUrl } from "./supabase";
 
 function escapeHtml(s: string | undefined | null): string {
   if (!s) return "";
@@ -511,11 +512,13 @@ export async function sendFinanceEmail(data: FinanceEmailData): Promise<void> {
     financeAttachUrl, financeAttachName, emailSubject,
   } = data;
 
-  // Fetch finance attachment file if available
+  // Fetch finance attachment file if available — financeAttachUrl is a storage path
+  // (bucket is private), so mint a short-lived signed URL before fetching it.
   let attachments: { filename: string; content: Buffer }[] | undefined;
   if (financeAttachUrl) {
     try {
-      const res = await fetch(financeAttachUrl);
+      const signedUrl = await getSignedUrl(financeAttachUrl);
+      const res = await fetch(signedUrl);
       if (res.ok) {
         const arrayBuffer = await res.arrayBuffer();
         attachments = [{ filename: financeAttachName ?? "finance_attachment.pdf", content: Buffer.from(arrayBuffer) }];

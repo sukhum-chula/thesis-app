@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { uploadFile, BUCKET } from "@/lib/supabase";
+import { uploadFile } from "@/lib/supabase";
 import { FORM_SHORT, getStepName, ROLE_LABELS } from "@/lib/utils";
 import { sendStepEmail } from "@/lib/email";
 import type { FormType } from "@/types";
@@ -74,7 +74,9 @@ export async function POST(req: NextRequest) {
 
   try {
     await uploadFile(file, path);
-    fileUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+    // Bucket is private — store the storage path, not a public URL. Resolved to a
+    // short-lived signed URL on demand via GET /api/upload/[uploadId]/signed-url.
+    fileUrl = path;
   } catch {
     // Store without URL if Supabase storage not configured yet
   }

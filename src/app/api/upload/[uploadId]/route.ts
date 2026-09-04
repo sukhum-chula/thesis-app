@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { deleteFile, BUCKET } from "@/lib/supabase";
+import { deleteFile } from "@/lib/supabase";
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ uploadId: string }> }) {
   const session = await auth();
@@ -19,10 +19,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   if (upload.fileUrl) {
     try {
-      const url = new URL(upload.fileUrl);
-      const prefix = `/storage/v1/object/public/${BUCKET}/`;
-      const path = url.pathname.startsWith(prefix) ? url.pathname.slice(prefix.length) : null;
-      if (path) await deleteFile(path);
+      await deleteFile(upload.fileUrl);
     } catch { /* ignore storage errors — still delete DB record */ }
   }
 

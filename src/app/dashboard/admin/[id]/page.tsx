@@ -114,7 +114,7 @@ function StepCard({
               <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
               <span className="text-xs text-gray-600 truncate flex-1">{FORM_LABELS[u.formType]} — {u.fileName} <span className="text-gray-400">({formatBytes(u.fileSize)})</span></span>
               <button
-                onClick={() => previewFile(u.fileUrl, u.fileName)}
+                onClick={() => previewFile(u.id, u.fileUrl, u.fileName)}
                 className="shrink-0 text-xs text-blue-600 hover:underline flex items-center gap-0.5"
               >
                 <Download className="w-3 h-3" />

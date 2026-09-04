@@ -218,18 +218,26 @@ export function downloadMockFile(fileName: string, formLabel: string, submission
   URL.revokeObjectURL(url);
 }
 
-export function previewFile(fileUrl?: string | null, fileName?: string) {
-  if (fileUrl) {
-    window.open(fileUrl, "_blank", "noopener,noreferrer");
-  }
+export function previewFile(uploadId?: string | null, fileUrl?: string | null, fileName?: string) {
+  if (!uploadId || !fileUrl) return;
+  fetch(`/api/upload/${uploadId}/signed-url`)
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.url) window.open(d.url, "_blank", "noopener,noreferrer");
+    })
+    .catch(() => {});
 }
 
 export function downloadFile(uploadId: string, fileName: string, formLabel: string, submissionTitle: string, fileUrl?: string | null) {
   if (fileUrl) {
-    // Fetch then blob-URL so the browser respects the download attribute
-    // even for cross-origin Supabase Storage URLs.
-    fetch(fileUrl)
-      .then((r) => r.blob())
+    // Storage bucket is private — resolve to a short-lived signed URL first,
+    // then fetch -> blob URL so the browser respects the download attribute.
+    fetch(`/api/upload/${uploadId}/signed-url`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.url) throw new Error("no signed url");
+        return fetch(d.url).then((r) => r.blob());
+      })
       .then((blob) => {
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -240,10 +248,7 @@ export function downloadFile(uploadId: string, fileName: string, formLabel: stri
         document.body.removeChild(a);
         URL.revokeObjectURL(blobUrl);
       })
-      .catch(() => {
-        // Fallback: open in new tab if fetch fails (e.g. auth-gated URL)
-        window.open(fileUrl, "_blank");
-      });
+      .catch(() => downloadMockFile(fileName, formLabel, submissionTitle));
     return;
   }
   downloadMockFile(fileName, formLabel, submissionTitle);
