@@ -63,12 +63,14 @@ removed.
 - **Retire the old Supabase project.** Per the original plan: pause (don't delete) for a rollback
   window, then revoke its service-role key. Nothing to do yet, just don't forget it's sitting there
   with a live key.
-- **Confirm `FINANCE_EMAIL`.** Currently `hare081987@gmail.com`, set explicitly as a temporary
-  value — confirm the real recipient with whoever handles finance before relying on it.
-- **Do an actual manual smoke test.** Everything above was verified via API calls / scripts; nobody
-  has logged into the live app as a real user since the cutover. Log in, open an existing
-  submission, confirm the timeline renders and a file preview/download works.
-- **`AGENTS.md` still has the stale statements listed in §5** — not yet fixed.
+- **Do an actual manual smoke test in a real browser.** A full API-level walkthrough (real
+  credentials login, viewing a submission, signed-URL file download, upload → approve → notify
+  chained across student → admin → program chair, email correctly redirected in testing) was
+  verified against synthetic test accounts on 2026-09-04 — see §7. Nobody has clicked through the
+  UI itself in a browser since the cutover.
+
+`FINANCE_EMAIL` (`hare081987@gmail.com`) is confirmed as the real recipient — see §6.
+`AGENTS.md`'s stale statements (formerly §5) were fixed and pushed on 2026-09-04.
 
 ## 3. Database and storage facts a new session will get wrong
 
@@ -105,30 +107,15 @@ removed.
   appended to the subject. Set on Preview and Development (not Production) so test/preview
   deployments can never email real students or faculty.
 
-## 5. `AGENTS.md` statements that are now stale
+## 5. `AGENTS.md` staleness — fixed 2026-09-04
 
-`AGENTS.md` is otherwise the source of truth — but these lines will mislead:
-
-- *"Deploy: Vercel, auto-deploys on push to `main` (GitHub: Jukkruu/thesis-app)"* → now
-  `sukhum-chula/thesis-app` under Vercel account `sukhums-4319`.
-- *"Emails contain only the plain `/login` URL as text (no button, no magic links) … No new tokens
-  are issued."* → **not true any more.** `src/lib/email.ts:170-185` generates a fresh
-  `magicToken` per recipient and embeds `/api/auth/magic?t=…` (commit `db23506`, "Generate real
-  magic tokens in step notification emails"). If Chula's Office 365 filter starts eating step
-  emails again, this is the first thing to look at — that filtering is exactly why the links were
-  removed once before.
-- The env list names `NEXTAUTH_SECRET`; the code reads **`AUTH_SECRET`** (NextAuth v5 naming) at
-  `src/app/api/auth/magic/route.ts:48` and `src/app/api/auth/demo/route.ts:64`.
-- The env list omits `CRON_SECRET`, `NEXT_PUBLIC_DEMO_MODE` and
-  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (accepted as an alias for the anon key in
-  `src/lib/supabase.ts:15`).
-- *"`EMAIL_OVERRIDE_TO` — REMOVED 2026-07-16"* describes the intern's Vercel environment, not the
-  new one — it is now set (Preview/Development only, see §4).
-- The storage claim ("files are served through `createSignedUrl`... Do not make it public") was
-  **aspirational, not actual**, until 2026-09-04 — see §3.
-
-When you fix any of these, update `AGENTS.md` in the same commit — it is loaded via `CLAUDE.md`, so
-stale lines there mislead every future session.
+`AGENTS.md` previously had several statements left over from the intern's setup (wrong GitHub
+repo/Vercel account, `NEXTAUTH_SECRET` instead of the real `AUTH_SECRET`, missing env vars, the old
+"no magic links" email claim, and the storage claim being aspirational rather than actual). All of
+these were corrected directly in `AGENTS.md` and pushed — there is no separate list to maintain
+here any more. If you spot `AGENTS.md` drifting from reality again, fix it there directly (it's
+loaded via `CLAUDE.md`, so stale lines mislead every future session) rather than re-growing this
+section.
 
 ## 6. Environment variables — current state in the new Vercel project
 
@@ -141,7 +128,7 @@ NEXTAUTH_URL                            # Production only — deployed origin
 NEXT_PUBLIC_SUPABASE_URL                # NEW project
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY    # NEW project
 SUPABASE_SERVICE_ROLE_KEY               # NEW project, server-side only
-FINANCE_EMAIL                           # currently hare081987@gmail.com — TEMPORARY, confirm real recipient
+FINANCE_EMAIL                           # hare081987@gmail.com — confirmed real recipient
 CRON_SECRET
 GMAIL_USER / GMAIL_APP_PASSWORD
 EMAIL_OVERRIDE_TO                       # Preview + Development only
@@ -161,4 +148,4 @@ environments; a live production deployment (login page, DB connectivity, signed-
 cron auth, a real test email send).
 
 Not verified: a real human login/click-through smoke test in the browser (only API/script-level
-checks have been done); whether `FINANCE_EMAIL`'s current value is actually correct.
+checks have been done).
