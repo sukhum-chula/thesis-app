@@ -1,8 +1,12 @@
 # Handoff — ownership transfer to sukhum.s@cp.eng.chula.ac.th
 
-Written 2026-08-17. Read this **after** `AGENTS.md`. `AGENTS.md` describes the app (workflow rules,
-roles, conventions) and is still accurate about behaviour; this file covers what changed when the
-project moved off the ex-intern's accounts, and what is still unfinished.
+Written 2026-08-17, updated 2026-09-04. Read this **after** `AGENTS.md`. `AGENTS.md` describes the
+app (workflow rules, roles, conventions) and is still accurate about behaviour; this file covers
+what changed when the project moved off the ex-intern's accounts.
+
+**Status: the transfer is functionally complete.** Every item in the original open-work list (§2)
+is done and verified. What's left is a couple of judgment calls for the new owner, not technical
+work — see the end of §2.
 
 **The app is live with real users.** Treat data and email as production.
 
@@ -15,9 +19,8 @@ project moved off the ex-intern's accounts, and what is still unfinished.
 | Local checkout | `C:\Users\ASUS\Desktop\Grad Tracking System\thesis-app` |
 | `origin` | `https://github.com/sukhum-chula/thesis-app` (new owner) |
 | `upstream` | `https://github.com/Jukkruu/thesis-app` (ex-intern's original, read-only reference) |
-| HEAD at handoff | `730e031 Update README.md` (310 commits) |
-| Vercel | project created under the new account |
-| Supabase | **still the ex-intern's project** `jttfcoisygcqqshghkmn` — see §3 |
+| Vercel | `thesis-app` under account `sukhums-4319` — confirmed connected to `origin` via GitHub integration, auto-deploys on push to `main` |
+| Supabase | **migrated** to a new project, `tluqclmgbnciymxzknhh` (region `ap-southeast-1`, same as before). The ex-intern's original project (`jttfcoisygcqqshghkmn`) is left running, paused-not-deleted, as a rollback window — see §2 |
 
 Repo-local git config set during the transfer: `core.fileMode=false`, `core.autocrlf=false`.
 
@@ -26,65 +29,88 @@ Also present in the working folder but **not** part of the app: the Thai PDF for
 `Grad Tracking System\`, and a `_to_delete\` folder holding transfer scratch files that can be
 removed.
 
-## 2. Open work, in the order it should be done
+## 2. Open work — status
 
-1. **Push to the new remote** if not already done: `git push -u origin main`. Confirm Vercel is
-   building from `sukhum-chula/thesis-app` and not still watching the intern's repo.
-2. **Migrate Supabase to the new owner** — full procedure in `docs/SUPABASE-MIGRATION.md`, script at
-   `scripts/migrate-supabase.mjs`. Because the app is live, treat this as a cutover: announce a
-   short freeze, run the copy, verify, then switch env vars. The script is re-runnable
-   (`ON CONFLICT DO NOTHING`, uploads skip existing paths), so a second pass catches rows written
-   during the window.
-3. **Fix `NEXTAUTH_URL` in Vercel.** `.env.local` has `http://localhost:3000`. If that value is in
-   the Vercel environment, every emailed login link points at the recipient's own machine.
-4. **Set up an email sender the faculty owns** — see §4. Right now step-notification email is
-   almost certainly dead in production.
-5. **Set `CRON_SECRET`** in Vercel. The guard in `src/app/api/cron/exam-reminders/route.ts:14` is
-   `if (secret && ...)`, so with no secret the endpoint is world-callable and anyone can trigger
-   exam-reminder emails.
-6. **Confirm the build.** `npm run build` has not been run since the transfer. (It could not be
-   verified in the cloud session that prepared this handoff — that sandbox blocks
-   `binaries.prisma.sh`, so `prisma generate` 403s there. It works fine on a normal network.)
-7. **Remove `VERCEL_OIDC_TOKEN` from `.env.local`** — leftover from the intern's `vercel env pull`,
-   scoped to their Vercel account.
+1. ✅ **Push to the new remote** — done; `origin/main` and Vercel's GitHub integration both confirmed.
+2. ✅ **Migrate Supabase to the new owner** — done via `docs/SUPABASE-MIGRATION.md` /
+   `scripts/migrate-supabase.mjs`. All 8 tables copied and verified row-for-row identical
+   (users 50, submissions 10, workflow_steps 121, form_uploads 94, notifications 268), all 399
+   storage files (93 MB) copied with zero failures.
+3. ✅ **Fix `NEXTAUTH_URL` in Vercel** — set to the deployed origin (`https://thesis-app-tau.vercel.app`) for Production only; left unset for Preview/Development so `getAppUrl()`'s `VERCEL_URL` fallback resolves correctly per-deployment.
+4. ✅ **Email sender configured** — `GMAIL_USER`/`GMAIL_APP_PASSWORD` (Gmail App Password, 2SV
+   enabled) set in Vercel and locally; a real test send was verified (`250 2.0.0 OK`). The Resend
+   integration (`RESEND_API_KEY`, `/api/email/advisor`, `/api/email/finance`) was removed entirely —
+   both routes were orphaned (no callers anywhere in the app) and the finance one didn't even use
+   Resend correctly.
+5. ✅ **`CRON_SECRET` set** in Vercel — verified the endpoint now returns 401 without it, and that
+   Vercel's own Cron scheduler sends the matching `Authorization: Bearer` header automatically, so
+   the daily exam-reminder job still fires correctly.
+6. ✅ **Build confirmed** — `npm run build` passes; a real production deployment was verified live
+   (login page 200, a DB-touching endpoint completed successfully, signed URL fetch returned the
+   correct file, direct public-style storage URL correctly rejected with 400).
+7. ✅ **`VERCEL_OIDC_TOKEN` removed** from `.env.local`.
+8. ✅ *(found during the transfer, not in the original list)* **Storage bucket was public**,
+   contradicting what this doc and `AGENTS.md` claimed. Every uploaded thesis document was
+   reachable by anyone with the URL, no login required. Fixed: new bucket is private,
+   `FormUpload.fileUrl` now stores a bare storage path (not a public URL), and previews/downloads
+   resolve a signed URL via `GET /api/upload/[uploadId]/signed-url`. See §3.
+9. ✅ *(found during the transfer)* **Vercel had zero environment variables set** in any
+   environment (Production/Preview/Development) before this pass — the live deployment was very
+   likely non-functional beyond static pages. All required vars are now set; see §6.
 
-## 3. Database facts a new session will get wrong
+**Still open — judgment calls for the owner, not engineering work:**
+
+- **Retire the old Supabase project.** Per the original plan: pause (don't delete) for a rollback
+  window, then revoke its service-role key. Nothing to do yet, just don't forget it's sitting there
+  with a live key.
+- **Confirm `FINANCE_EMAIL`.** Currently `hare081987@gmail.com`, set explicitly as a temporary
+  value — confirm the real recipient with whoever handles finance before relying on it.
+- **Do an actual manual smoke test.** Everything above was verified via API calls / scripts; nobody
+  has logged into the live app as a real user since the cutover. Log in, open an existing
+  submission, confirm the timeline renders and a file preview/download works.
+- **`AGENTS.md` still has the stale statements listed in §5** — not yet fixed.
+
+## 3. Database and storage facts a new session will get wrong
 
 - **There is no `prisma/migrations/` directory.** The schema was managed with `prisma db push`, not
   migrations. `prisma migrate deploy` will find nothing and silently leave a database empty. To
   create the schema on a fresh project: `npx prisma db push`. If you introduce a real migration
   history later, do it deliberately with `prisma migrate diff` against the live schema — don't
   assume a baseline exists.
+- **`prisma db push` needs a direct connection, not the pooler.** Running it against the
+  transaction-pooler URL (port 6543) hangs — pgbouncer transaction mode doesn't support the
+  prepared statements the migration engine uses. Use the direct connection (port 5432,
+  `db.<ref>.supabase.co`) for `db push`; use the pooler for the app's runtime `DATABASE_URL`.
 - `prisma/migrate-roles.sql` is a one-off historical script (single-role → `Role[]`), already
   applied. Not part of setup.
 - `DATABASE_URL` must be the **transaction-mode pooler on port 6543**. Session mode (`:5432`) has a
   15-client cap and caused `EMAXCONNSESSION` under real traffic — this is a real incident, not a
   preference.
-- Storage bucket `thesis-files` is **private**; files are served through `createSignedUrl(path, 3600)`
-  in `src/lib/supabase.ts`. Do not make it public. Upload paths are `{submissionId}/...`, which
-  `deleteFolder()` relies on.
+- Storage bucket `thesis-files` is **private**; `FormUpload.fileUrl` stores a bare storage path
+  (e.g. `{submissionId}/BW1A_<timestamp>.pdf`), and previews/downloads resolve a short-lived signed
+  URL through `GET /api/upload/[uploadId]/signed-url` (gated by the same submission-involvement
+  check used elsewhere in the API). This was **not actually true before 2026-09-04** — the bucket
+  was public and uploads stored full public URLs directly; `getSignedUrl()` in `src/lib/supabase.ts`
+  existed but was dead code. Do not reintroduce public URLs. Upload paths are `{submissionId}/...`,
+  which `deleteFolder()` relies on.
 
-## 4. Email — two senders, and one of them is unconfigured
-
-This is the highest-risk area, because failures are silent.
+## 4. Email
 
 - **`src/lib/email.ts`** — step notifications, finance mail, exam reminders. nodemailer;
   `SMTP_USER`/`SMTP_PASS` (Office 365, default `smtp.office365.com:587`) take priority, else
-  `GMAIL_USER`/`GMAIL_APP_PASSWORD`. **None of these are in the current `.env.local`.** With no
-  credentials `getTransport()` returns `null` and `sendMail()` logs
-  `[email] GMAIL_USER / GMAIL_APP_PASSWORD not set — skipping` and returns `{ error: null }` — a
-  successful-looking no-op. Every workflow step advance will appear to notify and notify nobody.
-  Getting a Chula mailbox with "Authenticated SMTP" enabled is the durable fix; the intern's Gmail
-  app password is not something to inherit.
+  `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Currently configured via the Gmail path — a Chula mailbox with
+  "Authenticated SMTP" enabled would be the more durable long-term fix, since the Gmail App Password
+  is tied to one person's personal account and its 2-Step Verification phone number.
 - `EMAIL_OVERRIDE_TO` routes every nodemailer message to one address, with the intended recipient
-  appended to the subject. Set it before any bulk testing against live data.
+  appended to the subject. Set on Preview and Development (not Production) so test/preview
+  deployments can never email real students or faculty.
 
 ## 5. `AGENTS.md` statements that are now stale
 
 `AGENTS.md` is otherwise the source of truth — but these lines will mislead:
 
 - *"Deploy: Vercel, auto-deploys on push to `main` (GitHub: Jukkruu/thesis-app)"* → now
-  `sukhum-chula/thesis-app` under a new Vercel account.
+  `sukhum-chula/thesis-app` under Vercel account `sukhums-4319`.
 - *"Emails contain only the plain `/login` URL as text (no button, no magic links) … No new tokens
   are issued."* → **not true any more.** `src/lib/email.ts:170-185` generates a fresh
   `magicToken` per recipient and embeds `/api/auth/magic?t=…` (commit `db23506`, "Generate real
@@ -97,41 +123,42 @@ This is the highest-risk area, because failures are silent.
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (accepted as an alias for the anon key in
   `src/lib/supabase.ts:15`).
 - *"`EMAIL_OVERRIDE_TO` — REMOVED 2026-07-16"* describes the intern's Vercel environment, not the
-  new one. Verify what is actually set in the new project rather than trusting either doc.
+  new one — it is now set (Preview/Development only, see §4).
+- The storage claim ("files are served through `createSignedUrl`... Do not make it public") was
+  **aspirational, not actual**, until 2026-09-04 — see §3.
 
 When you fix any of these, update `AGENTS.md` in the same commit — it is loaded via `CLAUDE.md`, so
 stale lines there mislead every future session.
 
-## 6. Environment variable checklist for the new Vercel project
+## 6. Environment variables — current state in the new Vercel project
 
-Set for Production, Preview and Development:
+All of these are confirmed set (Production, Preview and Development unless noted):
 
 ```
 DATABASE_URL                            # NEW Supabase, transaction pooler :6543
 AUTH_SECRET                             # NOT NEXTAUTH_SECRET
-NEXTAUTH_URL                            # deployed origin, e.g. https://thesis-app.vercel.app
+NEXTAUTH_URL                            # Production only — deployed origin
 NEXT_PUBLIC_SUPABASE_URL                # NEW project
-NEXT_PUBLIC_SUPABASE_ANON_KEY           # or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY    # NEW project
 SUPABASE_SERVICE_ROLE_KEY               # NEW project, server-side only
-FINANCE_EMAIL                           # currently outanagon2549@gmail.com — confirm this is right
-CRON_SECRET                             # see §2.5
-SMTP_USER / SMTP_PASS                   # or GMAIL_USER / GMAIL_APP_PASSWORD — see §4
+FINANCE_EMAIL                           # currently hare081987@gmail.com — TEMPORARY, confirm real recipient
+CRON_SECRET
+GMAIL_USER / GMAIL_APP_PASSWORD
+EMAIL_OVERRIDE_TO                       # Preview + Development only
 ```
 
 Leave unset in production: `DEMO_MODE`, `NEXT_PUBLIC_DEMO_MODE` (they expose `/demo` and the
-passwordless role-login at `/api/auth/demo`), and `EMAIL_OVERRIDE_TO`.
+passwordless role-login at `/api/auth/demo`).
 
 Remember `NEXT_PUBLIC_*` values are inlined at build time — changing them requires a redeploy, not
 just a restart.
 
-## 7. Verified vs unverified in this handoff
+## 7. Verified vs unverified
 
-Verified: the clone (`git fsck` clean, 310 commits, clean tree), remotes, and the data half of
-`scripts/migrate-supabase.mjs` — tested against a real Postgres pair with the schema from
-`prisma/schema.prisma`, seeded with Thai text, an apostrophe in a name, `Role[]`/`committeeIds`
-arrays, `committeeActions` jsonb and nulls; all eight tables came out md5-identical and a re-run
-inserted zero rows.
+Verified (2026-09-04): `npm run build`; the full migration script including the storage half (399
+files, 93 MB, zero failures, all row counts md5-matched); Vercel env vars across all three
+environments; a live production deployment (login page, DB connectivity, signed-URL file access,
+cron auth, a real test email send).
 
-Not verified: `npm run build`; the storage half of the migration script (no network path to either
-bucket from where it was written — run `--dry-run` first); anything about the state of the new
-Vercel project's environment variables.
+Not verified: a real human login/click-through smoke test in the browser (only API/script-level
+checks have been done); whether `FINANCE_EMAIL`'s current value is actually correct.
