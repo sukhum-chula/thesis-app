@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
@@ -8,9 +7,10 @@ import { useToast } from "@/context/ToastContext";
 import { ROLE_LABELS, ROLE_DESC } from "@/lib/utils";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { DEMO_MODE } from "@/lib/config";
-import { Role } from "@/types";
+import { UserDetailPanel } from "@/components/UserDetailPanel";
+import { MockUser, Role } from "@/types";
 import {
-  Users, GraduationCap, BookOpen, ShieldCheck, ChevronRight, RotateCcw, Crown,
+  Users, GraduationCap, BookOpen, ShieldCheck, ChevronDown, RotateCcw, Crown,
   UserPlus, X, Loader2,
 } from "lucide-react";
 
@@ -32,6 +32,51 @@ const DB_ROLES: Role[] = ["STUDENT", "PROFESSOR", "ADMIN", "SUPER_ADMIN"];
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
+const ROLE_SORT_ORDER: Record<Role, number> = {
+  SUPER_ADMIN: 0,
+  ADMIN: 1,
+  PROFESSOR: 2,
+  STUDENT: 3,
+};
+
+// Thai academic title prefixes on `name`, highest rank first — ผศ./รศ. must be
+// checked before a bare "ศ." check since both contain that syllable.
+const ACADEMIC_RANK_PREFIXES: [string, number][] = [
+  ["ศ.", 4],   // ศาสตราจารย์ (Professor)
+  ["รศ.", 3],  // รองศาสตราจารย์ (Associate Professor)
+  ["ผศ.", 2],  // ผู้ช่วยศาสตราจารย์ (Assistant Professor)
+  ["อ.", 1],   // อาจารย์ (Lecturer)
+];
+
+function academicRank(name: string): number {
+  for (const [prefix, rank] of ACADEMIC_RANK_PREFIXES) {
+    if (name.startsWith(prefix)) return rank;
+  }
+  return 0;
+}
+
+function compareUsers(a: MockUser, b: MockUser): number {
+  const roleDiff = ROLE_SORT_ORDER[a.role] - ROLE_SORT_ORDER[b.role];
+  if (roleDiff !== 0) return roleDiff;
+
+  if (a.role === "PROFESSOR") {
+    const rankDiff = academicRank(b.name) - academicRank(a.name);
+    if (rankDiff !== 0) return rankDiff;
+    return a.name.localeCompare(b.name, "th");
+  }
+
+  if (a.role === "STUDENT") {
+    const aId = a.studentId ?? "";
+    const bId = b.studentId ?? "";
+    if (!aId && !bId) return 0;
+    if (!aId) return 1;
+    if (!bId) return -1;
+    return aId.localeCompare(bId);
+  }
+
+  return a.name.localeCompare(b.name, "th");
+}
+
 export default function AdminUsersPage() {
   const { user, submissions, users: allUsers, superAdminAddUser } = useApp();
   const { showToast } = useToast();
@@ -40,6 +85,7 @@ export default function AdminUsersPage() {
   const isAdmin = user?.roles.some((r) => r === "ADMIN" || r === "SUPER_ADMIN") ?? false;
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", password: "", isProgramChair: false });
   const [saving, setSaving] = useState(false);
 
@@ -117,43 +163,54 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="space-y-3">
-        {allUsers.map((u) => (
-          <Link
-            key={u.id}
-            href={`/dashboard/admin/users/${u.id}`}
-            className={`flex items-center gap-4 p-5 rounded-2xl border transition ${ROLE_COLOR[u.role]}`}
-          >
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
-              {ROLE_ICON[u.role]}
-            </div>
+        {[...allUsers].sort(compareUsers).map((u) => {
+          const isExpanded = expandedId === u.id;
+          return (
+            <div key={u.id} className={`rounded-2xl border transition ${ROLE_COLOR[u.role]}`}>
+              <button
+                type="button"
+                onClick={() => setExpandedId(isExpanded ? null : u.id)}
+                className="w-full flex items-center gap-4 p-5 text-left"
+              >
+                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                  {ROLE_ICON[u.role]}
+                </div>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-semibold text-gray-900 text-lg">{u.name}</p>
-                {u.studentId && (
-                  <span className="text-sm text-gray-500 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
-                    รหัส {u.studentId}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900 text-lg">{u.name}</p>
+                    {u.studentId && (
+                      <span className="text-sm text-gray-500 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                        รหัส {u.studentId}
+                      </span>
+                    )}
+                    <span className="sm:hidden text-xs font-semibold text-gray-700 bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                      {ROLE_LABELS[u.role]}
+                    </span>
+                  </div>
+                  <p className="text-gray-500 text-sm mt-0.5 truncate">{u.email}</p>
+                  <p className="text-gray-400 text-xs mt-1">{ROLE_DESC[u.role]}</p>
+                  <p className="sm:hidden text-xs text-gray-500 mt-1">{getStats(u.id, u.role)}</p>
+                </div>
+
+                <div className="hidden sm:flex text-right shrink-0 space-y-1.5 flex-col items-end">
+                  <span className="text-sm font-semibold text-gray-700 bg-white px-3 py-1 rounded-full border border-gray-200">
+                    {ROLE_LABELS[u.role]}
                   </span>
-                )}
-                <span className="sm:hidden text-xs font-semibold text-gray-700 bg-white px-2 py-0.5 rounded-full border border-gray-200">
-                  {ROLE_LABELS[u.role]}
-                </span>
-              </div>
-              <p className="text-gray-500 text-sm mt-0.5 truncate">{u.email}</p>
-              <p className="text-gray-400 text-xs mt-1">{ROLE_DESC[u.role]}</p>
-              <p className="sm:hidden text-xs text-gray-500 mt-1">{getStats(u.id, u.role)}</p>
-            </div>
+                  <p className="text-xs text-gray-500">{getStats(u.id, u.role)}</p>
+                </div>
 
-            <div className="hidden sm:flex text-right shrink-0 space-y-1.5 flex-col items-end">
-              <span className="text-sm font-semibold text-gray-700 bg-white px-3 py-1 rounded-full border border-gray-200">
-                {ROLE_LABELS[u.role]}
-              </span>
-              <p className="text-xs text-gray-500">{getStats(u.id, u.role)}</p>
-            </div>
+                <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+              </button>
 
-            <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" />
-          </Link>
-        ))}
+              {isExpanded && (
+                <div className="px-5 pb-5">
+                  <UserDetailPanel uid={u.id} onDeleted={() => setExpandedId(null)} />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Demo tools */}
