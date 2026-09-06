@@ -1,18 +1,20 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { ROLE_LABELS, getStepName, formatDate } from "@/lib/utils";
+import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { MockSubmission, Role } from "@/types";
 import {
   ArrowLeft, ChevronRight, FileText, Clock,
-  CheckCircle2, XCircle, AlertCircle, Pencil, X, Loader2,
+  CheckCircle2, XCircle, AlertCircle, Pencil, X, Loader2, Trash2, KeyRound, Eye, EyeOff,
 } from "lucide-react";
+
+const PRIVILEGED_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
@@ -50,18 +52,34 @@ function getRelatedSubmissions(
 
 export default function AdminUserProfilePage() {
   const { uid }                  = useParams<{ uid: string }>();
-  const { submissions, users, adminUpdateUserInfo } = useApp();
+  const { user: viewer, submissions, users, adminUpdateUserInfo, superAdminDeleteUser, superAdminChangePassword } = useApp();
   const { showToast } = useToast();
-  const { data: session } = useSession();
+  const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editStudentId, setEditStudentId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwValue, setPwValue] = useState("");
+  const [pwShow, setPwShow] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
 
-  const sessionRoles: string[] = (session?.user as any)?.roles ?? [(session?.user as any)?.role ?? ""];
-  const isSuperAdmin = sessionRoles.includes("SUPER_ADMIN");
+  const isSuperAdmin = viewer?.roles.includes("SUPER_ADMIN") ?? false;
+  const isAdmin = viewer?.roles.some((r) => r === "ADMIN" || r === "SUPER_ADMIN") ?? false;
+
+  useEffect(() => {
+    if (viewer && !isAdmin) router.replace(ROLE_ROUTES[viewer.role]);
+  }, [viewer, isAdmin, router]);
 
   const user = users.find((u) => u.id === uid);
+
+  // ADMIN's remit is PROFESSOR/STUDENT accounts — viewing is fine, but no edit/delete/password
+  // controls on an ADMIN/SUPER_ADMIN target unless the viewer is themselves SUPER_ADMIN
+  const canManageTarget = isSuperAdmin || (isAdmin && !!user && !user.roles.some((r) => PRIVILEGED_ROLES.includes(r)));
+
+  if (!viewer || !isAdmin) return null;
+
   if (!user) {
     return (
       <div className="text-center py-20 text-gray-400 space-y-2">
@@ -85,7 +103,7 @@ export default function AdminUserProfilePage() {
     try {
       const updates: { name?: string; studentId?: string } = {};
       if (editName.trim() !== user?.name) updates.name = editName.trim();
-      if (isSuperAdmin && editStudentId.trim() !== (user?.studentId ?? "")) updates.studentId = editStudentId.trim();
+      if (editStudentId.trim() !== (user?.studentId ?? "")) updates.studentId = editStudentId.trim();
       if (Object.keys(updates).length === 0) { setEditOpen(false); return; }
       await adminUpdateUserInfo(uid, updates);
       showToast("แก้ไขข้อมูลสำเร็จ", "success");
@@ -94,6 +112,32 @@ export default function AdminUserProfilePage() {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await superAdminDeleteUser(uid);
+      showToast("ลบผู้ใช้งานสำเร็จ", "success");
+      router.replace("/dashboard/admin/users");
+    } catch (err: any) {
+      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+      setConfirmDelete(false);
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (pwValue.length < 6) { showToast("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร", "error"); return; }
+    setPwSaving(true);
+    try {
+      await superAdminChangePassword(uid, pwValue);
+      showToast("เปลี่ยนรหัสผ่านสำเร็จ", "success");
+      setPwOpen(false); setPwValue(""); setPwShow(false);
+    } catch (err: any) {
+      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -136,20 +180,62 @@ export default function AdminUserProfilePage() {
               <p className="text-sm text-gray-400 mt-0.5">รหัสนักศึกษา: {user.studentId}</p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={openEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-              title="แก้ไขชื่อ / รหัสนิสิต"
-            >
-              <Pencil className="w-4 h-4" />
-              แก้ไข
-            </button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {canManageTarget && (
+              <>
+                <button
+                  onClick={openEdit}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
+                  title="แก้ไขชื่อ / รหัสนิสิต"
+                >
+                  <Pencil className="w-4 h-4" />
+                  แก้ไข
+                </button>
+                <button
+                  onClick={() => setPwOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
+                  title="เปลี่ยนรหัสผ่าน"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  รหัสผ่าน
+                </button>
+                {viewer.id !== user.id && (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
+                    title="ลบผู้ใช้งาน"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    ลบ
+                  </button>
+                )}
+              </>
+            )}
             <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full">
               {user.roles.map((r) => ROLE_LABELS[r]).join(" / ")}
             </span>
           </div>
         </div>
+
+        {confirmDelete && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+            <p className="text-sm text-red-700 font-medium">ยืนยันการลบผู้ใช้งานนี้? การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                className="flex-1 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition"
+              >
+                ยืนยันลบ
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Quick stats */}
         {related.length > 0 && (
@@ -313,7 +399,7 @@ export default function AdminUserProfilePage() {
                 />
               </div>
 
-              {isSuperAdmin && (
+              {canManageTarget && user.roles.includes("STUDENT") && (
                 <div>
                   <label className="text-xs text-gray-500 mb-1.5 block">รหัสนิสิต (10 หลัก)</label>
                   <input
@@ -342,6 +428,67 @@ export default function AdminUserProfilePage() {
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   {saving ? "กำลังบันทึก..." : "บันทึก"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change password modal */}
+      {pwOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setPwOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">เปลี่ยนรหัสผ่าน</h2>
+              <button onClick={() => setPwOpen(false)} className="text-gray-400 hover:text-gray-600 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</label>
+                <div className="relative">
+                  <input
+                    type={pwShow ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={pwValue}
+                    onChange={(e) => setPwValue(e.target.value)}
+                    className={INPUT_CLS}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPwShow((s) => !s)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {pwShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPwOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={pwSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                >
+                  {pwSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {pwSaving ? "กำลังบันทึก..." : "บันทึก"}
                 </button>
               </div>
             </form>

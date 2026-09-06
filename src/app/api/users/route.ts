@@ -60,6 +60,9 @@ export async function POST(req: NextRequest) {
   if (!role)          return NextResponse.json({ error: "กรุณาเลือกบทบาท" }, { status: 400 });
   if (password && password.length < 6)
     return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, { status: 400 });
+  // Only SUPER_ADMIN may create ADMIN or SUPER_ADMIN accounts
+  if (["ADMIN", "SUPER_ADMIN"].includes(role) && !postRoles.includes("SUPER_ADMIN"))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (existing) return NextResponse.json({ error: "อีเมลนี้มีในระบบแล้ว" }, { status: 409 });

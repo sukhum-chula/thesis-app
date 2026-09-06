@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { ROLE_LABELS, ROLE_DESC } from "@/lib/utils";
+import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { DEMO_MODE } from "@/lib/config";
 import { Role } from "@/types";
 import {
@@ -31,12 +33,23 @@ const DB_ROLES: Role[] = ["STUDENT", "PROFESSOR", "ADMIN", "SUPER_ADMIN"];
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
 export default function AdminUsersPage() {
-  const { submissions, users: allUsers, superAdminAddUser } = useApp();
+  const { user, submissions, users: allUsers, superAdminAddUser } = useApp();
   const { showToast } = useToast();
+  const router = useRouter();
+  const isSuperAdmin = user?.roles.includes("SUPER_ADMIN") ?? false;
+  const isAdmin = user?.roles.some((r) => r === "ADMIN" || r === "SUPER_ADMIN") ?? false;
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", password: "", isProgramChair: false });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (user && !isAdmin) router.replace(ROLE_ROUTES[user.role]);
+  }, [user, isAdmin, router]);
+
+  if (!user || !isAdmin) return null;
+
+  const creatableRoles = isSuperAdmin ? DB_ROLES : DB_ROLES.filter((r) => r !== "ADMIN" && r !== "SUPER_ADMIN");
 
   function closeModal() {
     setShowModal(false);
@@ -229,7 +242,7 @@ export default function AdminUsersPage() {
                   onChange={(e) => setForm({ ...form, role: e.target.value as Role, studentId: "", isProgramChair: false })}
                   className={INPUT_CLS}
                 >
-                  {DB_ROLES.map((r) => (
+                  {creatableRoles.map((r) => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                   ))}
                 </select>

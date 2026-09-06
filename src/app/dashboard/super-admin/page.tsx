@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC } from "@/lib/utils";
+import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { useToast } from "@/context/ToastContext";
 import { Role, MockUser } from "@/types";
@@ -20,6 +22,12 @@ export default function SuperAdminPage() {
     superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminChangePassword,
   } = useApp();
   const { showToast } = useToast();
+  const router = useRouter();
+  const isSuperAdmin = user?.roles.includes("SUPER_ADMIN") ?? false;
+
+  useEffect(() => {
+    if (user && !isSuperAdmin) router.replace(ROLE_ROUTES[user.role]);
+  }, [user, isSuperAdmin, router]);
 
   const [confirmDelete,    setConfirmDelete]    = useState<string | null>(null);
   const [showAddForm,      setShowAddForm]       = useState(false);
@@ -59,6 +67,8 @@ export default function SuperAdminPage() {
       setPwLoading(false);
     }
   }
+
+  if (!user || !isSuperAdmin) return null;
 
   const counts = {
     users:       users.length,

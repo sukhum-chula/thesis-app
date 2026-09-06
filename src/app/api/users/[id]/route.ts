@@ -12,27 +12,39 @@ function sessionRoles(session: any): string[] {
   return (session?.user as any)?.roles ?? [session?.user?.role ?? ""];
 }
 
+const PRIVILEGED_ROLES = ["ADMIN", "SUPER_ADMIN"];
+const isPrivileged = (roles: string[]) => roles.some((r) => PRIVILEGED_ROLES.includes(r));
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const sRoles = sessionRoles(session);
-  if (!session?.user || !sRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)))
+  if (!session?.user || !sRoles.some((r) => PRIVILEGED_ROLES.includes(r)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
+  const isSuperAdmin = sRoles.includes("SUPER_ADMIN");
+
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้งาน" }, { status: 404 });
+
+  // ADMIN's remit is PROFESSOR/STUDENT accounts only — cannot touch an existing ADMIN/SUPER_ADMIN account at all
+  if (!isSuperAdmin && isPrivileged(target.roles))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const body = await req.json();
   const data: any = {};
 
   if (body.role !== undefined) {
-    // Only SUPER_ADMIN can grant the SUPER_ADMIN role
-    if (body.role === "SUPER_ADMIN" && !sRoles.includes("SUPER_ADMIN"))
+    // Only SUPER_ADMIN can grant the ADMIN or SUPER_ADMIN role
+    if (PRIVILEGED_ROLES.includes(body.role) && !isSuperAdmin)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     // Setting role replaces entire roles array with single role
     data.roles = [body.role];
   }
 
   if (body.roles !== undefined) {
-    // Only SUPER_ADMIN can grant the SUPER_ADMIN role
-    if ((body.roles as string[]).includes("SUPER_ADMIN") && !sRoles.includes("SUPER_ADMIN"))
+    // Only SUPER_ADMIN can grant the ADMIN or SUPER_ADMIN role
+    if ((body.roles as string[]).some((r) => PRIVILEGED_ROLES.includes(r)) && !isSuperAdmin)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     data.roles = body.roles;
   }
@@ -45,8 +57,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body.studentId !== undefined) {
-    if (!sRoles.includes("SUPER_ADMIN"))
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const sid = typeof body.studentId === "string" ? body.studentId.trim() : "";
     // Allow clearing studentId by sending empty string
     if (sid && !/^\d{10}$/.test(sid))
@@ -55,8 +65,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body.password !== undefined) {
-    if (!sRoles.includes("SUPER_ADMIN"))
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (typeof body.password !== "string" || body.password.length < 6)
       return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, { status: 400 });
     data.passwordHash = await bcrypt.hash(body.password, 12);
@@ -68,10 +76,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
-  if (!session?.user || !sessionRoles(session).includes("SUPER_ADMIN"))
+  const sRoles = sessionRoles(session);
+  if (!session?.user || !sRoles.some((r) => PRIVILEGED_ROLES.includes(r)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
+  const isSuperAdmin = sRoles.includes("SUPER_ADMIN");
+
+  // ADMIN may only delete PROFESSOR/STUDENT accounts — SUPER_ADMIN may delete anyone
+  if (!isSuperAdmin) {
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้งาน" }, { status: 404 });
+    if (isPrivileged(target.roles))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   await prisma.user.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }
