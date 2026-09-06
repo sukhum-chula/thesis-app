@@ -154,7 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Helper: notify all admins
   async function notifyAdmins(message: string, type: string) {
-    const admins = await prisma.user.findMany({ where: { roles: { hasSome: ["ADMIN", "SUPER_ADMIN"] } } });
+    const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
     if (admins.length) {
       await prisma.notification.createMany({
         data: admins.map((a: any) => ({ recipientId: a.id, message, detail: sub!.title, submissionId, type })),
@@ -232,8 +232,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const firstId: string | undefined = (sub as any).committeeIds?.[0];
           specificMemberId = firstId;
           if (firstId) recipientId = firstId;
-        } else if (nextRole === "ADMIN" || nextRole === "SUPER_ADMIN") {
-          const admins = await prisma.user.findMany({ where: { roles: { hasSome: ["ADMIN", "SUPER_ADMIN"] } } });
+        } else if (nextRole === "ADMIN") {
+          const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
           if (admins.length) {
             await prisma.notification.createMany({
               data: admins.map((a: any) => ({ recipientId: a.id, message: msg, detail: sub.title, submissionId, type: "pending" })),

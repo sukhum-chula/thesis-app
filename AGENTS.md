@@ -68,10 +68,10 @@ EMAIL_OVERRIDE_TO     # testing: when set, ALL emails go to this address instead
 When a submission is created, **step 1 starts as PENDING**. The student must upload the required documents and click submit. Step 2's email notification fires automatically when the student's submit action (approve) completes.
 
 ### Rejection stays on the step — student must resubmit
-`PATCH action "reject"` and `POST /sign decision "REJECTED"`: the current PENDING step is marked `REJECTED` and the submission status becomes `REJECTED`. The workflow does NOT move. While `REJECTED`, both `approve` and a second `reject` return 400 ("รอนักศึกษายืนยันการแก้ไขก่อน"). The student fixes documents and calls `action "resubmit"` (student-only) — this resets **only the rejected step** to PENDING (clears actedAt/notes/committeeActions), sets status `IN_PROGRESS`, and the same reviewer re-reviews from the same step. Any involved role can reject; admin/super-admin rejections require a notes comment (enforced UI + API).
+`PATCH action "reject"` and `POST /sign decision "REJECTED"`: the current PENDING step is marked `REJECTED` and the submission status becomes `REJECTED`. The workflow does NOT move. While `REJECTED`, both `approve` and a second `reject` return 400 ("รอนักศึกษายืนยันการแก้ไขก่อน"). The student fixes documents and calls `action "resubmit"` (student-only) — this resets **only the rejected step** to PENDING (clears actedAt/notes/committeeActions), sets status `IN_PROGRESS`, and the same reviewer re-reviews from the same step. Any involved role can reject; admin rejections require a notes comment (enforced UI + API).
 
 ### Send-back (ส่งกลับ) goes back ONE step — admin only
-`PATCH action "return_to_prev"` (ADMIN/SUPER_ADMIN only): resets **both the current PENDING step and the nearest preceding non-SKIPPED step** to `PENDING` (clear actedAt/notes/committeeActions), status stays `IN_PROGRESS`, and the previous role is notified to act again. Returns 400 on the first step.
+`PATCH action "return_to_prev"` (ADMIN only — SUPER_ADMIN has no submission access): resets **both the current PENDING step and the nearest preceding non-SKIPPED step** to `PENDING` (clear actedAt/notes/committeeActions), status stays `IN_PROGRESS`, and the previous role is notified to act again. Returns 400 on the first step.
 
 **Critical**: the sent-back current step must be reset to `PENDING`, never `REJECTED` — the approve flow only advances through PENDING steps, so a step left `REJECTED` here gets skipped forever once the previous role re-approves (bug found and fixed 2026-07-14 via E2E test).
 
@@ -94,8 +94,11 @@ THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]  7→[B2,B3]
                 17→[B4]  18→[THESIS]  19→[THESIS]  20→[THESIS]  21→[THESIS]  22→[THESIS]
 ```
 
-### Admin dashboard (`src/app/dashboard/admin/page.tsx`)
-Layout (top to bottom):
+### Admin dashboard (`src/app/admin-dashboard/page.tsx`) — ADMIN's landing page
+`/dashboard/admin` (old path) now just redirects here. `src/app/dashboard/admin/[id]/page.tsx`
+(submission detail) and `src/app/dashboard/admin/users(+[uid])/page.tsx` (ADMIN's own account
+management — STUDENT/PROFESSOR/ADMIN) still live under the old `/dashboard/admin/` path; only the
+exact-match overview page moved. Layout (top to bottom):
 1. **4 stat cards** — Total / กำลังดำเนินการ (blue) / เสร็จสิ้น (green) / ถูกปฏิเสธ (red)
 2. **"รออนุมัติจากท่าน"** orange section — only shown when admin has PENDING steps; each card links directly to the submission
 3. **Search bar** — filters by thesis title, student name, or student ID
@@ -148,8 +151,8 @@ stepUploads={isFutureStep ? [] : stepUploads}
 ### In-system roles (have accounts and login)
 | Role | Thai | Key Actions |
 |---|---|---|
-| Super Admin | ผู้ดูแลระบบสูงสุด | Create/delete users, assign roles, override any workflow step |
-| Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Approve submissions, relay documents to Faculty, forward docs to Student |
+| Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passwords. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot view, approve, reject, or override any submission. Sees system-wide read-only oversight numbers (user/submission counts) via `GET /api/super-admin/stats` |
+| Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
 | Student | นิสิต | Upload documents, assign committee members, track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE) |
@@ -260,7 +263,9 @@ If rejected at any step → goes back one step.
 - **CO_ADVISOR auto-skip**: when `coAdvisorIds` is empty at submission creation, all CO_ADVISOR steps are created with `status: "SKIPPED"` so they are transparently bypassed.
 - **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to the global `isProgramChair` flag. Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, the sign route, exam-reminder cron, upload involvement check, `AppContext`, `RoleSubmissionDetail`, professor dashboard, and display-name lookups.
 - **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = `FINANCE_EMAIL` env var (skips if unset).
-- **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin/super-admin reject requires a comment** (enforced UI + API); other roles may reject without one.
+- **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
+- **SUPER_ADMIN has zero submission workflow access** — cannot view, approve, reject, override, upload to, or otherwise touch any submission. That responsibility belongs exclusively to ADMIN. It sees system-wide counts only, via `GET /api/super-admin/stats` (SUPER_ADMIN-only).
+- **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.
 - **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 7–8 — step 7: send B2+B3 to Faculty; step 8: receive back docs (ใบรายงานผล, แบบรายงานฯ, invitation letter), upload, forward to student, then approve → triggers invitation emails. Admin panel shows step-7-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** goes back exactly one step — any role can reject, no role restriction

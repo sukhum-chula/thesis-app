@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
+import { canGrantRole } from "@/lib/accountScope";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
@@ -16,11 +17,13 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sessionRoles: string[] = (session.user as any).roles ?? [session.user.role];
-  const isAdmin = sessionRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r));
 
   let where: any;
-  if (isAdmin) {
-    where = undefined;
+  if (sessionRoles.includes("SUPER_ADMIN")) {
+    // SUPER_ADMIN's remit is the admin tier only — STUDENT/PROFESSOR accounts are ADMIN's job
+    where = { roles: { hasSome: ["SUPER_ADMIN", "ADMIN"] } };
+  } else if (sessionRoles.includes("ADMIN")) {
+    where = { roles: { hasSome: ["ADMIN", "PROFESSOR", "STUDENT"] } };
   } else {
     // Non-admins get all PROFESSOR-role users plus anyone specifically linked to
     // their own submissions (committee members may exist under a different role).
@@ -60,8 +63,9 @@ export async function POST(req: NextRequest) {
   if (!role)          return NextResponse.json({ error: "กรุณาเลือกบทบาท" }, { status: 400 });
   if (password && password.length < 6)
     return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, { status: 400 });
-  // Only SUPER_ADMIN may create ADMIN or SUPER_ADMIN accounts
-  if (["ADMIN", "SUPER_ADMIN"].includes(role) && !postRoles.includes("SUPER_ADMIN"))
+  // SUPER_ADMIN may only create SUPER_ADMIN/ADMIN accounts; ADMIN may only create
+  // ADMIN/PROFESSOR/STUDENT accounts — see src/lib/accountScope.ts
+  if (!canGrantRole(postRoles, role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });

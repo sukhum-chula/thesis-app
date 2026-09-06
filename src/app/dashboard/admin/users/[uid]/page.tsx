@@ -13,7 +13,8 @@ export default function AdminUserProfilePage() {
   const { user: viewer } = useApp();
   const router = useRouter();
 
-  const isAdmin = viewer?.roles.some((r) => r === "ADMIN" || r === "SUPER_ADMIN") ?? false;
+  // ADMIN's account management only — SUPER_ADMIN's own account management lives on /super-dashboard
+  const isAdmin = viewer?.roles.includes("ADMIN") ?? false;
 
   useEffect(() => {
     if (viewer && !isAdmin) router.replace(ROLE_ROUTES[viewer.role]);

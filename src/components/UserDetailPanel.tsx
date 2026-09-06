@@ -6,13 +6,12 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { ROLE_LABELS, getStepName } from "@/lib/utils";
+import { canManageAccount } from "@/lib/accountScope";
 import { MockSubmission, Role } from "@/types";
 import {
   ChevronRight, FileText, Clock,
   CheckCircle2, XCircle, AlertCircle, Pencil, X, Loader2, Trash2, KeyRound, Eye, EyeOff,
 } from "lucide-react";
-
-const PRIVILEGED_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
@@ -32,7 +31,7 @@ function getRelatedSubmissions(
   userId: string,
   roles: Role[]
 ): MockSubmission[] {
-  if (roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r))) return submissions;
+  if (roles.includes("ADMIN")) return submissions; // submission workflow is ADMIN's exclusive responsibility
   return submissions.filter((s) =>
     s.studentId === userId ||
     (s as any).advisorId === userId ||
@@ -57,14 +56,10 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
   const [pwShow, setPwShow] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
 
-  const isSuperAdmin = viewer?.roles.includes("SUPER_ADMIN") ?? false;
-  const isAdmin = viewer?.roles.some((r) => r === "ADMIN" || r === "SUPER_ADMIN") ?? false;
-
   const user = users.find((u) => u.id === uid);
 
-  // ADMIN's remit is PROFESSOR/STUDENT accounts — viewing is fine, but no edit/delete/password
-  // controls on an ADMIN/SUPER_ADMIN target unless the viewer is themselves SUPER_ADMIN
-  const canManageTarget = isSuperAdmin || (isAdmin && !!user && !user.roles.some((r) => PRIVILEGED_ROLES.includes(r)));
+  // See src/lib/accountScope.ts for the SUPER_ADMIN/ADMIN account-management tiers
+  const canManageTarget = !!viewer && !!user && canManageAccount(viewer.roles, user.roles);
 
   if (!viewer || !user) {
     return <p className="text-center py-10 text-gray-400">ไม่พบผู้ใช้งาน</p>;

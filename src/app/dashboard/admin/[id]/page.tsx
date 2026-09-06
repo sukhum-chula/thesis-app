@@ -441,7 +441,8 @@ export default function AdminSubmissionDetail() {
   const [activeTab,   setActiveTab]   = useState<"steps" | "timeline">("steps");
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
-  if (user && !user.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r))) {
+  // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
+  if (user && !user.roles.includes("ADMIN")) {
     router.replace(ROLE_ROUTES[user.role] ?? "/login");
     return null;
   }
@@ -450,7 +451,7 @@ export default function AdminSubmissionDetail() {
     return (
       <div className="text-center py-20 space-y-3 text-gray-400">
         <p className="text-lg">ไม่พบข้อมูลคำร้อง</p>
-        <Link href="/dashboard/admin" className="text-blue-500 hover:underline">กลับหน้าหลัก</Link>
+        <Link href="/admin-dashboard" className="text-blue-500 hover:underline">กลับหน้าหลัก</Link>
       </div>
     );
   }
@@ -529,13 +530,13 @@ export default function AdminSubmissionDetail() {
   function handleDelete() {
     if (!sub) return;
     adminDeleteSubmission(sub.id);
-    router.push("/dashboard/admin");
+    router.push("/admin-dashboard");
   }
 
   return (
     <div className="max-w-5xl space-y-5">
       {/* Back */}
-      <Link href="/dashboard/admin" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-800 font-medium py-2 -my-2">
+      <Link href="/admin-dashboard" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-800 font-medium py-2 -my-2">
         <ArrowLeft className="w-5 h-5" />
         ย้อนกลับรายการ
       </Link>
@@ -837,7 +838,7 @@ export default function AdminSubmissionDetail() {
                 // Resolve who is assigned to this step
                 let assignedName: string | null = null;
                 if (step.role === "STUDENT") assignedName = student?.name ?? null;
-                else if (step.role === "ADMIN") assignedName = allUsers.find((u) => u.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)))?.name ?? null;
+                else if (step.role === "ADMIN") assignedName = allUsers.find((u) => u.roles.includes("ADMIN"))?.name ?? null;
                 else if (step.role === "ADVISOR") assignedName = advisor?.name ?? null;
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => allUsers.find((u) => u.id === uid)?.name ?? uid).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") assignedName = allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? null;
@@ -858,7 +859,7 @@ export default function AdminSubmissionDetail() {
 
                 const financeAdminName =
                   sub.submissionType === "PROPOSAL" && step.stepOrder === 4
-                    ? allUsers.find((u) => u.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)))?.name ?? null
+                    ? allUsers.find((u) => u.roles.includes("ADMIN"))?.name ?? null
                     : null;
 
                 return (

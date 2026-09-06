@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { canManageAccount, canGrantRole } from "@/lib/accountScope";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
@@ -13,7 +14,6 @@ function sessionRoles(session: any): string[] {
 }
 
 const PRIVILEGED_ROLES = ["ADMIN", "SUPER_ADMIN"];
-const isPrivileged = (roles: string[]) => roles.some((r) => PRIVILEGED_ROLES.includes(r));
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -22,29 +22,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const isSuperAdmin = sRoles.includes("SUPER_ADMIN");
 
   const target = await prisma.user.findUnique({ where: { id } });
   if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้งาน" }, { status: 404 });
 
-  // ADMIN's remit is PROFESSOR/STUDENT accounts only — cannot touch an existing ADMIN/SUPER_ADMIN account at all
-  if (!isSuperAdmin && isPrivileged(target.roles))
+  // See src/lib/accountScope.ts: SUPER_ADMIN manages SUPER_ADMIN/ADMIN accounts only;
+  // ADMIN manages ADMIN/PROFESSOR/STUDENT accounts only.
+  if (!canManageAccount(sRoles, target.roles))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
   const data: any = {};
 
   if (body.role !== undefined) {
-    // Only SUPER_ADMIN can grant the ADMIN or SUPER_ADMIN role
-    if (PRIVILEGED_ROLES.includes(body.role) && !isSuperAdmin)
+    if (!canGrantRole(sRoles, body.role))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     // Setting role replaces entire roles array with single role
     data.roles = [body.role];
   }
 
   if (body.roles !== undefined) {
-    // Only SUPER_ADMIN can grant the ADMIN or SUPER_ADMIN role
-    if ((body.roles as string[]).some((r) => PRIVILEGED_ROLES.includes(r)) && !isSuperAdmin)
+    if ((body.roles as string[]).some((r) => !canGrantRole(sRoles, r)))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     data.roles = body.roles;
   }
@@ -81,15 +79,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const isSuperAdmin = sRoles.includes("SUPER_ADMIN");
 
-  // ADMIN may only delete PROFESSOR/STUDENT accounts — SUPER_ADMIN may delete anyone
-  if (!isSuperAdmin) {
-    const target = await prisma.user.findUnique({ where: { id } });
-    if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้งาน" }, { status: 404 });
-    if (isPrivileged(target.roles))
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้งาน" }, { status: 404 });
+  if (!canManageAccount(sRoles, target.roles))
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   await prisma.user.delete({ where: { id } });
   return NextResponse.json({ success: true });

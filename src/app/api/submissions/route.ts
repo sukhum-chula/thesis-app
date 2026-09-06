@@ -73,7 +73,8 @@ export async function GET() {
 
   const userRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
   const dbUserChair = await prisma.user.findUnique({ where: { id: userId }, select: { isProgramChair: true } });
-  const isPrivileged = userRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)) || dbUserChair?.isProgramChair === true;
+  // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
+  const isPrivileged = userRoles.includes("ADMIN") || dbUserChair?.isProgramChair === true;
 
   let where: any = {};
   if (!isPrivileged) {
@@ -90,7 +91,7 @@ export async function GET() {
       ],
     };
   }
-  // ADMIN, SUPER_ADMIN, PROGRAM_CHAIR see all (no where filter)
+  // ADMIN, PROGRAM_CHAIR see all (no where filter)
 
   const submissions = await prisma.submission.findMany({
     where,
@@ -316,7 +317,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Notify all admins that a new submission was created (informational)
-  const admins = await prisma.user.findMany({ where: { roles: { hasSome: ["ADMIN", "SUPER_ADMIN"] } } });
+  const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
   if (admins.length) {
     await prisma.notification.createMany({
       data: admins.map((a) => ({ recipientId: a.id, message: "มีคำร้องวิทยานิพนธ์ใหม่", detail: data.title, submissionId: submission.id, type: "info" })),

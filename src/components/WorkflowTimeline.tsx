@@ -46,7 +46,7 @@ function resolveAssignees(
       return u ? [{ id: u.id, name: u.name }] : [];
     }
     case "ADMIN": {
-      const u = users.find((u) => u.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)));
+      const u = users.find((u) => u.roles.includes("ADMIN"));
       return u ? [{ id: u.id, name: u.name }] : [];
     }
     case "CO_ADVISOR": {
@@ -108,7 +108,7 @@ export function WorkflowTimeline({
 
           // PROPOSAL step 4: parallel uploads — check each party independently
           const showAdminFinanceRow = submissionType === "PROPOSAL" && step.stepOrder === 4;
-          const adminFinanceUser = showAdminFinanceRow ? users.find((u) => u.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r))) ?? null : null;
+          const adminFinanceUser = showAdminFinanceRow ? users.find((u) => u.roles.includes("ADMIN")) ?? null : null;
           const uploads4 = showAdminFinanceRow ? (submission?.uploads ?? []) : [];
           // When step is already APPROVED, both parties are done regardless of upload presence in state
           const financeUploaded = showAdminFinanceRow &&

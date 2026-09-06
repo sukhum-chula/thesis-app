@@ -1,8 +1,8 @@
 import { Role } from "@/types";
 
 export const ROLE_ROUTES: Record<Role, string> = {
-  SUPER_ADMIN: "/dashboard/super-admin",
-  ADMIN:       "/dashboard/admin",
+  SUPER_ADMIN: "/super-dashboard",
+  ADMIN:       "/admin-dashboard",
   STUDENT:     "/dashboard/student",
   PROFESSOR:   "/dashboard/professor",
 };

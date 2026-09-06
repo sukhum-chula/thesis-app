@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   });
 
   const admins = await prisma.user.findMany({
-    where: { roles: { hasSome: ["ADMIN", "SUPER_ADMIN"] } },
+    where: { roles: { has: "ADMIN" } },
     select: { id: true },
   });
   const adminIds = admins.map((a) => a.id);

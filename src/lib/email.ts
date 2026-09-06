@@ -203,7 +203,7 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
       // Surface the failure in the admins' notification bell — otherwise the workflow
       // stalls silently because the recipient never learns it is their turn.
       try {
-        const admins = await prisma.user.findMany({ where: { roles: { hasSome: ["ADMIN", "SUPER_ADMIN"] } } });
+        const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
         if (admins.length) {
           await prisma.notification.createMany({
             data: admins.map((a) => ({

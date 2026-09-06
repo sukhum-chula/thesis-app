@@ -18,9 +18,9 @@ const GROUPS: { title: string; users: DemoUser[] }[] = [
   {
     title: "ผู้ดูแลระบบ",
     users: [
-      { email: "superadmin@eng.chula.ac.th", name: "ผู้ดูแลระบบสูงสุด",           roleLabel: "Super Admin",       dashboard: "/dashboard/super-admin",         color: "from-yellow-400 to-amber-500",   emoji: "👑" },
-      { email: "admin@eng.chula.ac.th",      name: "พี่โบ้ (เจ้าหน้าที่ภาควิชา)", roleLabel: "Admin",             dashboard: "/dashboard/admin",               color: "from-slate-600 to-gray-800",     emoji: "🛡️" },
-      { email: "suphap.m@chula.ac.th",       name: "สุภาพ หมุดอุบล",              roleLabel: "Admin",             dashboard: "/dashboard/admin",               color: "from-slate-600 to-gray-800",     emoji: "🛡️" },
+      { email: "superadmin@eng.chula.ac.th", name: "ผู้ดูแลระบบสูงสุด",           roleLabel: "Super Admin",       dashboard: "/super-dashboard",               color: "from-yellow-400 to-amber-500",   emoji: "👑" },
+      { email: "admin@eng.chula.ac.th",      name: "พี่โบ้ (เจ้าหน้าที่ภาควิชา)", roleLabel: "Admin",             dashboard: "/admin-dashboard",               color: "from-slate-600 to-gray-800",     emoji: "🛡️" },
+      { email: "suphap.m@chula.ac.th",       name: "สุภาพ หมุดอุบล",              roleLabel: "Admin",             dashboard: "/admin-dashboard",               color: "from-slate-600 to-gray-800",     emoji: "🛡️" },
     ],
   },
   {

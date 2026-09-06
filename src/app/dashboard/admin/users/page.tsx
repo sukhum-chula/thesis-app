@@ -81,8 +81,9 @@ export default function AdminUsersPage() {
   const { user, submissions, users: allUsers, superAdminAddUser } = useApp();
   const { showToast } = useToast();
   const router = useRouter();
-  const isSuperAdmin = user?.roles.includes("SUPER_ADMIN") ?? false;
-  const isAdmin = user?.roles.some((r) => r === "ADMIN" || r === "SUPER_ADMIN") ?? false;
+  // This page is ADMIN's account management (STUDENT/PROFESSOR/ADMIN) — SUPER_ADMIN's
+  // own account management (SUPER_ADMIN/ADMIN) lives on /super-dashboard instead.
+  const isAdmin = user?.roles.includes("ADMIN") ?? false;
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export default function AdminUsersPage() {
 
   if (!user || !isAdmin) return null;
 
-  const creatableRoles = isSuperAdmin ? DB_ROLES : DB_ROLES.filter((r) => r !== "ADMIN" && r !== "SUPER_ADMIN");
+  const creatableRoles = DB_ROLES.filter((r) => r !== "SUPER_ADMIN");
 
   function closeModal() {
     setShowModal(false);

@@ -36,10 +36,11 @@ export async function POST(req: NextRequest) {
 
   const ext = isPdf ? "pdf" : isJpeg ? "jpg" : "png";
 
-  // Verify the caller is involved in this submission (or is an admin/super_admin/program_chair)
+  // Verify the caller is involved in this submission (or is an admin/program_chair) —
+  // submission workflow is ADMIN's exclusive responsibility, SUPER_ADMIN doesn't get a bypass
   const sessionRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
   const sessionIsProgramChair = (session.user as any).isProgramChair === true;
-  const isAdminRole = sessionRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)) || sessionIsProgramChair;
+  const isAdminRole = sessionRoles.includes("ADMIN") || sessionIsProgramChair;
   if (!isAdminRole) {
     const subCheck = await prisma.submission.findUnique({ where: { id: submissionId } });
     if (!subCheck) return NextResponse.json({ error: "Submission not found" }, { status: 404 });

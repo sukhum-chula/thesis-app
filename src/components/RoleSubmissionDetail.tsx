@@ -33,9 +33,10 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     );
   }
 
-  // Ownership guard — involvement-based: any role the user plays in this submission
+  // Ownership guard — involvement-based: any role the user plays in this submission.
+  // Submission workflow is ADMIN's exclusive responsibility, so only ADMIN gets a blanket bypass here.
   const authorized = !user ? false
-    : user.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)) || (user as any).isProgramChair === true ? true
+    : user.roles.includes("ADMIN") || (user as any).isProgramChair === true ? true
     : sub.studentId === user.id
     || (sub as any).advisorId === user.id
     || ((sub.coAdvisorIds ?? []) as string[]).includes(user.id)

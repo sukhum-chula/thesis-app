@@ -13,7 +13,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id: userId } = session.user;
   const sessionRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
-  const isPrivileged = sessionRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r));
+  const isPrivileged = sessionRoles.includes("ADMIN");
   if (!isPrivileged && upload.uploadedById !== userId)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

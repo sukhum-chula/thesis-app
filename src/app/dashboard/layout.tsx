@@ -8,8 +8,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
 import {
-  LogOut, LayoutDashboard, PlusCircle, ShieldCheck,
-  Users, Menu, X, Crown,
+  LogOut, LayoutDashboard, PlusCircle,
+  Users, Menu, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -60,7 +60,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           icon={<LayoutDashboard className="w-5 h-5" />}
           label="หน้าหลัก"
           badge={pendingCount}
-          active={pathname === homeRoute}
+          active={
+            pathname === homeRoute ||
+            // ADMIN's home covers the submissions overview + nested detail pages
+            (user.roles.includes("ADMIN") &&
+              pathname.startsWith("/dashboard/admin/") &&
+              !pathname.startsWith("/dashboard/admin/users"))
+          }
         />
 
         {user.roles.includes("STUDENT") && (
@@ -72,33 +78,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           />
         )}
 
-        {user.roles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)) && (
-          <>
-            {user.roles.includes("SUPER_ADMIN") && (
-              <NavLink
-                href="/dashboard/super-admin"
-                icon={<Crown className="w-5 h-5" />}
-                label="ระบบภาพรวม"
-                active={pathname === "/dashboard/super-admin"}
-              />
-            )}
-            <NavLink
-              href="/dashboard/admin"
-              icon={<ShieldCheck className="w-5 h-5" />}
-              label="ภาพรวมคำร้อง"
-              active={
-                pathname === "/dashboard/admin" ||
-                (pathname.startsWith("/dashboard/admin/") &&
-                  !pathname.startsWith("/dashboard/admin/users"))
-              }
-            />
-            <NavLink
-              href="/dashboard/admin/users"
-              icon={<Users className="w-5 h-5" />}
-              label="ผู้ใช้งานในระบบ"
-              active={pathname === "/dashboard/admin/users"}
-            />
-          </>
+        {/* ADMIN's own account management (STUDENT/PROFESSOR/ADMIN) — SUPER_ADMIN's
+            account management (SUPER_ADMIN/ADMIN) lives on /super-dashboard itself */}
+        {user.roles.includes("ADMIN") && (
+          <NavLink
+            href="/dashboard/admin/users"
+            icon={<Users className="w-5 h-5" />}
+            label="ผู้ใช้งานในระบบ"
+            active={pathname === "/dashboard/admin/users"}
+          />
         )}
       </nav>
 
