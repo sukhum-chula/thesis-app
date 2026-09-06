@@ -71,15 +71,19 @@ export function WorkflowTimeline({
   users = [],
   submissionType,
   submission,
+  preview,
 }: {
   steps: MockWorkflowStep[];
   users?: MockUser[];
   submissionType?: string | null;
   submission?: SubInfo;
+  /** No submission exists yet (this is just the full step list before creation) — never
+      highlight a "current" step, since nothing has actually started. */
+  preview?: boolean;
 }) {
   const visibleSteps = steps.filter((s) => s.status !== "SKIPPED");
   // When submission is REJECTED, no step is "current" — the rejected step stands alone in red
-  const currentOrder = submission?.status === "REJECTED"
+  const currentOrder = (preview || submission?.status === "REJECTED")
     ? null
     : visibleSteps.find((s) => s.status === "PENDING")?.stepOrder ?? null;
   const remainingCount = currentOrder !== null

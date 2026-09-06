@@ -424,16 +424,41 @@ pending/history list). STUDENT never had `DashboardHeader` grow this baggage —
 `DashboardHeader` was removed outright once name/date/email moved into its own top bar, since the
 one stat it showed (in-progress count) wasn't worth a whole hero card on its own.
 
-**Student dashboard** (`src/app/student-dashboard/page.tsx`) has three stacked cards:
-1. **"สถานะคำร้อง"** — unchanged from the original design, a 2-item `grid sm:grid-cols-2`: the
-   proposal creation entry point and the defense creation entry point, each rendering as either an
-   active blue/indigo card or a locked gray one per the proposal-first gating rules above.
-2. **"ความคืบหน้าปัจจุบัน"** — the student's single most recent non-cancelled submission
-   (`currentSub`), shown in full: a "Proposal"/"Defense" badge (literal English text, matching
-   `submissionType`), the title + `SubmissionStatusBadge`, the **entire** `WorkflowTimeline` (every
-   step, not a one-line progress bar), and a "ดูรายละเอียด" link to its detail page. When there's no
-   active submission at all, this card shows "No proposal" (literal English) with a button to start
-   one.
-3. **"รายการอื่นๆ"** — every other submission (`inactiveList`: cancelled ones, or an older
-   non-cancelled one superseded by a newer `currentSub`), each in the original per-item row style
-   (accent bar, status icon, mini progress bar). Only rendered when non-empty.
+**Student dashboard** (`src/app/student-dashboard/page.tsx`, redesigned 2026-09-06 into a 2-tab
+layout — the original single-card design described in older history is gone):
+1. **Tab bar** — two full-width buttons, `สอบโครงร่าง` / `สอบวิทยานิพนธ์` (`grid grid-cols-2 gap-2`,
+   same tab-bar pattern as `/admin-dashboard`), switching a `useState<"proposal" | "defense">`.
+   Below it, one shared frame (`bg-white rounded-2xl border border-gray-200 p-4 sm:p-6
+   max-h-[75vh] overflow-y-auto` — same "scrollbar stays inside the frame" convention as
+   `/admin-dashboard`) renders whichever tab is active.
+2. **Each tab** has its own creation entry point (gated by the proposal-first rules above — the
+   proposal tab's card is only rendered while there's **no** active proposal; the defense tab's is
+   the active blue/indigo card when `eligibleProposals.length > 0`, else a locked gray card), then
+   its own **"ความคืบหน้าปัจจุบัน (x/y)"** section for that submission type only:
+   - If a current (most-recent non-cancelled) submission of that type exists: title (plain text,
+     not a link — clicking it does nothing) + `SubmissionStatusBadge`, then `SubmissionInfoPanel`
+     (see below), then the "ความคืบหน้าปัจจุบัน (doneCount/totalSteps)" label, then the full
+     `WorkflowTimeline` (every step, not a one-line bar). The proposal tab additionally shows a
+     "ขอยกเลิกคำร้องนี้" button (hidden once `cancelRequested` or already `CANCELLED`) that opens a
+     confirm modal and calls `requestCancelSubmission` — the same student-initiated cancel flow as
+     the detail page, including the linked-defense cascade warning.
+   - If no submission of that type exists yet: an empty "No proposal"/"No defense" placeholder
+     (no create button here — that lives only in the entry-point card above), then the same label
+     showing **"ความคืบหน้าปัจจุบัน (0/y)"**, then a **preview** `WorkflowTimeline` built from
+     `buildWorkflowSteps()` with no committee (`PREVIEW_PROPOSAL_STEPS` / `PREVIEW_DEFENSE_STEPS`,
+     module-level constants) and the `preview` prop set — see below.
+3. **"รายการอื่นๆ"** — every submission that isn't the current proposal or the current defense
+   (cancelled ones, or an older one superseded by a newer current one of the same type), each in
+   the original per-item row style (accent bar, status icon, mini progress bar, links to its detail
+   page). Only rendered when non-empty.
+
+**`WorkflowTimeline`'s `preview` prop**: when true, no step is ever computed as "current" (no blue
+ring/`Clock` icon/"กำลังดำเนินการ" badge on any step) even though every step's `status` is
+`"PENDING"` — used only for the before-any-submission-exists step list above, so nothing is shown
+as falsely in-progress.
+
+**`SubmissionInfoPanel`** (`src/components/SubmissionInfoPanel.tsx`) — the read-only ข้อมูลนิสิต /
+คณะกรรมการ / กำหนดการสอบ block, extracted from `src/app/dashboard/student/[id]/page.tsx` so both
+the detail page and the student-dashboard tabs render the exact same info without duplicating the
+~80 lines of field logic. Takes `{ submission, users }`; renders nothing if the submission has no
+student/committee/exam info at all.

@@ -47,8 +47,8 @@ src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/stude
 src/app/professor-dashboard/ PROFESSOR's real landing page (src/app/dashboard/professor redirects
                              here; submission detail stays at src/app/dashboard/professor/[id])
 src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
-                             WorkflowTimeline, FileList, FileUploader — the shared UI that
-                             every role dashboard is built from
+                             WorkflowTimeline, FileList, FileUploader, SubmissionInfoPanel —
+                             the shared UI that every role dashboard is built from
 src/context/AppContext.tsx  client state cache; polls the API, exposes actions
                              (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
                              adminCreatePendingProfessor, requestCancelSubmission,

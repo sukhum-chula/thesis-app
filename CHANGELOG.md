@@ -64,3 +64,17 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   `/admin-dashboard`, an accept/decline banner on the admin detail page and on the shared
   `RoleSubmissionDetail` (every faculty-role view freezes too), and a "รออนุมัติยกเลิก" pending
   banner on the student side.
+- **`/student-dashboard` redesigned into a 2-tab layout** (Proposal / Defense), replacing the old
+  single-card design. Each tab gets its own creation entry point and its own
+  "ความคืบหน้าปัจจุบัน (x/y)" section for that submission type only — full committee/exam info
+  (`SubmissionInfoPanel`, new shared component extracted from `src/app/dashboard/student/[id]`) and
+  the full `WorkflowTimeline` render inline, so viewing status no longer requires navigating to the
+  detail page. Before any proposal/defense exists, the tab instead shows the full step list as a
+  preview (built from `buildWorkflowSteps()` with no committee) — `WorkflowTimeline` gained a
+  `preview` prop so none of those steps are ever shown as "current"/in-progress. The proposal tab
+  also gained a self-service "ขอยกเลิกคำร้องนี้" button (same `requestCancelSubmission` flow as the
+  detail page). "รายการอื่นๆ" stays a separate card, now excluding both current items instead of
+  just one. See "Student dashboard" in `AGENTS.md`. Verified via `npm run build` and a real browser
+  walkthrough (dev server, live DB) as two different STUDENT accounts — one with an active
+  completed proposal, one with none — covering both tabs, the preview state, and the cancel-request
+  modal (dismissed without submitting).

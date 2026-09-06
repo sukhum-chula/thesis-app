@@ -329,6 +329,25 @@ dated), this section is meant to be edited in place.
   route. **Not yet clicked through in a real browser** — no working PROFESSOR test credentials were
   available this session (same live-DB password constraint as the ADMIN item above).
 
+- **2026-09-06 — `/student-dashboard` redesigned into a 2-tab layout (Proposal / Defense),
+  replacing the single-card design from earlier the same day.** Each tab now carries its own
+  creation entry point and its own "ความคืบหน้าปัจจุบัน (x/y)" section scoped to that submission
+  type — full committee/exam info and the complete `WorkflowTimeline` render inline (via a new
+  shared `SubmissionInfoPanel` component, extracted from `src/app/dashboard/student/[id]` so both
+  pages render identical info), so a student no longer has to leave the dashboard to see status.
+  Before any proposal/defense exists, the tab shows the full step list as a preview instead of
+  nothing (`buildWorkflowSteps()` with no committee) — `WorkflowTimeline` gained a `preview` prop
+  so none of those steps are ever shown as "current". The proposal tab also gained a self-service
+  "ขอยกเลิกคำร้องนี้" button using the same `requestCancelSubmission` flow as the detail page
+  (confirm modal, linked-defense cascade warning). "รายการอื่นๆ" stays a separate card at the
+  bottom, now excluding both current items instead of just one. See "Student dashboard" in
+  `AGENTS.md`. **Verified**: `npm run build` passes; a real browser walkthrough against the live
+  dev server covered both tabs as two different STUDENT accounts — one with an active completed
+  proposal (proposal tab showed full info + 10/10 steps + working cancel-confirm modal, dismissed
+  without submitting; defense tab correctly showed the 0/19 step preview with no step marked
+  current), one with no proposal at all (proposal tab showed the 0/10 preview, defense tab showed
+  the locked entry card + its own 0/19 preview). **Not yet re-checked on the deployed Vercel URL.**
+
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 
 - Retire the old Supabase project (`jttfcoisygcqqshghkmn`) — currently paused, not deleted, per the
