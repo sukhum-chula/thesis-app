@@ -43,6 +43,9 @@ export const ROLE_LABELS: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:   "ประธานกรรมการสอบ",
   EXAM_COMMITTEE:        "กรรมการสอบ",
   INVITED_EXAM_COMMITTEE:"กรรมการภายนอก",
+  DEPT_STAFF:            "เจ้าหน้าที่ภาควิชา",
+  FACULTY_DEAN:          "คณบดี",
+  GRADUATE_SCHOOL:       "บัณฑิตวิทยาลัย",
 };
 
 export const ROLE_EMOJI: Record<string, string> = {
@@ -56,6 +59,9 @@ export const ROLE_EMOJI: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:    "📋",
   EXAM_COMMITTEE:         "📋",
   INVITED_EXAM_COMMITTEE: "🎓",
+  DEPT_STAFF:             "🛡️",
+  FACULTY_DEAN:           "🏫",
+  GRADUATE_SCHOOL:        "🎓",
 };
 
 export const ROLE_GRADIENT: Record<string, string> = {
@@ -69,6 +75,9 @@ export const ROLE_GRADIENT: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:    "from-orange-500 to-amber-600",
   EXAM_COMMITTEE:         "from-teal-500 to-cyan-600",
   INVITED_EXAM_COMMITTEE: "from-sky-500 to-blue-600",
+  DEPT_STAFF:             "from-slate-700 to-gray-900",
+  FACULTY_DEAN:           "from-rose-500 to-red-700",
+  GRADUATE_SCHOOL:        "from-emerald-500 to-green-700",
 };
 
 export const ROLE_DESC: Record<string, string> = {
