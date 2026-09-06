@@ -164,19 +164,22 @@ add an entry when you start something that spans multiple sessions, and remove/m
 `CHANGELOG.md`'s dated log once it's shipped and verified. Unlike `CHANGELOG.md` (append-only,
 dated), this section is meant to be edited in place.
 
-### Shipped, not yet browser-verified
+### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
 - **2026-09-06 — SUPER_ADMIN/ADMIN responsibility split.** SUPER_ADMIN is now account/user
   management only (SUPER_ADMIN + ADMIN accounts, via new landing page `/super-dashboard`) with
   zero submission-workflow access; ADMIN owns the entire submission workflow exclusively plus
   ADMIN/PROFESSOR/STUDENT account management (new landing page `/admin-dashboard`). Tiered rules
   in `src/lib/accountScope.ts`. Pushed to `origin/main` — Vercel should have auto-deployed it.
-  **Needs**: a real human login as both a SUPER_ADMIN and an ADMIN account in the deployed app to
-  confirm (a) SUPER_ADMIN is correctly bounced from anything submission-related, (b) SUPER_ADMIN
-  can still manage ADMIN accounts and vice versa, (c) ADMIN can manage STUDENT/PROFESSOR accounts
-  including other ADMIN accounts, (d) logout works from both new dashboards (this broke once
-  already — see `CHANGELOG.md` — because the new routes sit outside `src/app/dashboard/` and
-  needed their own `layout.tsx` reusing the shared sidebar shell).
+  **Verified** via real browser login as both a SUPER_ADMIN and an ADMIN account against the local
+  dev server (same live Supabase DB): (a) SUPER_ADMIN is correctly bounced from anything
+  submission-related and vice versa, (b) SUPER_ADMIN and ADMIN can each manage ADMIN-tier accounts
+  (create/update role both directions/delete), (c) ADMIN can create/update/delete STUDENT,
+  PROFESSOR, and peer ADMIN accounts, (d) logout works from both new dashboards. Found and fixed
+  one real bug along the way (`router.replace()` called during render instead of in `useEffect` on
+  the ADMIN submission-detail guards — threw a React console error when a non-ADMIN hit them).
+  **Still worth a quick pass on the actual deployed URL** once Vercel finishes building, just to
+  rule out anything env/deploy-specific.
 - **2026-09-06 — `/demo-users`.** Local-only read-only user listing for picking a test-login email.
   Gated on `NODE_ENV !== "production"`, not `DEMO_MODE` — confirm it actually 404s on the deployed
   (production) build if you're ever unsure.

@@ -16,8 +16,10 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   `GET /api/super-admin/stats`, plus SUPER_ADMIN/ADMIN account management) and `/admin-dashboard`
   (ADMIN — the submissions overview, moved from `/dashboard/admin`). Old
   `/dashboard/super-admin` and `/dashboard/admin` now redirect to the new routes.
-  **Not yet click-tested with real SUPER_ADMIN/ADMIN accounts in a browser** — verified via
-  `npm run build` and code review only.
+  Click-tested end-to-end with real SUPER_ADMIN and ADMIN accounts: navigation guards, account-tier
+  scoping, and full create/update/delete on every account type — see `HANDOFF.md` §8. Found and
+  fixed one real bug along the way — a `router.replace()`-during-render React error on the ADMIN
+  submission-detail guards.
 - Users list (`/dashboard/admin/users`) now sorts SUPER_ADMIN → ADMIN → PROFESSOR → STUDENT, with
   professors ordered by academic rank (parsed from the ศ./รศ./ผศ./อ. title prefix on `name`) then
   name, and students by `studentId` ascending. Clicking a row expands it in place
@@ -32,3 +34,6 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   while testing. Does not touch the login/auth system.
 - Added `CHANGELOG.md` (this file) and expanded `HANDOFF.md` with an ongoing "active development"
   section, since there was previously no running record of day-to-day changes.
+- Added `WORKFLOW.md` — the PROPOSAL/THESIS_DEFENSE step tables and workflow behavior rules,
+  extracted from `AGENTS.md` into a standalone human-readable reference (`AGENTS.md` stays the
+  authoritative source; keep this in sync with it, not the other way around).

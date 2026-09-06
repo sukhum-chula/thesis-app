@@ -76,7 +76,7 @@ When a submission is created, **step 1 starts as PENDING**. The student must upl
 **Critical**: the sent-back current step must be reset to `PENDING`, never `REJECTED` — the approve flow only advances through PENDING steps, so a step left `REJECTED` here gets skipped forever once the previous role re-approves (bug found and fixed 2026-07-14 via E2E test).
 
 ### Reject button (ปฏิเสธ)
-The reject button is embedded directly inside `SignatureButton` and `CommitteeSignPanel` — **no separate send-back panel exists**. Clicking ปฏิเสธ calls `action: "reject"` and goes back one step. There is no standalone "ส่งกลับขั้นตอนก่อนหน้า" panel (it was removed as redundant).
+The reject button is embedded directly inside `SignatureButton` and `CommitteeSignPanel` — **no separate send-back panel exists**. Clicking ปฏิเสธ calls `action: "reject"`, which marks the current step `REJECTED` — it stays on that same step, it does NOT move backward (see "Rejection stays on the step" above; that is what ส่งกลับ/`return_to_prev` does, and it's admin-only). There is no standalone "ส่งกลับขั้นตอนก่อนหน้า" panel (it was removed as redundant) — ส่งกลับ is reached via the admin-only `return_to_prev` action instead.
 
 ### Document versioning — one slot per formType (ALL types)
 **Every** form type — including SIGNED — has a single display slot in `FileList`: latest upload is the current version, older uploads collapse under "ประวัติ". No formType is shown as individual files anymore. **`SIGNED` always means แบบรายงานการเสนอผลงานฯ** (the student report chain: admin step 8 → student step 9 → advisor step 10); the other faculty-return docs have their own types (EXAM_RESULT, INVITE_LETTER, VERY_GOOD_EVAL, FINANCE_DOC — see `FACULTY_SLOTS` in admin detail page). **Non-student roles upload with the correct `formType`** so their signed copy replaces the slot's latest version.
@@ -88,9 +88,11 @@ The reject button is embedded directly inside `SignatureButton` and `CommitteeSi
 `RoleSubmissionDetail` computes `formsToShow` from `STEP_SIGN_FORMS` so each role sees only the documents relevant to their step. Passed to both `SignatureButton` and `CommitteeSignPanel`.
 
 ```
-PROPOSAL:       2→[BW1A,BW1B]  3→[BW1A]  5→[B1C]  6→[B1C]  7→[B1C]  8→[B1C]  9→[B1C,B1D]  10→[B1C,B1D]  11→[B1C,B1D]
-THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]  7→[B2,B3]
-                10→[SIGNED]  11→[SIGNED]  12→[SIGNED]  13→[SIGNED]  14→[SIGNED]  15→[SIGNED]
+PROPOSAL:       3→[BW1A]  5→[B1C]  6→[B1C]  7→[B1C]  8→[B1C]  9→[B1C]  11→[B1C,B1D]
+                (steps 2, 10 are ADMIN approve-only — no signing, not in this map)
+THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]
+                (steps 7, 8 are ADMIN relay/upload-only — no signing, not in this map)
+                10→[SIGNED,EXAM_RESULT]  11→[EXAM_RESULT]  12→[EXAM_RESULT]  13→[EXAM_RESULT]  14→[EXAM_RESULT]  15→[EXAM_RESULT]
                 17→[B4]  18→[THESIS]  19→[THESIS]  20→[THESIS]  21→[THESIS]  22→[THESIS]
 ```
 
@@ -207,7 +209,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | 10 | ADMIN | Verify and approve |
 | 11 | PROGRAM_CHAIR | Sign บ.วศ.1ค + บ.วศ.1ง |
 
-If rejected → goes back one step (e.g. step 9 → step 8, step 8 → step 7).
+If rejected, the step stays `REJECTED` (does not move) until the student resubmits — see "Rejection stays on the step" above. ส่งกลับ (admin-only) is the separate action that moves back one step (e.g. step 9 → step 8).
 
 ---
 
@@ -229,7 +231,7 @@ If rejected → goes back one step (e.g. step 9 → step 8, step 8 → step 7).
 | 7 | ADMIN | Collect B2+B3, send to Faculty, approve to confirm delivery → triggers notify admin for step 8 |
 | 8 | ADMIN | Receive docs back from Faculty, upload (formType: SIGNED × multiple), forward to Student, then approve → triggers invitation emails |
 
-Faculty returns: ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter, แบบประเมิน "วิทยานิพนธ์ดีมาก" (Very Good only). Step 8 requires at least 1 SIGNED upload before admin can approve (server-gated).
+Faculty returns: ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter, แบบประเมิน "วิทยานิพนธ์ดีมาก" (Very Good only). Step 8 requires **all 4** document types uploaded — SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC (see `FACULTY_SLOTS` in the admin detail page) — before admin can approve (server-gated).
 
 #### Phase 5 (Steps 9–15): Post-defense signing
 | Step | Role | Action |
@@ -253,7 +255,7 @@ Faculty returns: ใบรายงานผลการสอบ, แบบร�
 | 21 | EXAM_COMMITTEE | All members sign thesis cover (sequential) |
 | 22 | INVITED_EXAM_COMMITTEE | Sign thesis cover |
 
-If rejected at any step → goes back one step.
+If rejected, the step stays `REJECTED` (does not move) until the student resubmits. ส่งกลับ (admin-only) is the separate action that moves back one step.
 
 ---
 
@@ -268,7 +270,7 @@ If rejected at any step → goes back one step.
 - **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.
 - **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 7–8 — step 7: send B2+B3 to Faculty; step 8: receive back docs (ใบรายงานผล, แบบรายงานฯ, invitation letter), upload, forward to student, then approve → triggers invitation emails. Admin panel shows step-7-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
-- **Rejection** goes back exactly one step — any role can reject, no role restriction
+- **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
 
 ## UI conventions (recent)
 - **FileList** takes a `submissionType` prop and groups uploads into phase-aware sections. PROPOSAL: เอกสารหลัก (BW1A/BW1B/B1C/B1D) / เอกสารการเงิน / เอกสารอื่นๆ. THESIS_DEFENSE: บ.2+บ.3 (B2/B3/FINANCE_ATTACH) / เอกสารการเงิน (FINANCE_DOC) / เอกสารจากคณะและผลการสอบ (SIGNED/EXAM_RESULT/INVITE_LETTER/VERY_GOOD_EVAL) / วิทยานิพนธ์ (B4/THESIS). See `FILE_GROUPS_PROPOSAL` / `FILE_GROUPS_THESIS` in `FileList.tsx`. Unknown types fall into the last section. Row labels are always Thai form names (FORM_SHORT primary, full FORM_LABELS as subtitle) — never raw filenames as titles. FileList shows its own file count in the header; callers must NOT add another count to the `title` prop.
