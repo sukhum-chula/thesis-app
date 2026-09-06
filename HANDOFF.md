@@ -310,6 +310,25 @@ dated), this section is meant to be edited in place.
   click through the two tabs, the full-width tab bar, and the frame's internal scrollbar before
   considering this fully done.
 
+- **2026-09-06 — PROFESSOR landing page moved to `/professor-dashboard`; `DashboardHeader` dropped
+  from it.** PROFESSOR was the only in-system role still landing at a nested `/dashboard/<role>`
+  URL after the shell redesign above gave the other three roles top-level landing pages
+  (`/admin-dashboard`, `/super-dashboard`, `/student-dashboard`). Moved its page content into a new
+  `src/app/professor-dashboard/` (with its own thin `layout.tsx` re-exporting the shared
+  `DashboardLayout`, same pattern as `admin-dashboard`/`super-dashboard`); `src/app/dashboard/
+  professor/page.tsx` is now a client-side redirect to it. Submission detail pages stay at
+  `/dashboard/professor/[id]` (same split ADMIN/STUDENT already use) — its `backPath` now points
+  directly at `/professor-dashboard`, and `NotificationBell`'s `DETAIL_BASE` map gained a
+  `PROFESSOR` entry so deep-linked notifications still resolve to the detail route instead of the
+  landing page. `src/lib/roleRoutes.ts` is the only place the URL is hardcoded, so every generic
+  post-login redirect (`/`, `/login`, `/signin`, `/dashboard`) picked it up automatically. Separately,
+  `DashboardHeader` was removed from the page entirely (same flattening `/admin-dashboard` and
+  `/super-dashboard` already went through) — its pending count is still visible via the existing
+  รอดำเนินการ/ประวัติ tab badge, so nothing was added back in its place. See "Dashboard shell" in
+  `AGENTS.md`. **Verified**: `npm run build` passes and lists `/professor-dashboard` as a generated
+  route. **Not yet clicked through in a real browser** — no working PROFESSOR test credentials were
+  available this session (same live-DB password constraint as the ADMIN item above).
+
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 
 - Retire the old Supabase project (`jttfcoisygcqqshghkmn`) — currently paused, not deleted, per the

@@ -360,13 +360,21 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Emails** use formal Thai business-letter register: เรียน …, จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการ, ขอแสดงความนับถือ + department signature block.
 
 ### Dashboard shell — top bar + header (2026-09-06, unified 2026-09-06)
-Every role dashboard shares one top-bar component, `src/app/dashboard/layout.tsx` — the three
+Every role dashboard shares one top-bar component, `src/app/dashboard/layout.tsx` — the four
 landing pages that live outside `src/app/dashboard/` (`/admin-dashboard`, `/super-dashboard`,
-`/student-dashboard`) each get a thin `layout.tsx` in their own folder that just re-exports it, so
-the shell (and any future change to it) stays in one place. All four landing pages
-(`admin-dashboard`, `super-dashboard`, `dashboard/professor`, `student-dashboard`) also dropped the
-`max-w-3xl`/`max-w-4xl` cap their outer wrapper `<div>` used to carry, so their cards span the same
-width as the top bar instead of sitting narrower than it.
+`/student-dashboard`, `/professor-dashboard`) each get a thin `layout.tsx` in their own folder that
+just re-exports it, so the shell (and any future change to it) stays in one place. All four landing
+pages also dropped the `max-w-3xl`/`max-w-4xl` cap their outer wrapper `<div>` used to carry, so
+their cards span the same width as the top bar instead of sitting narrower than it.
+
+**PROFESSOR's landing page moved from `/dashboard/professor` to `/professor-dashboard`** (2026-09-06,
+after the rest of this section shipped) to match the other three roles' top-level URL pattern.
+`/dashboard/professor` is now a thin client-side redirect to `/professor-dashboard`; the submission
+detail route stays at `/dashboard/professor/[id]` (same split as ADMIN/STUDENT — see
+`DETAIL_BASE` in `NotificationBell.tsx`, which needs an entry whenever a role's landing page and
+detail pages live at different bases). `src/lib/roleRoutes.ts` is the single source of truth for
+each role's landing page — update it there and every redirect (`/login`, `/`, `/dashboard`, etc.)
+follows automatically.
 
 **One top-bar design for every role — no nav links, no hamburger.** All four roles (STUDENT,
 ADMIN, SUPER_ADMIN, PROFESSOR) get the exact same always-expanded bar: system name + today's date
@@ -395,8 +403,13 @@ icon (small solid `ROLE_GRADIENT` square, not a full-bleed banner) + role/name, 
 - `highlight` — a single stat pill top-right (e.g. ADMIN's "รอดำเนินการ" count) — a blue-bordered
   pill (`bg-blue-50 border-blue-200`), not translucent glass.
 - `stats` — a row of secondary stat pills under the title (e.g. ADMIN's total/in-progress/
-  completed/rejected counts, SUPER_ADMIN's system-wide numbers, PROFESSOR's pending/approved/total)
-  — flat `bg-gray-50 border-gray-200` pills.
+  completed/rejected counts, SUPER_ADMIN's system-wide numbers) — flat `bg-gray-50 border-gray-200`
+  pills.
+
+`/professor-dashboard` dropped `DashboardHeader` entirely (2026-09-06, same flattening already done
+on `/admin-dashboard`/`/super-dashboard` — see "Admin dashboard" below): its pending count is still
+visible via the existing tab-badge on the รอดำเนินการ/ประวัติ tab bar, so nothing was added back in
+its place.
 
 The header itself is a **flat white card** (`bg-white border border-gray-200 rounded-2xl`), matching
 the calm, low-chrome style of the student dashboard's cards — it was originally a full gradient hero

@@ -55,11 +55,13 @@ export function NotificationBell() {
     setOpen((v) => !v);
   }
 
-  // ADMIN and STUDENT have a landing page (/admin-dashboard, /student-dashboard) split from
-  // where individual submissions actually live (/dashboard/admin/[id], /dashboard/student/[id]).
+  // ADMIN, STUDENT and PROFESSOR each have a landing page (/admin-dashboard, /student-dashboard,
+  // /professor-dashboard) split from where individual submissions actually live
+  // (/dashboard/admin/[id], /dashboard/student/[id], /dashboard/professor/[id]).
   const DETAIL_BASE: Partial<Record<Role, string>> = {
-    ADMIN:   "/dashboard/admin",
-    STUDENT: "/dashboard/student",
+    ADMIN:     "/dashboard/admin",
+    STUDENT:   "/dashboard/student",
+    PROFESSOR: "/dashboard/professor",
   };
 
   function handleClick(notif: MockNotification) {

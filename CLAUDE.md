@@ -44,6 +44,8 @@ src/app/api/**              all business logic — route handlers are the source
 src/app/dashboard/<role>/** thin pages per role, mostly wrapping shared components
                              (admin/pending-professors — queue of unresolved committee emails)
 src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/student redirects here)
+src/app/professor-dashboard/ PROFESSOR's real landing page (src/app/dashboard/professor redirects
+                             here; submission detail stays at src/app/dashboard/professor/[id])
 src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
                              WorkflowTimeline, FileList, FileUploader — the shared UI that
                              every role dashboard is built from

@@ -4,5 +4,5 @@ import { RoleSubmissionDetail } from "@/components/RoleSubmissionDetail";
 
 export default function ProfessorSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
-  return <RoleSubmissionDetail submissionId={id} backPath="/dashboard/professor" />;
+  return <RoleSubmissionDetail submissionId={id} backPath="/professor-dashboard" />;
 }
