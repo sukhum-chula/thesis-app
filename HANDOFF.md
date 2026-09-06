@@ -231,9 +231,11 @@ dated), this section is meant to be edited in place.
   directly under the header on ADMIN/SUPER_ADMIN/PROFESSOR moved into the header itself — the first
   card below the header is now always an actionable one (task box / account table / pending list),
   not a wall of counts. STUDENT's `DashboardHeader` was removed entirely (name/date/email already
-  live in its top bar; the one stat it showed wasn't worth a hero card), and its first card is now
-  "สถานะคำร้อง" — current-status summary + the two proposal/defense creation entry points, instead
-  of "ยื่นคำร้องใหม่" with just the two entry points. Logout is labeled "Logout" (not "ออกจากระบบ")
+  live in its top bar; the one stat it showed wasn't worth a hero card), and its first card was
+  renamed "สถานะคำร้อง" (from "ยื่นคำร้องใหม่") — still just the two proposal/defense creation entry
+  points at this point; a "current status" summary was briefly added as a third item in this same
+  card, then pulled back out into its own dedicated card in the very next follow-up below. Logout
+  is labeled "Logout" (not "ออกจากระบบ")
   everywhere; `LanguageToggle` shows the current language ("TH"/"EN") instead of the language you'd
   switch to. See "Dashboard shell" in `AGENTS.md`. **Verified**: `npm run build` passes; a real
   browser walkthrough as `stu001` confirmed the student top bar, the redesigned status card, and
@@ -255,14 +257,26 @@ dated), this section is meant to be edited in place.
   ในระบบ" card on `/admin-dashboard` (same pattern as the existing pending-professors card) and a
   "ย้อนกลับ" link at the top of `/dashboard/admin/users`. PROFESSOR and SUPER_ADMIN needed no
   equivalent addition — their only other pages already carry their own back-links (or don't exist).
-  See "Dashboard shell" in `AGENTS.md`. **Verified**: `npm run build` passes; a real browser
-  walkthrough as a PROFESSOR test account (`ai.ta01+prof001@cp.eng.chula.ac.th`) confirmed the
-  flattened header and the unified top bar (no nav links, no hamburger, name+email centered) render
-  correctly at both desktop and mobile widths. ADMIN was reviewed by code only (no working ADMIN
-  test credentials were available this session) — it shares the identical, now role-agnostic
-  `DashboardLayout`/`DashboardHeader` components already confirmed for PROFESSOR, so the same
-  rendering is expected, but the new `/admin-dashboard` users-management card and
-  `/dashboard/admin/users` back-link haven't been clicked through in a real browser yet.
+  (3) All four dashboard landing pages (`admin-dashboard`, `super-dashboard`, `dashboard/professor`,
+  `student-dashboard`) dropped their outer wrapper's `max-w-3xl`/`max-w-4xl` cap, so cards span the
+  same width as the top bar. (4) STUDENT's "current status" third item (added in the redesign above,
+  then quickly reverted back out of "สถานะคำร้อง") landed as its own dedicated card,
+  "ความคืบหน้าปัจจุบัน": the single most recent non-cancelled submission with a "Proposal"/"Defense"
+  badge, title + status, the **entire** `WorkflowTimeline` (every step, not a one-line progress
+  bar), and a "ดูรายละเอียด" link — or "No proposal" with a start-one button when there's none.
+  Every other submission (cancelled, or an older one superseded by a newer current one) moved to a
+  separate "รายการอื่นๆ" card below it, shown only when non-empty. See "Dashboard shell" in
+  `AGENTS.md`. **Verified**: `npm run build` passes; a real browser walkthrough as a PROFESSOR test
+  account (`ai.ta01+prof001@cp.eng.chula.ac.th`) confirmed the flattened header and the unified top
+  bar (no nav links, no hamburger, name+email centered) render correctly at both desktop and mobile
+  widths; a separate walkthrough as `stu001` confirmed the full-width cards, the "ความคืบหน้าปัจจุบัน"
+  card rendering all 10 steps of a real in-progress PROPOSAL with the correct "Proposal" badge and a
+  working "ดูรายละเอียด" link, and "รายการอื่นๆ" correctly listing that student's 3 cancelled
+  submissions below it. ADMIN was reviewed by code only (no working ADMIN test credentials were
+  available this session) — it shares the identical, now role-agnostic `DashboardLayout`/
+  `DashboardHeader` components already confirmed for PROFESSOR, so the same rendering is expected,
+  but the new `/admin-dashboard` users-management card and `/dashboard/admin/users` back-link
+  haven't been clicked through in a real browser yet.
 
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 

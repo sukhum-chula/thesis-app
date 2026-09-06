@@ -343,7 +343,10 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 Every role dashboard shares one top-bar component, `src/app/dashboard/layout.tsx` — the three
 landing pages that live outside `src/app/dashboard/` (`/admin-dashboard`, `/super-dashboard`,
 `/student-dashboard`) each get a thin `layout.tsx` in their own folder that just re-exports it, so
-the shell (and any future change to it) stays in one place.
+the shell (and any future change to it) stays in one place. All four landing pages
+(`admin-dashboard`, `super-dashboard`, `dashboard/professor`, `student-dashboard`) also dropped the
+`max-w-3xl`/`max-w-4xl` cap their outer wrapper `<div>` used to carry, so their cards span the same
+width as the top bar instead of sitting narrower than it.
 
 **One top-bar design for every role — no nav links, no hamburger.** All four roles (STUDENT,
 ADMIN, SUPER_ADMIN, PROFESSOR) get the exact same always-expanded bar: system name + today's date
@@ -388,9 +391,16 @@ pending/history list). STUDENT never had `DashboardHeader` grow this baggage —
 `DashboardHeader` was removed outright once name/date/email moved into its own top bar, since the
 one stat it showed (in-progress count) wasn't worth a whole hero card on its own.
 
-**Student dashboard's first card** (`src/app/student-dashboard/page.tsx`) is "สถานะคำร้อง", not
-"ยื่นคำร้องใหม่" — a 3-item `grid sm:grid-cols-3`: (1) **current status** — the student's most
-recent non-cancelled submission (title + `SubmissionStatusBadge`, linked to its detail page), or an
-empty "ยังไม่มีคำร้อง" state if none; (2) the proposal creation entry point; (3) the defense
-creation entry point. (2) and (3) are unchanged from before — each already renders as either an
-active blue/indigo card or a locked gray one per the proposal-first gating rules above.
+**Student dashboard** (`src/app/student-dashboard/page.tsx`) has three stacked cards:
+1. **"สถานะคำร้อง"** — unchanged from the original design, a 2-item `grid sm:grid-cols-2`: the
+   proposal creation entry point and the defense creation entry point, each rendering as either an
+   active blue/indigo card or a locked gray one per the proposal-first gating rules above.
+2. **"ความคืบหน้าปัจจุบัน"** — the student's single most recent non-cancelled submission
+   (`currentSub`), shown in full: a "Proposal"/"Defense" badge (literal English text, matching
+   `submissionType`), the title + `SubmissionStatusBadge`, the **entire** `WorkflowTimeline` (every
+   step, not a one-line progress bar), and a "ดูรายละเอียด" link to its detail page. When there's no
+   active submission at all, this card shows "No proposal" (literal English) with a button to start
+   one.
+3. **"รายการอื่นๆ"** — every other submission (`inactiveList`: cancelled ones, or an older
+   non-cancelled one superseded by a newer `currentSub`), each in the original per-item row style
+   (accent bar, status icon, mini progress bar). Only rendered when non-empty.
