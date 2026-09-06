@@ -339,35 +339,47 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Admin detail** committee panel lists every person (incl. per-submission program chair) with mailto links.
 - **Emails** use formal Thai business-letter register: เรียน …, จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการ, ขอแสดงความนับถือ + department signature block.
 
-### Dashboard shell — top bar + header (2026-09-06)
+### Dashboard shell — top bar + header (2026-09-06, unified 2026-09-06)
 Every role dashboard shares one top-bar component, `src/app/dashboard/layout.tsx` — the three
 landing pages that live outside `src/app/dashboard/` (`/admin-dashboard`, `/super-dashboard`,
 `/student-dashboard`) each get a thin `layout.tsx` in their own folder that just re-exports it, so
 the shell (and any future change to it) stays in one place.
 
-**Two top-bar variants, chosen by `user.roles.includes("STUDENT")`:**
-- **ADMIN / SUPER_ADMIN / PROFESSOR** — the full bar: brand + role label, nav links (หน้าหลัก
-  always; ผู้ใช้งานในระบบ for ADMIN only) inline on desktop, a hamburger menu collapsing those
-  same links + user info + Logout on mobile.
-- **STUDENT** — a simpler bar with **no nav links and no hamburger** at all (a student's only two
-  actions — start a proposal/defense — already live as cards on `/student-dashboard` itself, and
-  `/dashboard/student/[id]` + `/dashboard/student/submit` already carry their own "กลับ"/"ย้อนกลับ"
-  links back home). Always expanded, same on every width: system name + today's date on the left,
-  the student's name + email centered, LanguageToggle + NotificationBell + Logout on the right.
+**One top-bar design for every role — no nav links, no hamburger.** All four roles (STUDENT,
+ADMIN, SUPER_ADMIN, PROFESSOR) get the exact same always-expanded bar: system name + today's date
+on the left, the user's name + email centered, LanguageToggle + NotificationBell + Logout on the
+right. There is no per-role branching left in `DashboardLayout` at all. This was originally
+STUDENT-only (its two actions already live as cards on `/student-dashboard`); ADMIN/SUPER_ADMIN/
+PROFESSOR were later brought in line with it, since every page those nav links pointed to already
+carries (or now carries) its own "กลับ"/"ย้อนกลับ" back-link:
+- PROFESSOR's submission detail page already had one (`RoleSubmissionDetail`'s `backPath`) — no
+  entry point needed.
+- SUPER_ADMIN has no sub-pages under `/super-dashboard` — no entry point needed.
+- ADMIN's `/dashboard/admin/[id]` and `/dashboard/admin/pending-professors` already had their own
+  back-links. `/dashboard/admin/users` did not — a "ย้อนกลับ" link was added there — and its only
+  entry point (the old "ผู้ใช้งานในระบบ" nav link) was replaced with a persistent card on
+  `/admin-dashboard` itself (right under the header), same pattern as the existing
+  "รอสร้างบัญชีให้อาจารย์/กรรมการ" card.
 
-**Logout** is always labeled "Logout" (not the Thai "ออกจากระบบ") everywhere it appears — desktop
-icon button, mobile dropdown, and the student bar.
+**Logout** is always labeled "Logout" (not the Thai "ออกจากระบบ") everywhere it appears.
 
 **LanguageToggle** (`src/components/LanguageToggle.tsx`) shows the **current** language ("TH" /
 "EN"), not the language you'd switch to — click still toggles it. Shared by every role's top bar.
 
-**`DashboardHeader`** (`src/components/DashboardHeader.tsx`) is the per-page gradient hero card
-role/name, title, `formatTodayLong()` date, plus two independent optional slots:
-- `highlight` — a single stat pill top-right (e.g. ADMIN's "รอดำเนินการ" count).
+**`DashboardHeader`** (`src/components/DashboardHeader.tsx`) is the per-page header card — role
+icon (small solid `ROLE_GRADIENT` square, not a full-bleed banner) + role/name, title,
+`formatTodayLong()` date, plus two independent optional slots:
+- `highlight` — a single stat pill top-right (e.g. ADMIN's "รอดำเนินการ" count) — a blue-bordered
+  pill (`bg-blue-50 border-blue-200`), not translucent glass.
 - `stats` — a row of secondary stat pills under the title (e.g. ADMIN's total/in-progress/
-  completed/rejected counts, SUPER_ADMIN's system-wide numbers, PROFESSOR's pending/approved/total).
+  completed/rejected counts, SUPER_ADMIN's system-wide numbers, PROFESSOR's pending/approved/total)
+  — flat `bg-gray-50 border-gray-200` pills.
 
-These `stats` pills replaced what used to be a separate stat-card grid sitting directly under the
+The header itself is a **flat white card** (`bg-white border border-gray-200 rounded-2xl`), matching
+the calm, low-chrome style of the student dashboard's cards — it was originally a full gradient hero
+banner (`ROLE_GRADIENT` background, decorative circles, translucent white/15 stat pills) but that was
+flattened to read calmer for the older-faculty audience (see "Keep UI large and calm" above). The
+`stats` pills still replaced what used to be a separate stat-card grid sitting directly under the
 header on ADMIN/SUPER_ADMIN/PROFESSOR — that grid was always read-only counts, so it always ended
 up as the visually-first card on the page even though it wasn't something the user could act on.
 Moving the counts into the header itself means the card that actually is first below the header is

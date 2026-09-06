@@ -242,6 +242,27 @@ dated), this section is meant to be edited in place.
   exam committee/invited) resolved to a real account. Not yet re-checked on the deployed Vercel URL,
   and not yet clicked through as ADMIN/SUPER_ADMIN/PROFESSOR in a real browser (only via
   `npm run build` for those three).
+- **2026-09-06 — Dashboard shell follow-up: header flattened, top bar fully unified across
+  roles.** Two changes on top of the redesign above. (1) `DashboardHeader` — the gradient hero
+  banner (`ROLE_GRADIENT` background, decorative circles, translucent white/15 pills) was flattened
+  to a plain white card (`bg-white border border-gray-200`) with a small solid-gradient role-icon
+  square, flat gray stat pills, and a blue-bordered highlight pill — matching the calmer look the
+  student dashboard's cards already had. (2) `DashboardLayout`'s top bar — the ADMIN/SUPER_ADMIN/
+  PROFESSOR nav-links-plus-hamburger bar was dropped entirely; every role now renders the exact same
+  bar STUDENT had (name+date left, name+email centered, LanguageToggle+NotificationBell+Logout
+  right, no menu button). Removing ADMIN's nav links meant `/dashboard/admin/users` needed its own
+  entry point and back-link, since it had relied on the nav for both: added a persistent "ผู้ใช้งาน
+  ในระบบ" card on `/admin-dashboard` (same pattern as the existing pending-professors card) and a
+  "ย้อนกลับ" link at the top of `/dashboard/admin/users`. PROFESSOR and SUPER_ADMIN needed no
+  equivalent addition — their only other pages already carry their own back-links (or don't exist).
+  See "Dashboard shell" in `AGENTS.md`. **Verified**: `npm run build` passes; a real browser
+  walkthrough as a PROFESSOR test account (`ai.ta01+prof001@cp.eng.chula.ac.th`) confirmed the
+  flattened header and the unified top bar (no nav links, no hamburger, name+email centered) render
+  correctly at both desktop and mobile widths. ADMIN was reviewed by code only (no working ADMIN
+  test credentials were available this session) — it shares the identical, now role-agnostic
+  `DashboardLayout`/`DashboardHeader` components already confirmed for PROFESSOR, so the same
+  rendering is expected, but the new `/admin-dashboard` users-management card and
+  `/dashboard/admin/users` back-link haven't been clicked through in a real browser yet.
 
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 

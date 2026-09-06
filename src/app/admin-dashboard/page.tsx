@@ -12,7 +12,7 @@ import { SubmissionStatus } from "@/types";
 import Link from "next/link";
 import {
   ChevronRight, Clock, CheckCircle2, XCircle,
-  Trash2, Search, AlertCircle, Bell, BarChart2, BookOpen, GraduationCap, User, Upload, UserPlus,
+  Trash2, Search, AlertCircle, Bell, BarChart2, BookOpen, GraduationCap, User, Users, Upload, UserPlus,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep, MockUser } from "@/types";
 import { Role } from "@/types";
@@ -139,7 +139,7 @@ export default function AdminDashboard() {
     .sort((a, b) => getStuckDays(b) - getStuckDays(a));
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
       <DashboardHeader
         role="ADMIN"
         name={user?.name ?? "ผู้ดูแลระบบ"}
@@ -152,6 +152,21 @@ export default function AdminDashboard() {
           { label: "ถูกปฏิเสธ",      value: counts.REJECTED },
         ]}
       />
+
+      {/* Users management — was a nav link, now an entry-point card since the top bar has no nav */}
+      <Link
+        href="/dashboard/admin/users"
+        className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 hover:border-blue-300 hover:shadow-sm transition group"
+      >
+        <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center shrink-0">
+          <Users className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-800">ผู้ใช้งานในระบบ</p>
+          <p className="text-xs text-gray-500 mt-0.5">จัดการบัญชีนิสิต อาจารย์ และเจ้าหน้าที่ภาควิชา</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+      </Link>
 
       {/* Admin task box — all pending tasks with specific descriptions */}
       {adminTasks.length > 0 && (

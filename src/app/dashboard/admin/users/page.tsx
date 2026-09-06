@@ -9,9 +9,10 @@ import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { Role } from "@/types";
+import Link from "next/link";
 import {
   Users, GraduationCap, BookOpen, ShieldCheck, ChevronDown, RotateCcw, Crown,
-  UserPlus, X, Loader2,
+  UserPlus, X, Loader2, ArrowLeft,
 } from "lucide-react";
 
 const ROLE_ICON: Record<Role, React.ReactNode> = {
@@ -103,6 +104,11 @@ export default function AdminUsersPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <Link href="/admin-dashboard" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 py-2 -my-2">
+        <ArrowLeft className="w-4 h-4" />
+        ย้อนกลับ
+      </Link>
+
       <div className="flex items-center gap-3">
         <Users className="w-7 h-7 text-gray-600" />
         <div className="flex-1">

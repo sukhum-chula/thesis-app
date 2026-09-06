@@ -104,7 +104,7 @@ export default function SuperDashboardPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
       <DashboardHeader
         role="SUPER_ADMIN"
         name={user?.name ?? "ผู้ดูแลระบบสูงสุด"}

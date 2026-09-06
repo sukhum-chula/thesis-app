@@ -62,7 +62,7 @@ export default function ProfessorDashboard() {
   const list = tab === "pending" ? pending : history;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       <DashboardHeader
         role="PROFESSOR"
         name={user?.name ?? ""}

@@ -3,6 +3,7 @@
 import { useApp } from "@/context/AppContext";
 import { ROLE_LABELS, formatDate } from "@/lib/utils";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import Link from "next/link";
 import {
   ChevronRight, PlusCircle, FileText, Clock, CheckCircle2, AlertCircle,
@@ -52,45 +53,19 @@ export default function StudentDashboard() {
       !mine.some((d) => d.sourceProposalId === s.id && d.status !== "CANCELLED")
   );
 
-  // Most recent non-cancelled submission — summarized as the "current status" item
+  // The single most recent non-cancelled submission — shown as "current progress" with every
+  // step; everything else (cancelled, or superseded by a newer active submission) is history.
   const currentSub = mine
     .filter((s) => s.status !== "CANCELLED")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const inactiveList = mine.filter((s) => s.id !== currentSub?.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
-      {/* Application status — current status + two creation entry points, each gated by workflow rules */}
+    <div className="space-y-6">
+      {/* Application status — two creation entry points, each gated by workflow rules */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
         <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">สถานะคำร้อง</p>
-        <div className="grid sm:grid-cols-3 gap-3">
-          {/* Current status */}
-          {currentSub ? (
-            <Link
-              href={`/dashboard/student/${currentSub.id}`}
-              className="flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 bg-gray-50 hover:border-gray-300 transition group"
-            >
-              <div className="mt-0.5 w-9 h-9 rounded-lg bg-gray-500 flex items-center justify-center shrink-0">
-                {currentSub.submissionType === "PROPOSAL"
-                  ? <BookOpen className="w-5 h-5 text-white" />
-                  : <GraduationCap className="w-5 h-5 text-white" />}
-              </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-gray-700 text-sm leading-snug truncate">{currentSub.title}</p>
-                <div className="mt-1"><SubmissionStatusBadge status={currentSub.status} /></div>
-              </div>
-            </Link>
-          ) : (
-            <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 bg-gray-50">
-              <div className="mt-0.5 w-9 h-9 rounded-lg bg-gray-400 flex items-center justify-center shrink-0">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-700 text-sm leading-snug">ยังไม่มีคำร้อง</p>
-                <p className="text-xs text-gray-500 mt-0.5">เริ่มต้นโดยยื่นคำร้องขอสอบโครงร่าง</p>
-              </div>
-            </div>
-          )}
-
+        <div className="grid sm:grid-cols-2 gap-3">
           {/* Proposal entry point */}
           {activeProposal ? (
             <Link
@@ -148,25 +123,62 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      {/* List */}
-      {mine.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-gray-200 space-y-4">
-          <FileText className="w-14 h-14 text-gray-200" />
-          <div className="text-center">
-            <p className="text-lg font-medium text-gray-600">ยังไม่มีคำร้องวิทยานิพนธ์</p>
-            <p className="text-gray-400 text-sm mt-1">เริ่มต้นโดยการยื่นคำร้องขอสอบโครงร่าง</p>
-          </div>
-          <Link
-            href="/dashboard/student/submit?type=proposal"
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition text-sm"
-          >
-            <PlusCircle className="w-4 h-4" />
-            ขอสอบโครงร่าง
-          </Link>
+      {/* Current progress — the one active (non-cancelled) submission, every step shown */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">ความคืบหน้าปัจจุบัน</p>
+          {currentSub && (
+            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
+              currentSub.submissionType === "PROPOSAL" ? "bg-blue-100 text-blue-700" : "bg-indigo-100 text-indigo-700"
+            }`}>
+              {currentSub.submissionType === "PROPOSAL"
+                ? <BookOpen className="w-3.5 h-3.5" />
+                : <GraduationCap className="w-3.5 h-3.5" />}
+              {currentSub.submissionType === "PROPOSAL" ? "Proposal" : "Defense"}
+            </span>
+          )}
         </div>
-      ) : (
-        <div className="space-y-3">
-          {mine.map((sub: MockSubmission) => {
+
+        {currentSub ? (
+          <>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <p className="font-semibold text-gray-900 text-lg leading-snug">{currentSub.title}</p>
+              <SubmissionStatusBadge status={currentSub.status} />
+            </div>
+            <WorkflowTimeline
+              steps={currentSub.workflowSteps}
+              users={users}
+              submissionType={currentSub.submissionType}
+              submission={currentSub}
+            />
+            <Link
+              href={`/dashboard/student/${currentSub.id}`}
+              className="flex items-center justify-center gap-1.5 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              ดูรายละเอียด <ChevronRight className="w-4 h-4" />
+            </Link>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-14 text-gray-300 gap-3">
+            <FileText className="w-12 h-12 opacity-40" />
+            <p className="text-lg font-medium text-gray-400">No proposal</p>
+            <Link
+              href="/dashboard/student/submit?type=proposal"
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition text-sm"
+            >
+              <PlusCircle className="w-4 h-4" />
+              ขอสอบโครงร่าง
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Inactive / other submissions — history */}
+      {inactiveList.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">รายการอื่นๆ</p>
+          <div className="space-y-3">
+          {inactiveList.map((sub: MockSubmission) => {
             const currentStep = sub.workflowSteps.find((s: any) => s.status === "PENDING");
             const isMyTurn    = currentStep?.role === "STUDENT";
             const advisor     = users.find((u) => u.id === sub.advisorId);
@@ -272,6 +284,7 @@ export default function StudentDashboard() {
               </Link>
             );
           })}
+          </div>
         </div>
       )}
     </div>
