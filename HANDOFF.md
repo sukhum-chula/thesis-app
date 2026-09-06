@@ -221,6 +221,27 @@ dated), this section is meant to be edited in place.
   walkthrough: student request froze the submission (upload/approve/reject controls all hidden
   everywhere including a faculty-role view), ADMIN saw the task-box entry and banner, accept
   correctly cancelled the submission, decline correctly unfroze it back to normal.
+- **2026-09-06 — Dashboard shell redesign: sidebar → shared top bar, STUDENT gets its own simpler
+  bar, header consolidates stat cards.** The old fixed-width left sidebar (`src/app/dashboard/
+  layout.tsx`) is gone; every role now gets a top bar instead. ADMIN/SUPER_ADMIN/PROFESSOR keep the
+  full bar (nav links + mobile hamburger); STUDENT gets a bar with no nav links and no hamburger at
+  all — system name+date left, name+email centered, LanguageToggle+NotificationBell+Logout right,
+  always expanded. `DashboardHeader` gained `stats` (a row of secondary stat pills under the title)
+  alongside its existing `highlight` pill, so the read-only stat-card grids that used to sit
+  directly under the header on ADMIN/SUPER_ADMIN/PROFESSOR moved into the header itself — the first
+  card below the header is now always an actionable one (task box / account table / pending list),
+  not a wall of counts. STUDENT's `DashboardHeader` was removed entirely (name/date/email already
+  live in its top bar; the one stat it showed wasn't worth a hero card), and its first card is now
+  "สถานะคำร้อง" — current-status summary + the two proposal/defense creation entry points, instead
+  of "ยื่นคำร้องใหม่" with just the two entry points. Logout is labeled "Logout" (not "ออกจากระบบ")
+  everywhere; `LanguageToggle` shows the current language ("TH"/"EN") instead of the language you'd
+  switch to. See "Dashboard shell" in `AGENTS.md`. **Verified**: `npm run build` passes; a real
+  browser walkthrough as `stu001` confirmed the student top bar, the redesigned status card, and
+  (end to end) creating a real PROPOSAL through the actual submit form — landed `IN_PROGRESS` with
+  all 10 workflow steps built, confirming every named committee email (advisor/program chair/head/
+  exam committee/invited) resolved to a real account. Not yet re-checked on the deployed Vercel URL,
+  and not yet clicked through as ADMIN/SUPER_ADMIN/PROFESSOR in a real browser (only via
+  `npm run build` for those three).
 
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 

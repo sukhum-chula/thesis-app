@@ -11,7 +11,7 @@ import { useToast } from "@/context/ToastContext";
 import { SubmissionStatus } from "@/types";
 import Link from "next/link";
 import {
-  ChevronRight, Clock, CheckCircle2, XCircle, FileText,
+  ChevronRight, Clock, CheckCircle2, XCircle,
   Trash2, Search, AlertCircle, Bell, BarChart2, BookOpen, GraduationCap, User, Upload, UserPlus,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep, MockUser } from "@/types";
@@ -145,15 +145,13 @@ export default function AdminDashboard() {
         name={user?.name ?? "ผู้ดูแลระบบ"}
         title="ภาพรวมคำร้อง"
         highlight={{ label: "รอดำเนินการ", value: adminTasks.length }}
+        stats={[
+          { label: "ทั้งหมด",        value: counts.ALL },
+          { label: "กำลังดำเนินการ", value: counts.IN_PROGRESS },
+          { label: "เสร็จสิ้น",      value: counts.COMPLETED },
+          { label: "ถูกปฏิเสธ",      value: counts.REJECTED },
+        ]}
       />
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard icon={<FileText className="w-5 h-5 text-gray-500" />}      label="ทั้งหมด"         value={counts.ALL}         color="bg-gray-50 border-gray-200"   textColor="text-gray-900" />
-        <SummaryCard icon={<Clock className="w-5 h-5 text-blue-500" />}         label="กำลังดำเนินการ"  value={counts.IN_PROGRESS} color="bg-blue-50 border-blue-200"   textColor="text-blue-700" />
-        <SummaryCard icon={<CheckCircle2 className="w-5 h-5 text-green-500" />} label="เสร็จสิ้น"       value={counts.COMPLETED}   color="bg-green-50 border-green-200" textColor="text-green-700" />
-        <SummaryCard icon={<XCircle className="w-5 h-5 text-red-400" />}        label="ถูกปฏิเสธ"       value={counts.REJECTED}    color="bg-red-50 border-red-200"     textColor="text-red-700" />
-      </div>
 
       {/* Admin task box — all pending tasks with specific descriptions */}
       {adminTasks.length > 0 && (
@@ -481,18 +479,6 @@ export default function AdminDashboard() {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function SummaryCard({ icon, label, value, color, textColor }: {
-  icon: React.ReactNode; label: string; value: number; color: string; textColor: string;
-}) {
-  return (
-    <div className={`rounded-2xl border p-3 sm:p-4 space-y-1.5 sm:space-y-2 ${color}`}>
-      {icon}
-      <p className={`text-2xl sm:text-3xl font-bold ${textColor}`}>{value}</p>
-      <p className="text-xs sm:text-sm text-gray-600">{label}</p>
     </div>
   );
 }

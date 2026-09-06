@@ -255,6 +255,14 @@ export function formatDate(date: Date | string): string {
   });
 }
 
+/** Full weekday+date string for today, e.g. header/topbar date displays. */
+export function formatTodayLong(): string {
+  const lang = typeof window !== "undefined" ? localStorage.getItem("ui-lang") : null;
+  return new Date().toLocaleDateString(lang === "en" ? "en-GB" : "th-TH", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+}
+
 export function downloadMockFile(fileName: string, formLabel: string, submissionTitle: string) {
   const content = [
     `=== เอกสารสาธิต ===`,

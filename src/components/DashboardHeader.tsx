@@ -1,6 +1,6 @@
 "use client";
 
-import { ROLE_GRADIENT, ROLE_EMOJI, ROLE_LABELS } from "@/lib/utils";
+import { ROLE_GRADIENT, ROLE_EMOJI, ROLE_LABELS, formatTodayLong } from "@/lib/utils";
 
 interface Props {
   role: string;
@@ -9,13 +9,12 @@ interface Props {
   title: string;
   /** Optional right-side highlight, e.g. pending count */
   highlight?: { label: string; value: number | string };
+  /** Optional row of secondary stats shown under the title, e.g. overview counts */
+  stats?: { label: string; value: number | string }[];
 }
 
-export function DashboardHeader({ role, name, title, highlight }: Props) {
-  const lang = typeof window !== "undefined" ? localStorage.getItem("ui-lang") : null;
-  const today = new Date().toLocaleDateString(lang === "en" ? "en-GB" : "th-TH", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-  });
+export function DashboardHeader({ role, name, title, highlight, stats }: Props) {
+  const today = formatTodayLong();
 
   return (
     <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${ROLE_GRADIENT[role]} p-5 sm:p-7 text-white shadow-lg`}>
@@ -32,6 +31,17 @@ export function DashboardHeader({ role, name, title, highlight }: Props) {
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold mt-1.5 leading-tight">{title}</h1>
           <p className="text-white/60 text-xs mt-2">{today}</p>
+
+          {stats && stats.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {stats.map((s) => (
+                <div key={s.label} className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-1.5 border border-white/20">
+                  <span className="font-bold">{s.value}</span>
+                  <span className="text-white/70 text-xs ml-1.5">{s.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {highlight && (

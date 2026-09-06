@@ -9,7 +9,7 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { useToast } from "@/context/ToastContext";
 import { Role, MockUser } from "@/types";
 import {
-  Crown, GraduationCap, BookOpen, CheckCircle2, Clock,
+  Crown,
   Trash2, Plus, X, AlertTriangle, KeyRound, Eye, EyeOff,
 } from "lucide-react";
 
@@ -110,21 +110,16 @@ export default function SuperDashboardPage() {
         name={user?.name ?? "ผู้ดูแลระบบสูงสุด"}
         title="ควบคุมระบบทั้งหมด"
         highlight={{ label: "ผู้ดูแลระบบ", value: users.length }}
+        stats={[
+          { label: "นิสิตทั้งหมด",          value: stats?.users.student ?? "…" },
+          { label: "อาจารย์ทั้งหมด",        value: stats?.users.professor ?? "…" },
+          { label: "คำร้องกำลังดำเนินการ", value: stats?.submissions.inProgress ?? "…" },
+          { label: "คำร้องเสร็จสิ้น",       value: stats?.submissions.completed ?? "…" },
+        ]}
       />
-
-      {/* System-wide oversight (read-only) */}
-      <div className="space-y-2">
-        <h2 className="font-semibold text-gray-800">ภาพรวมทั้งระบบ</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon={<GraduationCap className="w-6 h-6 text-blue-500" />} label="นิสิตทั้งหมด"    value={stats?.users.student ?? "…"}   color="bg-blue-50 border-blue-200" />
-          <StatCard icon={<BookOpen className="w-6 h-6 text-purple-500" />}    label="อาจารย์ทั้งหมด"  value={stats?.users.professor ?? "…"} color="bg-purple-50 border-purple-200" />
-          <StatCard icon={<Clock className="w-6 h-6 text-amber-500" />}       label="คำร้องกำลังดำเนินการ" value={stats?.submissions.inProgress ?? "…"} color="bg-amber-50 border-amber-200" />
-          <StatCard icon={<CheckCircle2 className="w-6 h-6 text-green-500" />} label="คำร้องเสร็จสิ้น" value={stats?.submissions.completed ?? "…"} color="bg-green-50 border-green-200" />
-        </div>
-        <p className="text-xs text-gray-400">
-          ตัวเลขสรุปสำหรับการกำกับดูแลเท่านั้น — การจัดการคำร้องเป็นหน้าที่ของเจ้าหน้าที่ภาควิชา (Admin) โดยเฉพาะ
-        </p>
-      </div>
+      <p className="text-xs text-gray-400 -mt-3">
+        ตัวเลขสรุปในหัวข้อด้านบนสำหรับการกำกับดูแลเท่านั้น — การจัดการคำร้องเป็นหน้าที่ของเจ้าหน้าที่ภาควิชา (Admin) โดยเฉพาะ
+      </p>
 
       {/* User management — SUPER_ADMIN + ADMIN accounts only */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -363,16 +358,6 @@ export default function SuperDashboardPage() {
           การลบผู้ใช้หรือเปลี่ยนบทบาทจะมีผลทันที การจัดการบัญชีนิสิต/อาจารย์เป็นหน้าที่ของเจ้าหน้าที่ภาควิชา (Admin) เท่านั้น
         </p>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number | string; color: string }) {
-  return (
-    <div className={`rounded-2xl border p-4 space-y-2 ${color}`}>
-      {icon}
-      <p className="text-3xl font-bold text-gray-900">{value}</p>
-      <p className="text-sm text-gray-600">{label}</p>
     </div>
   );
 }

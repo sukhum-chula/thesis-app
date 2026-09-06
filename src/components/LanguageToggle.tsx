@@ -80,9 +80,10 @@ export function LanguageToggle() {
     <button
       onClick={toggle}
       title={lang === "th" ? "Switch to English" : "เปลี่ยนเป็นภาษาไทย"}
+      aria-label="Toggle language"
       className="shrink-0 px-2 py-1 rounded-lg border border-gray-200 text-xs font-bold text-gray-500 hover:text-blue-600 hover:border-blue-300 transition"
     >
-      {lang === "th" ? "EN" : "ไทย"}
+      {lang === "th" ? "TH" : "EN"}
     </button>
   );
 }

@@ -6,7 +6,7 @@ import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { getStepName, formatDate, ROLE_LABELS } from "@/lib/utils";
 import Link from "next/link";
-import { ChevronRight, Clock, CheckCircle2, History, FileText, Layers } from "lucide-react";
+import { ChevronRight, Clock, CheckCircle2, History, FileText } from "lucide-react";
 
 const PROFESSOR_STEP_ROLES = [
   "ADVISOR", "CO_ADVISOR", "HEAD_EXAM_COMMITTEE",
@@ -68,13 +68,12 @@ export default function ProfessorDashboard() {
         name={user?.name ?? ""}
         title="รายการรออนุมัติ — อาจารย์"
         highlight={{ label: "รอดำเนินการ", value: pending.length }}
+        stats={[
+          { label: "รอดำเนินการ",       value: pending.length },
+          { label: "อนุมัติแล้ว",       value: approvedCount },
+          { label: "เกี่ยวข้องทั้งหมด", value: submissions.length },
+        ]}
       />
-
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={<Clock className="w-5 h-5" />}        value={pending.length}     label="รอดำเนินการ" tone={pending.length > 0 ? "orange" : "gray"} />
-        <StatCard icon={<CheckCircle2 className="w-5 h-5" />} value={approvedCount}      label="อนุมัติแล้ว" tone="green" />
-        <StatCard icon={<Layers className="w-5 h-5" />}       value={submissions.length} label="เกี่ยวข้องทั้งหมด" tone="blue" />
-      </div>
 
       <div className="flex border-b border-gray-200 overflow-x-auto">
         <TabBtn active={tab === "pending"} count={pending.length} countTone="orange" onClick={() => setTab("pending")}>
@@ -149,22 +148,6 @@ export default function ProfessorDashboard() {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-const TONES: Record<string, string> = {
-  orange: "bg-orange-50 border-orange-100 text-orange-600",
-  green:  "bg-green-50 border-green-100 text-green-600",
-  blue:   "bg-blue-50 border-blue-100 text-blue-600",
-  gray:   "bg-gray-50 border-gray-200 text-gray-400",
-};
-
-function StatCard({ icon, value, label, tone }: { icon: React.ReactNode; value: number; label: string; tone: string }) {
-  return (
-    <div className={`rounded-2xl border p-3 sm:p-4 ${TONES[tone]}`}>
-      <div className="flex items-center justify-between">{icon}<span className="text-2xl sm:text-3xl font-bold">{value}</span></div>
-      <p className="text-xs sm:text-sm text-gray-600 mt-1">{label}</p>
     </div>
   );
 }

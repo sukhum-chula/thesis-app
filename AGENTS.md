@@ -338,3 +338,47 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Professor dashboard** shows the generic "อาจารย์" label on card badges (a professor can hold several roles per submission); other views keep specific role labels.
 - **Admin detail** committee panel lists every person (incl. per-submission program chair) with mailto links.
 - **Emails** use formal Thai business-letter register: เรียน …, จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการ, ขอแสดงความนับถือ + department signature block.
+
+### Dashboard shell — top bar + header (2026-09-06)
+Every role dashboard shares one top-bar component, `src/app/dashboard/layout.tsx` — the three
+landing pages that live outside `src/app/dashboard/` (`/admin-dashboard`, `/super-dashboard`,
+`/student-dashboard`) each get a thin `layout.tsx` in their own folder that just re-exports it, so
+the shell (and any future change to it) stays in one place.
+
+**Two top-bar variants, chosen by `user.roles.includes("STUDENT")`:**
+- **ADMIN / SUPER_ADMIN / PROFESSOR** — the full bar: brand + role label, nav links (หน้าหลัก
+  always; ผู้ใช้งานในระบบ for ADMIN only) inline on desktop, a hamburger menu collapsing those
+  same links + user info + Logout on mobile.
+- **STUDENT** — a simpler bar with **no nav links and no hamburger** at all (a student's only two
+  actions — start a proposal/defense — already live as cards on `/student-dashboard` itself, and
+  `/dashboard/student/[id]` + `/dashboard/student/submit` already carry their own "กลับ"/"ย้อนกลับ"
+  links back home). Always expanded, same on every width: system name + today's date on the left,
+  the student's name + email centered, LanguageToggle + NotificationBell + Logout on the right.
+
+**Logout** is always labeled "Logout" (not the Thai "ออกจากระบบ") everywhere it appears — desktop
+icon button, mobile dropdown, and the student bar.
+
+**LanguageToggle** (`src/components/LanguageToggle.tsx`) shows the **current** language ("TH" /
+"EN"), not the language you'd switch to — click still toggles it. Shared by every role's top bar.
+
+**`DashboardHeader`** (`src/components/DashboardHeader.tsx`) is the per-page gradient hero card
+role/name, title, `formatTodayLong()` date, plus two independent optional slots:
+- `highlight` — a single stat pill top-right (e.g. ADMIN's "รอดำเนินการ" count).
+- `stats` — a row of secondary stat pills under the title (e.g. ADMIN's total/in-progress/
+  completed/rejected counts, SUPER_ADMIN's system-wide numbers, PROFESSOR's pending/approved/total).
+
+These `stats` pills replaced what used to be a separate stat-card grid sitting directly under the
+header on ADMIN/SUPER_ADMIN/PROFESSOR — that grid was always read-only counts, so it always ended
+up as the visually-first card on the page even though it wasn't something the user could act on.
+Moving the counts into the header itself means the card that actually is first below the header is
+always an actionable one (ADMIN's task box, SUPER_ADMIN's account-management table, PROFESSOR's
+pending/history list). STUDENT never had `DashboardHeader` grow this baggage — its
+`DashboardHeader` was removed outright once name/date/email moved into its own top bar, since the
+one stat it showed (in-progress count) wasn't worth a whole hero card on its own.
+
+**Student dashboard's first card** (`src/app/student-dashboard/page.tsx`) is "สถานะคำร้อง", not
+"ยื่นคำร้องใหม่" — a 3-item `grid sm:grid-cols-3`: (1) **current status** — the student's most
+recent non-cancelled submission (title + `SubmissionStatusBadge`, linked to its detail page), or an
+empty "ยังไม่มีคำร้อง" state if none; (2) the proposal creation entry point; (3) the defense
+creation entry point. (2) and (3) are unchanged from before — each already renders as either an
+active blue/indigo card or a locked gray one per the proposal-first gating rules above.

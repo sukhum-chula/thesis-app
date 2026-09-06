@@ -3,7 +3,6 @@
 import { useApp } from "@/context/AppContext";
 import { ROLE_LABELS, formatDate } from "@/lib/utils";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { DashboardHeader } from "@/components/DashboardHeader";
 import Link from "next/link";
 import {
   ChevronRight, PlusCircle, FileText, Clock, CheckCircle2, AlertCircle,
@@ -42,9 +41,6 @@ export default function StudentDashboard() {
   const { user, submissions, users } = useApp();
   const mine = submissions.filter((s) => s.studentId === user?.id);
 
-  const inProgress = mine.filter((s) => s.status === "IN_PROGRESS").length;
-  const completed  = mine.filter((s) => s.status === "COMPLETED").length;
-
   // Gating for the two creation entry points — see AGENTS.md workflow rules.
   // A proposal is "active" until the student cancels it; a defense may only be created from a
   // COMPLETED proposal that doesn't already have a non-cancelled defense of its own.
@@ -56,19 +52,45 @@ export default function StudentDashboard() {
       !mine.some((d) => d.sourceProposalId === s.id && d.status !== "CANCELLED")
   );
 
+  // Most recent non-cancelled submission — summarized as the "current status" item
+  const currentSub = mine
+    .filter((s) => s.status !== "CANCELLED")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
   return (
     <div className="max-w-3xl space-y-6">
-      <DashboardHeader
-        role="STUDENT"
-        name={user?.name ?? ""}
-        title="วิทยานิพนธ์ของฉัน"
-        highlight={{ label: "กำลังดำเนินการ", value: inProgress }}
-      />
-
-      {/* New submission — two entry points, each gated by workflow rules */}
+      {/* Application status — current status + two creation entry points, each gated by workflow rules */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-        <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">ยื่นคำร้องใหม่</p>
-        <div className="grid sm:grid-cols-2 gap-3">
+        <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">สถานะคำร้อง</p>
+        <div className="grid sm:grid-cols-3 gap-3">
+          {/* Current status */}
+          {currentSub ? (
+            <Link
+              href={`/dashboard/student/${currentSub.id}`}
+              className="flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 bg-gray-50 hover:border-gray-300 transition group"
+            >
+              <div className="mt-0.5 w-9 h-9 rounded-lg bg-gray-500 flex items-center justify-center shrink-0">
+                {currentSub.submissionType === "PROPOSAL"
+                  ? <BookOpen className="w-5 h-5 text-white" />
+                  : <GraduationCap className="w-5 h-5 text-white" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-700 text-sm leading-snug truncate">{currentSub.title}</p>
+                <div className="mt-1"><SubmissionStatusBadge status={currentSub.status} /></div>
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-gray-200 bg-gray-50">
+              <div className="mt-0.5 w-9 h-9 rounded-lg bg-gray-400 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-700 text-sm leading-snug">ยังไม่มีคำร้อง</p>
+                <p className="text-xs text-gray-500 mt-0.5">เริ่มต้นโดยยื่นคำร้องขอสอบโครงร่าง</p>
+              </div>
+            </div>
+          )}
+
           {/* Proposal entry point */}
           {activeProposal ? (
             <Link
@@ -125,15 +147,6 @@ export default function StudentDashboard() {
           )}
         </div>
       </div>
-
-      {/* Quick stats */}
-      {mine.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <SummaryCard icon={<FileText className="w-5 h-5 text-gray-400" />}      label="ทั้งหมด"        value={mine.length} color="bg-white border-gray-200"     textColor="text-gray-900" />
-          <SummaryCard icon={<Clock className="w-5 h-5 text-blue-500" />}         label="กำลังดำเนินการ" value={inProgress}  color="bg-blue-50 border-blue-100"    textColor="text-blue-700" />
-          <SummaryCard icon={<CheckCircle2 className="w-5 h-5 text-green-500" />} label="เสร็จสิ้น"      value={completed}   color="bg-green-50 border-green-100"  textColor="text-green-700" />
-        </div>
-      )}
 
       {/* List */}
       {mine.length === 0 ? (
@@ -261,18 +274,6 @@ export default function StudentDashboard() {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function SummaryCard({ icon, label, value, color, textColor }: {
-  icon: React.ReactNode; label: string; value: number; color: string; textColor: string;
-}) {
-  return (
-    <div className={`rounded-2xl border p-3 sm:p-4 space-y-1.5 sm:space-y-2 ${color}`}>
-      {icon}
-      <p className={`text-2xl sm:text-3xl font-bold ${textColor}`}>{value}</p>
-      <p className="text-xs sm:text-sm text-gray-500">{label}</p>
     </div>
   );
 }
