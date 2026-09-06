@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, ROLE_DESC } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_DESC, sortUsersByRole } from "@/lib/utils";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
-import { MockUser, Role } from "@/types";
+import { Role } from "@/types";
 import {
   Users, GraduationCap, BookOpen, ShieldCheck, ChevronDown, RotateCcw, Crown,
   UserPlus, X, Loader2,
@@ -31,51 +31,6 @@ const ROLE_COLOR: Record<Role, string> = {
 const DB_ROLES: Role[] = ["STUDENT", "PROFESSOR", "ADMIN", "SUPER_ADMIN"];
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
-
-const ROLE_SORT_ORDER: Record<Role, number> = {
-  SUPER_ADMIN: 0,
-  ADMIN: 1,
-  PROFESSOR: 2,
-  STUDENT: 3,
-};
-
-// Thai academic title prefixes on `name`, highest rank first — ผศ./รศ. must be
-// checked before a bare "ศ." check since both contain that syllable.
-const ACADEMIC_RANK_PREFIXES: [string, number][] = [
-  ["ศ.", 4],   // ศาสตราจารย์ (Professor)
-  ["รศ.", 3],  // รองศาสตราจารย์ (Associate Professor)
-  ["ผศ.", 2],  // ผู้ช่วยศาสตราจารย์ (Assistant Professor)
-  ["อ.", 1],   // อาจารย์ (Lecturer)
-];
-
-function academicRank(name: string): number {
-  for (const [prefix, rank] of ACADEMIC_RANK_PREFIXES) {
-    if (name.startsWith(prefix)) return rank;
-  }
-  return 0;
-}
-
-function compareUsers(a: MockUser, b: MockUser): number {
-  const roleDiff = ROLE_SORT_ORDER[a.role] - ROLE_SORT_ORDER[b.role];
-  if (roleDiff !== 0) return roleDiff;
-
-  if (a.role === "PROFESSOR") {
-    const rankDiff = academicRank(b.name) - academicRank(a.name);
-    if (rankDiff !== 0) return rankDiff;
-    return a.name.localeCompare(b.name, "th");
-  }
-
-  if (a.role === "STUDENT") {
-    const aId = a.studentId ?? "";
-    const bId = b.studentId ?? "";
-    if (!aId && !bId) return 0;
-    if (!aId) return 1;
-    if (!bId) return -1;
-    return aId.localeCompare(bId);
-  }
-
-  return a.name.localeCompare(b.name, "th");
-}
 
 export default function AdminUsersPage() {
   const { user, submissions, users: allUsers, superAdminAddUser } = useApp();
@@ -164,7 +119,7 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="space-y-3">
-        {[...allUsers].sort(compareUsers).map((u) => {
+        {sortUsersByRole(allUsers).map((u) => {
           const isExpanded = expandedId === u.id;
           return (
             <div key={u.id} className={`rounded-2xl border transition ${ROLE_COLOR[u.role]}`}>

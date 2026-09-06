@@ -78,6 +78,62 @@ export const ROLE_DESC: Record<string, string> = {
   PROFESSOR:   "ที่ปรึกษา / กรรมการสอบ — ลงนามเอกสารตามที่ได้รับมอบหมาย",
 };
 
+const ROLE_SORT_ORDER: Record<string, number> = {
+  SUPER_ADMIN: 0,
+  ADMIN: 1,
+  PROFESSOR: 2,
+  STUDENT: 3,
+};
+
+// Thai academic title prefixes on `name`, highest rank first — ผศ./รศ. must be
+// checked before a bare "ศ." check since both contain that syllable.
+const ACADEMIC_RANK_PREFIXES: [string, number][] = [
+  ["ศ.", 4],   // ศาสตราจารย์ (Professor)
+  ["รศ.", 3],  // รองศาสตราจารย์ (Associate Professor)
+  ["ผศ.", 2],  // ผู้ช่วยศาสตราจารย์ (Assistant Professor)
+  ["อ.", 1],   // อาจารย์ (Lecturer)
+];
+
+function academicRank(name: string): number {
+  for (const [prefix, rank] of ACADEMIC_RANK_PREFIXES) {
+    if (name.startsWith(prefix)) return rank;
+  }
+  return 0;
+}
+
+/**
+ * Sorts users SUPER_ADMIN -> ADMIN -> PROFESSOR -> STUDENT; professors by academic
+ * rank (parsed from the name's ศ./รศ./ผศ./อ. title prefix, highest first) then name;
+ * students by studentId ascending.
+ */
+export function sortUsersByRole<T extends { name: string; roles: string[]; studentId?: string | null }>(
+  users: T[],
+): T[] {
+  const primaryRole = (u: T) => u.roles[0] ?? "";
+
+  return [...users].sort((a, b) => {
+    const roleDiff = (ROLE_SORT_ORDER[primaryRole(a)] ?? 9) - (ROLE_SORT_ORDER[primaryRole(b)] ?? 9);
+    if (roleDiff !== 0) return roleDiff;
+
+    if (primaryRole(a) === "PROFESSOR") {
+      const rankDiff = academicRank(b.name) - academicRank(a.name);
+      if (rankDiff !== 0) return rankDiff;
+      return a.name.localeCompare(b.name, "th");
+    }
+
+    if (primaryRole(a) === "STUDENT") {
+      const aId = a.studentId ?? "";
+      const bId = b.studentId ?? "";
+      if (!aId && !bId) return 0;
+      if (!aId) return 1;
+      if (!bId) return -1;
+      return aId.localeCompare(bId);
+    }
+
+    return a.name.localeCompare(b.name, "th");
+  });
+}
+
 export const STATUS_LABELS: Record<SubmissionStatus, string> = {
   DRAFT: "ร่าง",
   IN_PROGRESS: "กำลังดำเนินการ",

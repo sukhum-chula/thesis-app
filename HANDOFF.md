@@ -177,7 +177,7 @@ dated), this section is meant to be edited in place.
   including other ADMIN accounts, (d) logout works from both new dashboards (this broke once
   already — see `CHANGELOG.md` — because the new routes sit outside `src/app/dashboard/` and
   needed their own `layout.tsx` reusing the shared sidebar shell).
-- **2026-09-06 — `/demo_users`.** Local-only read-only user listing for picking a test-login email.
+- **2026-09-06 — `/demo-users`.** Local-only read-only user listing for picking a test-login email.
   Gated on `NODE_ENV !== "production"`, not `DEMO_MODE` — confirm it actually 404s on the deployed
   (production) build if you're ever unsure.
 

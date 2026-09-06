@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useRef, ReactNode } from "react";
+import { useState, useEffect, useRef, ReactNode } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
@@ -442,10 +442,11 @@ export default function AdminSubmissionDetail() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
   // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
-  if (user && !user.roles.includes("ADMIN")) {
-    router.replace(ROLE_ROUTES[user.role] ?? "/login");
-    return null;
-  }
+  useEffect(() => {
+    if (user && !user.roles.includes("ADMIN")) router.replace(ROLE_ROUTES[user.role] ?? "/login");
+  }, [user, router]);
+
+  if (user && !user.roles.includes("ADMIN")) return null;
 
   if (!sub) {
     return (

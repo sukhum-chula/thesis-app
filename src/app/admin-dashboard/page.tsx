@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
@@ -68,6 +68,11 @@ export default function AdminDashboard() {
   const [search,        setSearch]        = useState("");
   const [typeFilter,    setTypeFilter]    = useState<"ALL" | "PROPOSAL" | "THESIS_DEFENSE">("ALL");
 
+  // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
+  useEffect(() => {
+    if (user && !user.roles.includes("ADMIN")) router.replace(ROLE_ROUTES[user.role] ?? "/login");
+  }, [user, router]);
+
   const typeSubs           = typeFilter === "ALL" ? submissions : submissions.filter((s) => s.submissionType === typeFilter);
   const inProgress         = typeSubs.filter((s) => s.status === "IN_PROGRESS");
   const needsMe            = inProgress.filter((s) => s.workflowSteps.find((w) => w.status === "PENDING")?.role === "ADMIN");
@@ -97,11 +102,7 @@ export default function AdminDashboard() {
     CANCELLED:   typeSubs.filter((s) => s.status === "CANCELLED").length,
   };
 
-  // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
-  if (user && !user.roles.includes("ADMIN")) {
-    router.replace(ROLE_ROUTES[user.role] ?? "/login");
-    return null;
-  }
+  if (user && !user.roles.includes("ADMIN")) return null;
 
   const filtered = typeSubs
     .filter((sub) => {

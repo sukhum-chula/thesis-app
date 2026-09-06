@@ -26,8 +26,9 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 - ADMIN can now manage STUDENT/PROFESSOR accounts directly (edit info, reset password, delete) —
   previously SUPER_ADMIN-only. Added a password-reset modal and delete-confirm flow to the user
   detail view.
-- Added `/demo_users` — a local-only (gated on `NODE_ENV !== "production"`) read-only page listing
-  all users' name/email/roles/studentId, for picking which account to log in as while testing.
-  Does not touch the login/auth system.
+- Added `/demo-users` — a local-only (gated on `NODE_ENV !== "production"`) read-only page listing
+  all users' name/email/roles/studentId, sorted SUPER_ADMIN → ADMIN → PROFESSOR → STUDENT (same
+  `sortUsersByRole()` helper as `/dashboard/admin/users`), for picking which account to log in as
+  while testing. Does not touch the login/auth system.
 - Added `CHANGELOG.md` (this file) and expanded `HANDOFF.md` with an ongoing "active development"
   section, since there was previously no running record of day-to-day changes.

@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { ROLE_LABELS } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole } from "@/lib/utils";
 
 export default async function DemoUsersPage() {
   // Local-testing convenience only — never renders in a production build.
   if (process.env.NODE_ENV === "production") notFound();
 
-  const users = await prisma.user.findMany({ orderBy: { name: "asc" } });
+  const users = sortUsersByRole(await prisma.user.findMany());
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-4">
