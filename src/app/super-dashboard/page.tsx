@@ -3,24 +3,44 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC, formatDate } from "@/lib/utils";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
-import { DashboardHeader } from "@/components/DashboardHeader";
+import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { useToast } from "@/context/ToastContext";
 import { Role, MockUser } from "@/types";
 import {
-  Crown,
+  Crown, Users, ClipboardList, BookOpen, GraduationCap, XCircle,
   Trash2, Plus, X, AlertTriangle, KeyRound, Eye, EyeOff,
 } from "lucide-react";
 
 // SUPER_ADMIN's own remit: SUPER_ADMIN + ADMIN accounts only — everything else (STUDENT,
-// PROFESSOR) is ADMIN's exclusive territory. See src/lib/accountScope.ts.
+// PROFESSOR) is ADMIN's exclusive territory. See src/lib/accountScope.ts. It CAN, however,
+// view every account read-only via GET /api/super-admin/users (oversight, not management).
 const MANAGEABLE_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
-const ALL_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "STUDENT", "PROFESSOR"];
+// Standard user-type sort order used elsewhere in the app (src/lib/utils.ts's ROLE_SORT_ORDER).
+const ALL_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "PROFESSOR", "STUDENT"];
 
-interface SystemStats {
-  users: { superAdmin: number; admin: number; professor: number; student: number; total: number };
-  submissions: { total: number; inProgress: number; completed: number; rejected: number };
+interface DirectoryUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  roles: string[];
+  studentId?: string;
+}
+
+interface DirectorySubmission {
+  id: string;
+  title: string;
+  submissionType: "PROPOSAL" | "THESIS_DEFENSE" | null;
+  status: "DRAFT" | "IN_PROGRESS" | "COMPLETED" | "REJECTED" | "CANCELLED";
+  cancelRequested: boolean;
+  studentName: string | null;
+  studentCode: string | null;
+  createdAt: string;
+  currentStepName: string | null;
+  doneCount: number;
+  totalSteps: number;
 }
 
 export default function SuperDashboardPage() {
@@ -36,14 +56,19 @@ export default function SuperDashboardPage() {
     if (user && !isSuperAdmin) router.replace(ROLE_ROUTES[user.role]);
   }, [user, isSuperAdmin, router]);
 
-  const [stats, setStats] = useState<SystemStats | null>(null);
+  const [directory, setDirectory] = useState<DirectoryUser[] | null>(null);
+  const [submissions, setSubmissions] = useState<DirectorySubmission[] | null>(null);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
-    fetch("/api/super-admin/stats")
+    fetch("/api/super-admin/users")
       .then((r) => (r.ok ? r.json() : null))
-      .then(setStats)
-      .catch(() => setStats(null));
+      .then(setDirectory)
+      .catch(() => setDirectory(null));
+    fetch("/api/super-admin/submissions")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setSubmissions)
+      .catch(() => setSubmissions(null));
   }, [isSuperAdmin]);
 
   const [confirmDelete,    setConfirmDelete]    = useState<string | null>(null);
@@ -105,22 +130,6 @@ export default function SuperDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader
-        role="SUPER_ADMIN"
-        name={user?.name ?? "ผู้ดูแลระบบสูงสุด"}
-        title="ควบคุมระบบทั้งหมด"
-        highlight={{ label: "ผู้ดูแลระบบ", value: users.length }}
-        stats={[
-          { label: "นิสิตทั้งหมด",          value: stats?.users.student ?? "…" },
-          { label: "อาจารย์ทั้งหมด",        value: stats?.users.professor ?? "…" },
-          { label: "คำร้องกำลังดำเนินการ", value: stats?.submissions.inProgress ?? "…" },
-          { label: "คำร้องเสร็จสิ้น",       value: stats?.submissions.completed ?? "…" },
-        ]}
-      />
-      <p className="text-xs text-gray-400 -mt-3">
-        ตัวเลขสรุปในหัวข้อด้านบนสำหรับการกำกับดูแลเท่านั้น — การจัดการคำร้องเป็นหน้าที่ของเจ้าหน้าที่ภาควิชา (Admin) โดยเฉพาะ
-      </p>
-
       {/* User management — SUPER_ADMIN + ADMIN accounts only */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -330,6 +339,102 @@ export default function SuperDashboardPage() {
               )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Submission list — read-only, system-wide oversight. No approve/reject/override, no
+          detail-page link: acting on a submission stays exclusively ADMIN's job. */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+          <ClipboardList className="w-5 h-5 text-gray-500" />
+          <h2 className="font-semibold text-gray-800 text-lg">รายการคำร้องทั้งหมด</h2>
+          <span className="text-sm text-gray-400">({submissions?.length ?? "…"})</span>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {submissions === null ? (
+            <p className="px-5 py-6 text-sm text-gray-400">กำลังโหลด...</p>
+          ) : submissions.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-gray-400">ยังไม่มีคำร้องในระบบ</p>
+          ) : (
+            submissions.map((sub) => (
+              <div key={sub.id} className="px-5 py-4">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  {sub.submissionType === "PROPOSAL" && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full shrink-0">
+                      <BookOpen className="w-3 h-3" />โครงร่าง
+                    </span>
+                  )}
+                  {sub.submissionType === "THESIS_DEFENSE" && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full shrink-0">
+                      <GraduationCap className="w-3 h-3" />สอบวิทยานิพนธ์
+                    </span>
+                  )}
+                  <SubmissionStatusBadge status={sub.status} />
+                  {sub.cancelRequested && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full shrink-0">
+                      <XCircle className="w-3 h-3" />ขอยกเลิก
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-gray-900 text-sm leading-snug truncate">{sub.title}</p>
+                <div className="flex items-center justify-between gap-3 mt-1 flex-wrap">
+                  <p className="text-sm text-gray-500 truncate">
+                    {sub.studentName ?? "—"}
+                    {sub.studentCode && <span className="text-gray-400"> ({sub.studentCode})</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 shrink-0">{formatDate(sub.createdAt)}</p>
+                </div>
+                {sub.currentStepName && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    รอ: {sub.currentStepName} ({sub.doneCount}/{sub.totalSteps})
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* User directory — read-only, system-wide (incl. STUDENT/PROFESSOR), oversight only */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+          <Users className="w-5 h-5 text-gray-500" />
+          <h2 className="font-semibold text-gray-800 text-lg">รายชื่อผู้ใช้งานทั้งหมด</h2>
+          <span className="text-sm text-gray-400">({directory?.length ?? "…"})</span>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {directory === null ? (
+            <p className="px-5 py-6 text-sm text-gray-400">กำลังโหลด...</p>
+          ) : (
+            ALL_ROLES.map((r) => {
+              const group = directory.filter((u) => u.role === r);
+              if (group.length === 0) return null;
+              return (
+                <div key={r} className="px-5 py-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className={`w-6 h-6 rounded-lg bg-gradient-to-br ${ROLE_GRADIENT[r]} flex items-center justify-center text-xs shrink-0`}>
+                      {ROLE_EMOJI[r]}
+                    </span>
+                    <p className="text-sm font-semibold text-gray-700">{ROLE_LABELS[r]}</p>
+                    <span className="text-xs text-gray-400">({group.length})</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {group.map((u) => (
+                      <div key={u.id} className="flex items-center gap-3 pl-8">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
+                        </div>
+                        <p className="text-sm text-gray-400 truncate">{u.email}</p>
+                        {u.studentId && (
+                          <span className="text-xs text-gray-400 shrink-0">{u.studentId}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
