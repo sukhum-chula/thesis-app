@@ -37,3 +37,30 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 - Added `WORKFLOW.md` — the PROPOSAL/THESIS_DEFENSE step tables and workflow behavior rules,
   extracted from `AGENTS.md` into a standalone human-readable reference (`AGENTS.md` stays the
   authoritative source; keep this in sync with it, not the other way around).
+- **Proposal-first student workflow, redesigned `/student-dashboard`.** A student always starts
+  with a PROPOSAL; creating a new one is blocked while an existing one is anything other than
+  `CANCELLED`. A THESIS_DEFENSE can only be created from a `COMPLETED`, non-cancelled proposal
+  (new `sourceProposalId` self-relation) and imports that proposal's committee into its own
+  independent columns — editing the defense's committee never writes back to the proposal. New
+  landing page `/student-dashboard` (old `/dashboard/student` redirects there) with both creation
+  actions gated live on these rules.
+- **Committee people must already have an account — no more silent auto-create.** `POST
+  /api/submissions` used to find-or-create a PROFESSOR account for any unrecognized committee
+  email; it no longer does (`src/lib/committee.ts`). An unresolved email now saves the submission
+  as `DRAFT` (new `pendingPeople` JSON column, no workflow steps yet) instead. ADMIN reviews unmet
+  requests on a new `/dashboard/admin/pending-professors` queue (also a count card on
+  `/admin-dashboard`) and creates the missing account(s) there (`POST
+  /api/admin/pending-professors`), which notifies the blocked student; the student then calls the
+  new `continue_draft` action to resolve the committee, build workflow steps
+  (`src/lib/workflowSteps.ts`), and move to `IN_PROGRESS`. Applies both to PROPOSAL creation and to
+  editing a THESIS_DEFENSE's imported committee at creation time.
+- **Cancellation now requires ADMIN accept/decline of a student request**, replacing the old
+  immediate self-service cancel. `request_cancel` (student-only) sets new `cancelRequested` /
+  `cancelRequestedAt` fields and freezes every other action on that submission (a top-level guard
+  in `PATCH /api/submissions/[id]`, plus checks added to `POST /api/upload` and `POST
+  /api/submissions/[id]/sign`) until ADMIN calls `accept_cancel` (does the actual cancellation,
+  cascading to a linked in-flight defense same as before) or `decline_cancel` (clears the flag,
+  submission continues normally). Surfaced as a `cancel_request` task-box entry sorted first on
+  `/admin-dashboard`, an accept/decline banner on the admin detail page and on the shared
+  `RoleSubmissionDetail` (every faculty-role view freezes too), and a "รออนุมัติยกเลิก" pending
+  banner on the student side.

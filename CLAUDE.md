@@ -36,12 +36,21 @@ things live.
 
 ```
 src/app/api/**              all business logic — route handlers are the source of truth
+  submissions/route.ts        POST create (proposal-first gate, DRAFT/pendingPeople branching)
+  submissions/[id]/route.ts   PATCH actions — approve/reject/resubmit/return_to_prev/continue_draft/
+                               request_cancel/accept_cancel/decline_cancel/admin_*
+  admin/pending-professors/   POST — ADMIN-only, creates a professor account and unblocks any
+                               DRAFT submissions waiting on that email
 src/app/dashboard/<role>/** thin pages per role, mostly wrapping shared components
+                             (admin/pending-professors — queue of unresolved committee emails)
+src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/student redirects here)
 src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
                              WorkflowTimeline, FileList, FileUploader — the shared UI that
                              every role dashboard is built from
 src/context/AppContext.tsx  client state cache; polls the API, exposes actions
-                             (approveCurrentStep, committeeSign, adminOverrideStep, ...)
+                             (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
+                             adminCreatePendingProfessor, requestCancelSubmission,
+                             adminAcceptCancel, adminDeclineCancel, ...)
 src/lib/
   prisma.ts                 Prisma singleton (globalThis-cached — see AGENTS.md, do not "fix")
   auth.ts                   NextAuth v5 config (credentials + JWT session)
@@ -50,10 +59,15 @@ src/lib/
                              use the service-role key; getSignedUrl mints 1h download URLs, served
                              via GET /api/upload/[uploadId]/signed-url (gated by the same
                              submission-involvement check as the rest of the API)
+  committee.ts               validatePeople/resolvePeople for submission committee people —
+                             account lookup only, never creates one (see AGENTS.md)
+  workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
+                             initial-create path and the continue_draft finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn
   workflow.ts                dead stub file left over from an earlier mock build — ignore it,
                              real workflow logic is in src/app/api/submissions/**
-  roleRoutes.ts              maps the 4 account-level roles to dashboard paths
+  roleRoutes.ts              maps the 4 account-level roles to dashboard paths (STUDENT →
+                             /student-dashboard)
 prisma/schema.prisma         DB schema — source of truth for models/enums
 ```
 
@@ -69,7 +83,7 @@ A `PROFESSOR` account additionally plays *contextual* roles per submission (`ADV
 `INVITED_EXAM_COMMITTEE`) — these are plain strings on `WorkflowStep.role` / submission fields
 (`advisorId`, `committeeIds`, etc.), not part of the `Role` enum. The workflow step sequences
 (`PROPOSAL_ROLES` / `THESIS_ROLES`) that define these contextual roles per step live in
-`src/app/api/submissions/route.ts`.
+`src/lib/workflowSteps.ts`.
 
 **`docs/ARCHITECTURE.md` and `docs/RECIPES.md` are stale** — they describe a pre-database version
 of this app (all state in `AppContext` + `localStorage`, no Prisma/NextAuth/Supabase). That

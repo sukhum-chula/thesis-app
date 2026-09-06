@@ -183,6 +183,44 @@ dated), this section is meant to be edited in place.
 - **2026-09-06 — `/demo-users`.** Local-only read-only user listing for picking a test-login email.
   Gated on `NODE_ENV !== "production"`, not `DEMO_MODE` — confirm it actually 404s on the deployed
   (production) build if you're ever unsure.
+- **2026-09-06 — Proposal-first student workflow + redesigned `/student-dashboard`.** A student
+  always starts with a PROPOSAL; a new one is blocked while an existing one is anything other than
+  `CANCELLED`. A THESIS_DEFENSE can only be created from a `COMPLETED`, non-cancelled proposal
+  (`sourceProposalId`) and imports that proposal's committee into its own independent columns —
+  editing the defense's committee never writes back to the proposal. New landing page
+  `/student-dashboard` (old `/dashboard/student` now just redirects there) with both creation
+  actions live-gated on these rules. See "Proposal-first" in `AGENTS.md`. **Verified** via real
+  browser click-through: blocked second-proposal creation while one is active, created a defense
+  from a completed proposal and confirmed its committee was pre-filled and independent of the
+  source, confirmed `NotificationBell` still deep-links correctly to `/dashboard/student/[id]` (not
+  the new landing page) via a `DETAIL_BASE` map added to fix a regression caught during this pass.
+- **2026-09-06 — Committee accounts must pre-exist; DRAFT + admin approval queue.** `POST
+  /api/submissions` no longer auto-creates PROFESSOR accounts for unrecognized committee emails
+  (`src/lib/committee.ts`'s `resolvePeople` only looks up existing users). An unresolved email
+  saves the submission as `DRAFT` with the raw rows in `pendingPeople` and no workflow steps. ADMIN
+  reviews `/dashboard/admin/pending-professors` (also a count card on `/admin-dashboard`) to create
+  the missing account(s) (`POST /api/admin/pending-professors`), which notifies the blocked
+  student(s); the student then calls `continue_draft` to resolve the committee, build workflow
+  steps (`src/lib/workflowSteps.ts`), and go `IN_PROGRESS`. Applies to both PROPOSAL creation and
+  THESIS_DEFENSE committee edits at creation time. See "Committee accounts must pre-exist" in
+  `AGENTS.md`. **Verified** via real browser walkthrough: created a PROPOSAL naming a brand-new
+  email, confirmed it saved as DRAFT with no welcome email sent and the pending-person checklist
+  showing on the student detail page; as ADMIN, created the account from the new queue page and
+  confirmed the student got notified; back as student, confirmed "ดำเนินการต่อ" resolved the draft
+  to IN_PROGRESS with normal step-1 upload UI.
+- **2026-09-06 — Cancellation now requires ADMIN accept/decline of a student request.**
+  `request_cancel` (student-only) no longer cancels immediately — it sets `cancelRequested` +
+  `cancelRequestedAt` and freezes every other action on that submission (a top-level guard in
+  `PATCH /api/submissions/[id]`, plus checks in `POST /api/upload` and
+  `POST /api/submissions/[id]/sign`) until ADMIN calls `accept_cancel` (does the actual
+  cancellation + cascades to a linked in-flight defense, same as the old immediate-cancel behavior)
+  or `decline_cancel` (just clears the flag). Surfaced as a `cancel_request` task-box entry sorted
+  first on `/admin-dashboard`, an accept/decline banner on the admin detail page and on the shared
+  `RoleSubmissionDetail` (every faculty-role view freezes too), and a "รออนุมัติยกเลิก" pending
+  banner on the student side. See "Cancellation" in `AGENTS.md`. **Verified** via real browser
+  walkthrough: student request froze the submission (upload/approve/reject controls all hidden
+  everywhere including a faculty-role view), ADMIN saw the task-box entry and banner, accept
+  correctly cancelled the submission, decline correctly unfroze it back to normal.
 
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 

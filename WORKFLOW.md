@@ -23,13 +23,13 @@ submission cannot skip ahead.
 |---|---|---|
 | Super Admin | ผู้ดูแลระบบสูงสุด | Account management only (SUPER_ADMIN + ADMIN accounts). **No submission workflow access at all** — cannot view, approve, reject, or override any submission. Sees system-wide read-only counts. |
 | Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Owns the entire submission workflow exclusively — approves/rejects/overrides steps, relays documents to Faculty, forwards docs to Student. Also manages ADMIN/PROFESSOR/STUDENT accounts. |
-| Student | นิสิต | Uploads documents, assigns committee members at creation, tracks status. |
+| Student | นิสิต | Always starts with a PROPOSAL; creates a THESIS_DEFENSE only from an existing completed one (committee imported, editable). Uploads documents, assigns committee members at creation, tracks status. Landing page `/student-dashboard`. |
 | Advisor | อาจารย์ที่ปรึกษา | Signs forms at their steps. |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step. **Optional** — auto-skipped when none assigned; multiple allowed, signed sequentially. |
 | Program Chair | ประธานหลักสูตร | Signs at multiple phases. Assigned per-submission by the student. |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before the regular committee. Assigned per-submission by the student. |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in sequence. Assigned per-submission by the student. |
-| Invited Exam Committee | กรรมการภายนอก | External examiner. Assigned per-submission by the student; account auto-created. |
+| Invited Exam Committee | กรรมการภายนอก | External examiner. Assigned per-submission by the student; must already have an account (see "Committee people must pre-exist" below). |
 
 A single PROFESSOR account can hold several of these contextual roles across (or within) one
 submission — same email, multiple hats.
@@ -150,6 +150,24 @@ Rejection stays on the same step (marked REJECTED, does not move) until the stud
   available on the first step.
 - **Document versioning:** every form type keeps one slot — the latest upload is current, older
   ones collapse into history. Nothing is ever shown as a flat pile of separate files.
+
+---
+
+## Before the workflow: proposal-first, committee accounts, cancellation
+
+- **One active proposal, defense created from a completed one.** A student can't start a second
+  PROPOSAL while an existing one is anything other than `CANCELLED` (even `COMPLETED` counts as
+  active — it must be cancelled first to start over). A THESIS_DEFENSE can only be created from a
+  `COMPLETED`, non-cancelled proposal, and imports that proposal's committee as its own editable,
+  independent copy — changing it never changes the original proposal.
+- **Committee people must already have an account.** Every person a student names (proposal
+  creation, or editing the imported committee at defense creation) must already have a login — the
+  system no longer creates accounts automatically. If any email doesn't match an existing account,
+  the submission is saved as a **draft** (no workflow steps yet) until ADMIN creates the missing
+  account(s) on a dedicated request queue; the student is notified and must return to continue it.
+- **Cancelling requires ADMIN approval.** A student's cancel request doesn't cancel immediately —
+  it freezes the submission (no uploads, approvals, or signing by anyone) until ADMIN either
+  accepts (cancels it for real) or declines (unfreezes it, nothing changes).
 
 ---
 

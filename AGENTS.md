@@ -64,6 +64,56 @@ EMAIL_OVERRIDE_TO     # testing: when set, ALL emails go to this address instead
 
 ## Workflow behaviour — critical rules
 
+### Proposal-first: one active proposal, defense imports its committee
+A student always starts with a **PROPOSAL**. `POST /api/submissions` blocks creating a new PROPOSAL
+while the student already has one with `status !== "CANCELLED"` (any other status — DRAFT,
+IN_PROGRESS, REJECTED, even COMPLETED — counts as active). To start over, the existing one must be
+cancelled first (see below).
+
+A **THESIS_DEFENSE** can only be created from an existing, `COMPLETED`, non-cancelled PROPOSAL
+(`sourceProposalId`), and only one non-cancelled defense may exist per proposal at a time. Creating
+one **imports** the committee (advisor/co-advisors/head/exam committee/invited/program chair) from
+that proposal into the new submission's own `people[]` editor — the student can then change it
+before submitting. The defense's committee fields are its own independent columns, never a live
+reference to the proposal's row, so editing them **never writes back to the proposal**. Student
+info (name/code/program/email/phone) is still copied verbatim from the proposal and isn't editable
+at defense creation.
+
+### Committee accounts must pre-exist — DRAFT + admin approval
+Every person named in `people[]` (both PROPOSAL creation and defense committee edits) must already
+have an account — the API no longer auto-creates one. Validation/resolution lives in
+`src/lib/committee.ts` (`validatePeople` for shape/role-count checks, `resolvePeople` for the
+account lookup — it never creates a user). If any email doesn't resolve, `POST /api/submissions`
+saves the submission as `status: "DRAFT"` with the raw entries in `pendingPeople` (JSON) and
+**no workflow steps** — nothing is created until it's resolved. All admins are notified.
+
+An ADMIN reviews unresolved emails on `/dashboard/admin/pending-professors` (also surfaced as a
+count card on `/admin-dashboard`) and creates the missing account(s) there
+(`POST /api/admin/pending-professors`) — same welcome-email flow as before, just admin-triggered.
+Once every person on a draft has an account, the endpoint notifies that draft's student, who must
+return and call `action: "continue_draft"` (their own explicit action — nothing auto-finalizes) to
+resolve the committee fields, build the workflow steps (`src/lib/workflowSteps.ts`), and flip the
+submission to `IN_PROGRESS`.
+
+### Cancellation — student requests, ADMIN accepts or declines
+`action: "request_cancel"` (student-only) no longer cancels immediately — it sets
+`cancelRequested: true` + `cancelRequestedAt` and notifies all admins. The submission's own
+`status` is untouched. While a request is pending, **every other action is frozen**: a top-level
+guard in `PATCH /api/submissions/[id]` rejects anything except `accept_cancel`/`decline_cancel`,
+and both `POST /api/upload` and `POST /api/submissions/[id]/sign` reject too.
+
+- `action: "accept_cancel"` (ADMIN-only) does the actual cancellation — skips remaining PENDING
+  steps, sets `status: "CANCELLED"`, clears the request flag, notifies the student — and cascades
+  to a linked in-flight defense exactly like the old direct-cancel behavior (a defense that's
+  already `COMPLETED` or `CANCELLED` is left alone).
+- `action: "decline_cancel"` (ADMIN-only) just clears the flag and notifies the student; the
+  submission continues exactly as before the request.
+
+Surfaced in the UI: a `cancel_request` task type at the top of the ADMIN dashboard's "งานที่ต้อง
+ดำเนินการ" box; an accept/decline banner on the admin detail page and on the shared
+`RoleSubmissionDetail` (every faculty-role view); a "รออนุมัติยกเลิก" pending banner (student) that
+replaces the old immediate "ยกเลิกแล้ว".
+
 ### Step 1 is NOT auto-approved
 When a submission is created, **step 1 starts as PENDING**. The student must upload the required documents and click submit. Step 2's email notification fires automatically when the student's submit action (approve) completes.
 
@@ -98,15 +148,21 @@ THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]
 
 ### Admin dashboard (`src/app/admin-dashboard/page.tsx`) — ADMIN's landing page
 `/dashboard/admin` (old path) now just redirects here. `src/app/dashboard/admin/[id]/page.tsx`
-(submission detail) and `src/app/dashboard/admin/users(+[uid])/page.tsx` (ADMIN's own account
-management — STUDENT/PROFESSOR/ADMIN) still live under the old `/dashboard/admin/` path; only the
-exact-match overview page moved. Layout (top to bottom):
+(submission detail), `src/app/dashboard/admin/users(+[uid])/page.tsx` (ADMIN's own account
+management — STUDENT/PROFESSOR/ADMIN), and `src/app/dashboard/admin/pending-professors/page.tsx`
+(new — see below) still live under the old `/dashboard/admin/` path; only the exact-match overview
+page moved. Layout (top to bottom):
 1. **4 stat cards** — Total / กำลังดำเนินการ (blue) / เสร็จสิ้น (green) / ถูกปฏิเสธ (red)
-2. **"รออนุมัติจากท่าน"** orange section — only shown when admin has PENDING steps; each card links directly to the submission
-3. **Search bar** — filters by thesis title, student name, or student ID
-4. **Status filter tabs** — All / IN_PROGRESS / COMPLETED / REJECTED, each showing a count badge
-5. **Submission list** — cards sorted by stuck-days descending; each card shows: title, student name + ID (links to user page), status badge, who it's waiting on + step number, progress bar, created date, delete button (with confirm prompt), "จัดการ" link
-6. **Stuck-day badge** — amber "ค้างมา X วัน" warning appears on submissions stuck > 7 days (IN_PROGRESS only)
+2. **"งานที่ต้องดำเนินการ"** orange task box — cancellation requests (`cancel_request` type) always
+   sort first, then PENDING-on-ADMIN steps, then the PROPOSAL step-4 finance-upload task; each card
+   links directly to the submission
+3. **"รอสร้างบัญชีให้อาจารย์/กรรมการ"** amber count card — only shown when any DRAFT submission has
+   an unresolved `pendingPeople` email; links to `/dashboard/admin/pending-professors` (lists each
+   pending email + which submission(s)/student(s) are waiting, with a create-account form)
+4. **Search bar** — filters by thesis title, student name, or student ID
+5. **Status filter tabs** — All / DRAFT / IN_PROGRESS / COMPLETED / REJECTED / CANCELLED, each showing a count badge
+6. **Submission list** — cards sorted by stuck-days descending; each card shows: title, student name + ID (links to user page), status badge, a red "ขอยกเลิก" pill when `cancelRequested`, who it's waiting on + step number, progress bar, created date, delete button (with confirm prompt), "จัดการ" link
+7. **Stuck-day badge** — amber "ค้างมา X วัน" warning appears on submissions stuck > 7 days (IN_PROGRESS only)
 
 ### admin_override_step status priority
 When admin overrides individual steps via `action: "admin_override_step"`, submission status is computed as: **`hasPending → IN_PROGRESS`** (takes priority), then `hasRejected → REJECTED`, then `COMPLETED`. This ensures overriding a step to REJECTED does not lock the submission if later steps are still PENDING.
@@ -154,14 +210,14 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Role | Thai | Key Actions |
 |---|---|---|
 | Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passwords. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot view, approve, reject, or override any submission. Sees system-wide read-only oversight numbers (user/submission counts) via `GET /api/super-admin/stats` |
-| Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
-| Student | นิสิต | Upload documents, assign committee members, track status |
+| Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student, create the missing accounts for a committee person named on a DRAFT submission (`/dashboard/admin/pending-professors`), accept/decline student cancellation requests. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
+| Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE) |
 | Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); legacy global `isProgramChair` flag is a fallback and still grants see-all |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student |
-| Invited Exam Committee | กรรมการภายนอก | External examiner — assigned per submission by Student; **account auto-created** like all committee people |
+| Invited Exam Committee | กรรมการภายนอก | External examiner — assigned per submission by Student; **must already have an account** (submission is saved as DRAFT pending admin approval otherwise — see "Committee accounts must pre-exist" above) |
 
 ### External roles (no login)
 | Role | How they interact |
@@ -178,7 +234,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 
 **Student info:** ชื่อ-นามสกุล, รหัสนิสิต, หลักสูตร (PHD=วิศวกรรมศาสตรดุษฎีบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_MECH=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_CPS=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาระบบกายภาพที่เชื่อมประสานด้วยเครือข่ายไซเบอร์), อีเมล์, เบอร์โทร
 
-**Committee people (`data.people[]`):** the student manually enters every person responsible for their thesis as `{ name, email, role, phone? }` rows — there are NO professor dropdowns. The API finds-or-creates a PROFESSOR account per unique email (new accounts get a welcome email with password) and maps the rows to `advisorId` / `coAdvisorIds` / `headCommitteeId` / `committeeIds` / `invitedCommitteeId` / `programChairId`. The same email may hold multiple roles (one account). Committee id arrays are deduped — duplicates would break sequential signing.
+**Committee people (`data.people[]`):** the student manually enters every person responsible for their thesis as `{ name, email, role, phone? }` rows — there are NO professor dropdowns. For a THESIS_DEFENSE this list is prefilled from the source proposal's committee but remains fully editable (see "Proposal-first" above). **Every email must already belong to an account** — the API (`src/lib/committee.ts`'s `resolvePeople`) only looks up existing users, it never creates one; if any email doesn't resolve, the submission is saved as `DRAFT` with the raw rows in `pendingPeople` instead of being mapped to `advisorId` / `coAdvisorIds` / `headCommitteeId` / `committeeIds` / `invitedCommitteeId` / `programChairId` (see "Committee accounts must pre-exist" above). Once resolved, the same email may hold multiple roles (one account); committee id arrays are deduped — duplicates would break sequential signing.
 
 **Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (role option disabled in other rows once taken) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose password email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role. วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
 
@@ -271,6 +327,9 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 7–8 — step 7: send B2+B3 to Faculty; step 8: receive back docs (ใบรายงานผล, แบบรายงานฯ, invitation letter), upload, forward to student, then approve → triggers invitation emails. Admin panel shows step-7-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
+- **One active proposal per student, defense created from a completed one** — a new PROPOSAL is blocked while an existing one is anything other than `CANCELLED`; a THESIS_DEFENSE requires a `COMPLETED`, non-cancelled source proposal (`sourceProposalId`) and imports (editable, independent copy) its committee. See "Proposal-first" above.
+- **Every committee person must already have an account** — `POST /api/submissions` never auto-creates one; an email that doesn't resolve saves the submission as `DRAFT` (`pendingPeople` JSON, no workflow steps) until an ADMIN creates the account via `/dashboard/admin/pending-professors` and the student calls `continue_draft`. See "Committee accounts must pre-exist" above.
+- **Cancellation is a two-step admin-gated request**, not an immediate student action — `request_cancel` only sets `cancelRequested` and freezes all other actions on that submission; only ADMIN's `accept_cancel`/`decline_cancel` actually resolves it. See "Cancellation — student requests, ADMIN accepts or declines" above.
 
 ## UI conventions (recent)
 - **FileList** takes a `submissionType` prop and groups uploads into phase-aware sections. PROPOSAL: เอกสารหลัก (BW1A/BW1B/B1C/B1D) / เอกสารการเงิน / เอกสารอื่นๆ. THESIS_DEFENSE: บ.2+บ.3 (B2/B3/FINANCE_ATTACH) / เอกสารการเงิน (FINANCE_DOC) / เอกสารจากคณะและผลการสอบ (SIGNED/EXAM_RESULT/INVITE_LETTER/VERY_GOOD_EVAL) / วิทยานิพนธ์ (B4/THESIS). See `FILE_GROUPS_PROPOSAL` / `FILE_GROUPS_THESIS` in `FileList.tsx`. Unknown types fall into the last section. Row labels are always Thai form names (FORM_SHORT primary, full FORM_LABELS as subtitle) — never raw filenames as titles. FileList shows its own file count in the header; callers must NOT add another count to the `title` prop.
