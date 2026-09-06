@@ -87,11 +87,17 @@ export default function AdminDashboard() {
     return step?.stepOrder === 4 && !s.uploads.some((u) => u.formType === "FINANCE_DOC");
   });
 
-  type AdminTask = { sub: MockSubmission; type: "turn" | "finance" };
+  // Cancellation requests need ADMIN attention regardless of the current type filter or whose turn it is
+  const cancelRequests = submissions.filter((s) => s.cancelRequested);
+
+  type AdminTask = { sub: MockSubmission; type: "turn" | "finance" | "cancel_request" };
   const adminTasks: AdminTask[] = [
-    ...needsMe.map((sub) => ({ sub, type: "turn" as const })),
+    ...cancelRequests.map((sub) => ({ sub, type: "cancel_request" as const })),
+    ...needsMe
+      .filter((sub) => !cancelRequests.some((s) => s.id === sub.id))
+      .map((sub) => ({ sub, type: "turn" as const })),
     ...needsFinanceUpload
-      .filter((sub) => !needsMe.some((s) => s.id === sub.id))
+      .filter((sub) => !needsMe.some((s) => s.id === sub.id) && !cancelRequests.some((s) => s.id === sub.id))
       .map((sub) => ({ sub, type: "finance" as const })),
   ];
 
@@ -162,19 +168,22 @@ export default function AdminDashboard() {
           <div className="space-y-2">
             {adminTasks.map(({ sub, type }) => {
               const student   = users.find((u) => u.id === sub.studentId);
-              const step      = sub.workflowSteps.find((w) => w.status === "PENDING")!;
+              const step      = sub.workflowSteps.find((w) => w.status === "PENDING");
               const stuckDays = getStuckDays(sub);
 
               // Specific task description per step type
               let taskLabel: string;
               let taskIcon: React.ReactNode;
-              if (type === "finance") {
+              if (type === "cancel_request") {
+                taskLabel = "นิสิตขอยกเลิกคำร้อง — รอการอนุมัติ";
+                taskIcon  = <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
+              } else if (type === "finance") {
                 taskLabel = "อัปโหลดเอกสารการเงิน";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-yellow-600 shrink-0" />;
-              } else if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === 7) {
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === 7) {
                 taskLabel = "พิมพ์ บ.2+บ.3 แล้วนำส่งไปยังคณะวิศวกรรมศาสตร์";
                 taskIcon  = <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
-              } else if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === 8) {
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === 8) {
                 taskLabel = "รับเอกสารจากคณะ อัปโหลด แล้วส่งต่อนิสิต";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else {
@@ -186,7 +195,9 @@ export default function AdminDashboard() {
                 <Link
                   key={`${sub.id}-${type}`}
                   href={`/dashboard/admin/${sub.id}`}
-                  className="flex items-start gap-3 bg-white rounded-xl px-4 py-3 border border-orange-200 hover:border-orange-400 hover:shadow-sm transition group"
+                  className={`flex items-start gap-3 bg-white rounded-xl px-4 py-3 border hover:shadow-sm transition group ${
+                    type === "cancel_request" ? "border-red-200 hover:border-red-400" : "border-orange-200 hover:border-orange-400"
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-gray-900 truncate">{sub.title}</p>
@@ -196,7 +207,7 @@ export default function AdminDashboard() {
                     </p>
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {taskIcon}
-                      <span className={`text-xs font-medium ${type === "finance" ? "text-yellow-700" : "text-orange-700"}`}>
+                      <span className={`text-xs font-medium ${type === "finance" ? "text-yellow-700" : type === "cancel_request" ? "text-red-700" : "text-orange-700"}`}>
                         {taskLabel}
                       </span>
                       {stuckDays > 7 && (
@@ -344,6 +355,11 @@ export default function AdminDashboard() {
                           </span>
                         )}
                         <SubmissionStatusBadge status={sub.status} />
+                        {sub.cancelRequested && (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full shrink-0">
+                            <XCircle className="w-3 h-3" />ขอยกเลิก
+                          </span>
+                        )}
                         {stuckDays > 7 && (
                           <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-semibold shrink-0">
                             <AlertCircle className="w-3.5 h-3.5" />ค้างมา {stuckDays} วัน

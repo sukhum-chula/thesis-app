@@ -60,7 +60,9 @@ interface AppContextType {
   addUpload: (submissionId: string, formType: FormType, fileName: string, fileSize: number, fileContent?: string) => void;
   getPendingCount: (role: string) => number;
   studentResubmit: (submissionId: string) => Promise<void>;
-  cancelSubmission: (submissionId: string) => Promise<void>;
+  requestCancelSubmission: (submissionId: string) => Promise<void>;
+  adminAcceptCancel: (submissionId: string) => Promise<void>;
+  adminDeclineCancel: (submissionId: string) => Promise<void>;
   continueDraft: (submissionId: string) => Promise<void>;
   committeeSign: (submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   needsMyAction: (sub: MockSubmission) => boolean;
@@ -208,8 +210,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
   }
 
-  async function cancelSubmission(submissionId: string) {
-    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "cancel" });
+  async function requestCancelSubmission(submissionId: string) {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "request_cancel" });
+    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
+    await refreshNotifications();
+  }
+
+  async function adminAcceptCancel(submissionId: string) {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "accept_cancel" });
+    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
+    await refresh();
+  }
+
+  async function adminDeclineCancel(submissionId: string) {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "decline_cancel" });
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
   }
 
@@ -366,7 +380,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user, users, submissions, notifications, unreadCount, loading,
       logout, refresh,
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
-      addUpload, getPendingCount, studentResubmit, cancelSubmission, continueDraft,
+      addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel, continueDraft,
       committeeSign, needsMyAction,
       markNotificationRead, markAllNotificationsRead,
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,

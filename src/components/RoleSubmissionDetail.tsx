@@ -206,8 +206,19 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
         </div>
       )}
 
+      {/* Cancellation requested by the student — frozen until ADMIN accepts/declines */}
+      {sub.cancelRequested && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-2xl px-5 py-4">
+          <Clock className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-800">นิสิตขอยกเลิกคำร้องนี้ — รอเจ้าหน้าที่อนุมัติ</p>
+            <p className="text-sm text-amber-600 mt-0.5">ไม่สามารถดำเนินการใด ๆ กับคำร้องนี้ได้ในขณะนี้</p>
+          </div>
+        </div>
+      )}
+
       {/* "Your turn" banner */}
-      {isMyTurn && sub.status === "IN_PROGRESS" && (
+      {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-300 rounded-2xl px-5 py-4">
           <AlertCircle className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
@@ -329,7 +340,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
           )}
 
           {/* Action — committee steps (EXAM_COMMITTEE and CO_ADVISOR) use sequential multi-member panel */}
-          {isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR") && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR") && (
             <CommitteeSignPanel
               submissionId={sub.id}
               step={currentStep}
@@ -339,7 +350,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
             />
           )}
 
-          {isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && (
             <SignatureButton
               submissionId={sub.id}
               formsToShow={formsToShow}

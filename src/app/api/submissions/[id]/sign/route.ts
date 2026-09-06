@@ -36,6 +36,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (["COMPLETED", "CANCELLED"].includes(sub.status))
     return NextResponse.json({ error: "คำร้องนี้ปิดแล้ว ไม่สามารถลงนามได้" }, { status: 400 });
+  if ((sub as any).cancelRequested)
+    return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ ไม่สามารถลงนามได้" }, { status: 400 });
   // Mirror the approve action: no signing while rejected — student must resubmit first.
   if (sub.status === "REJECTED")
     return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนักศึกษายืนยันการแก้ไขก่อน" }, { status: 400 });

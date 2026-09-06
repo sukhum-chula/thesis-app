@@ -216,6 +216,11 @@ export default function StudentDashboard() {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <SubmissionStatusBadge status={sub.status} />
+                    {sub.cancelRequested && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                        <XCircle className="w-3 h-3" />รออนุมัติยกเลิก
+                      </span>
+                    )}
                     {isMyTurn && sub.status === "IN_PROGRESS" && (
                       <span className="text-sm text-blue-600 font-semibold">★ ถึงคิวของท่าน</span>
                     )}

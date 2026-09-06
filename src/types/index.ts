@@ -69,6 +69,10 @@ export interface MockSubmission {
   sourceProposalId?: string | null;
   // Raw committee entries while status === "DRAFT" — some person named here has no account yet.
   pendingPeople?: { name?: string; email?: string; role?: string; phone?: string }[] | null;
+  // Student-requested cancellation pending ADMIN accept/decline — `status` itself is unchanged
+  // until then, and normal workflow actions are frozen while this is true.
+  cancelRequested?: boolean;
+  cancelRequestedAt?: string | null;
   createdAt: string;
   uploads: MockUpload[];
   workflowSteps: MockWorkflowStep[];

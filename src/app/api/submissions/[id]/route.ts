@@ -122,6 +122,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const sub = await getSub(id);
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if ((sub as any).cancelRequested && !["accept_cancel", "decline_cancel"].includes(action))
+    return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ ไม่สามารถดำเนินการอื่นได้ในขณะนี้" }, { status: 400 });
 
   const now = new Date();
 
@@ -495,10 +497,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  else if (action === "cancel") {
+  else if (action === "request_cancel") {
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (sub.status === "CANCELLED")
+      return NextResponse.json({ error: "คำร้องนี้ถูกยกเลิกไปแล้ว" }, { status: 400 });
+    await prisma.submission.update({ where: { id }, data: { cancelRequested: true, cancelRequestedAt: now } });
+    await notifyRole("ADMIN", sub, "นิสิตขอยกเลิกคำร้อง — รอการอนุมัติ", "warning");
+  }
+
+  else if (action === "accept_cancel") {
+    if (!userRoles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(sub as any).cancelRequested) return NextResponse.json({ error: "ไม่มีคำขอยกเลิกที่รอดำเนินการ" }, { status: 400 });
+
     await prisma.workflowStep.updateMany({ where: { submissionId: id, status: "PENDING" }, data: { status: "SKIPPED" } });
-    await prisma.submission.update({ where: { id }, data: { status: "CANCELLED" } });
+    await prisma.submission.update({ where: { id }, data: { status: "CANCELLED", cancelRequested: false, cancelRequestedAt: null } });
+    await prisma.notification.create({
+      data: { recipientId: sub.studentId, message: "คำร้องของท่านถูกยกเลิกแล้วตามคำขอ", detail: sub.title, submissionId: id, type: "info" },
+    });
 
     // Cancelling a PROPOSAL also cancels the defense created off it (if any and still in flight) —
     // this is how a student "starts over": cancel the old proposal, then a new one can be created.
@@ -508,9 +523,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
       if (linkedDefense) {
         await prisma.workflowStep.updateMany({ where: { submissionId: linkedDefense.id, status: "PENDING" }, data: { status: "SKIPPED" } });
-        await prisma.submission.update({ where: { id: linkedDefense.id }, data: { status: "CANCELLED" } });
+        await prisma.submission.update({
+          where: { id: linkedDefense.id },
+          data: { status: "CANCELLED", cancelRequested: false, cancelRequestedAt: null },
+        });
+        await prisma.notification.create({
+          data: { recipientId: linkedDefense.studentId, message: "คำร้องนี้ถูกยกเลิกเนื่องจากคำร้องโครงร่างที่เกี่ยวข้องถูกยกเลิก", detail: linkedDefense.title, submissionId: linkedDefense.id, type: "info" },
+        });
       }
     }
+  }
+
+  else if (action === "decline_cancel") {
+    if (!userRoles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!(sub as any).cancelRequested) return NextResponse.json({ error: "ไม่มีคำขอยกเลิกที่รอดำเนินการ" }, { status: 400 });
+
+    await prisma.submission.update({ where: { id }, data: { cancelRequested: false, cancelRequestedAt: null } });
+    await prisma.notification.create({
+      data: { recipientId: sub.studentId, message: "คำขอยกเลิกคำร้องของท่านถูกปฏิเสธ — คำร้องดำเนินการต่อตามปกติ", detail: sub.title, submissionId: id, type: "info" },
+    });
   }
 
   else if (action === "continue_draft") {

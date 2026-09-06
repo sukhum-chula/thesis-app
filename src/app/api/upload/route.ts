@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
   if (!subCheck) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
   if (subCheck.status === "CANCELLED")
     return NextResponse.json({ error: "คำร้องนี้ถูกยกเลิกแล้ว" }, { status: 400 });
+  if ((subCheck as any).cancelRequested)
+    return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ" }, { status: 400 });
   if (!isAdminRole) {
     const uid = session.user.id;
     const involved =

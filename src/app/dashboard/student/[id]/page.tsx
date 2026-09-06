@@ -73,7 +73,7 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
 
 export default function StudentSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user, submissions, users, approveCurrentStep, studentResubmit, cancelSubmission, continueDraft, refresh } = useApp();
+  const { user, submissions, users, approveCurrentStep, studentResubmit, requestCancelSubmission, continueDraft, refresh } = useApp();
   const { showToast } = useToast();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<FormType, File>>>({});
@@ -190,9 +190,9 @@ export default function StudentSubmissionDetail() {
 
   async function handleCancelConfirm() {
     try {
-      await cancelSubmission(sub!.id);
+      await requestCancelSubmission(sub!.id);
       setShowCancelModal(false);
-      showToast("ยกเลิกคำร้องแล้ว", "info");
+      showToast("ส่งคำขอยกเลิกแล้ว — รอเจ้าหน้าที่อนุมัติ", "info");
     } catch (err) {
       setShowCancelModal(false);
       showToast(toUserErrorMessage(err), "error");
@@ -213,6 +213,20 @@ export default function StudentSubmissionDetail() {
 
   function renderStatusBanner() {
     if (!sub) return null;
+
+    if (sub.cancelRequested) {
+      return (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 flex items-start gap-4">
+          <Clock className="w-7 h-7 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-amber-800 font-bold text-lg">รอเจ้าหน้าที่อนุมัติการยกเลิก</p>
+            <p className="text-amber-600 text-sm mt-1">
+              ท่านได้ส่งคำขอยกเลิกคำร้องนี้แล้ว — คำร้องจะถูกระงับจนกว่าเจ้าหน้าที่จะอนุมัติหรือปฏิเสธคำขอ
+            </p>
+          </div>
+        </div>
+      );
+    }
 
     if (subStatus === "DRAFT") {
       const pending = (sub.pendingPeople ?? []) as { name?: string; email?: string; role?: string }[];
@@ -514,19 +528,20 @@ export default function StudentSubmissionDetail() {
           {/* Cancel — outside the IN_PROGRESS states (which already show their own cancel button
               below): lets a PROPOSAL be started over even after REJECTED or already COMPLETED
               (cancelling also cancels any defense created off it), and lets an abandoned DRAFT
-              (of either type) be given up on entirely. */}
-          {(subType === "PROPOSAL" || subStatus === "DRAFT") && subStatus !== "IN_PROGRESS" && subStatus !== "CANCELLED" && (
+              (of either type) be given up on entirely. Requesting cancellation now requires
+              ADMIN accept/decline — see the pending banner above once requested. */}
+          {!sub.cancelRequested && (subType === "PROPOSAL" || subStatus === "DRAFT") && subStatus !== "IN_PROGRESS" && subStatus !== "CANCELLED" && (
             <button
               onClick={() => setShowCancelModal(true)}
               className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 hover:border-gray-400 transition"
             >
               <XCircle className="w-4 h-4" />
-              ยกเลิกคำร้องนี้
+              ขอยกเลิกคำร้องนี้
             </button>
           )}
 
           {/* REJECTED: upload corrected docs then resubmit */}
-          {subStatus === "REJECTED" && (
+          {!sub.cancelRequested && subStatus === "REJECTED" && (
             <div className="bg-white rounded-2xl border border-orange-200 p-4 space-y-3">
               <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                 <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
@@ -597,7 +612,7 @@ export default function StudentSubmissionDetail() {
           )}
 
           {/* Waiting — not the student's turn */}
-          {subStatus === "IN_PROGRESS" && !isMyTurn && !waitingForAdminUpload && currentStep && (
+          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && !isMyTurn && !waitingForAdminUpload && currentStep && (
             <div className={`rounded-2xl p-5 space-y-3 ${stuckDays > 7 ? "bg-amber-50 border border-amber-300" : "bg-orange-50 border border-orange-200"}`}>
               <div className="flex items-start gap-3">
                 <Clock className={`w-6 h-6 shrink-0 mt-0.5 ${stuckDays > 7 ? "text-amber-500" : "text-orange-500"}`} />
@@ -627,13 +642,13 @@ export default function StudentSubmissionDetail() {
                 className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 transition"
               >
                 <XCircle className="w-4 h-4" />
-                ยกเลิกคำร้องนี้
+                ขอยกเลิกคำร้องนี้
               </button>
             </div>
           )}
 
           {/* Upload section — hide when student has already submitted and is waiting for admin */}
-          {subStatus === "IN_PROGRESS" && isMyTurn && !waitingForAdminUpload && (
+          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && isMyTurn && !waitingForAdminUpload && (
             <div className="bg-white rounded-2xl border border-blue-100 p-4 space-y-3">
               {/* Header */}
               <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
@@ -894,7 +909,7 @@ export default function StudentSubmissionDetail() {
                   className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 transition"
                 >
                   <XCircle className="w-4 h-4" />
-                  ยกเลิกคำร้องนี้
+                  ขอยกเลิกคำร้องนี้
                 </button>
               )}
             </div>
@@ -911,10 +926,10 @@ export default function StudentSubmissionDetail() {
                 <Trash2 className="w-5 h-5 text-red-600" />
               </div>
               <div>
-                <p className="font-bold text-gray-900">ยืนยันการยกเลิกคำร้อง</p>
+                <p className="font-bold text-gray-900">ยืนยันการขอยกเลิกคำร้อง</p>
                 <p className="text-sm text-gray-500">
-                  หลังจากยกเลิกแล้วจะไม่สามารถดำเนินการต่อได้
-                  {linkedDefense && linkedDefense.status !== "CANCELLED" && " คำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้องจะถูกยกเลิกไปด้วย"}
+                  คำขอจะถูกส่งให้เจ้าหน้าที่พิจารณา — คำร้องนี้จะถูกระงับจนกว่าเจ้าหน้าที่จะอนุมัติหรือปฏิเสธคำขอ
+                  {linkedDefense && linkedDefense.status !== "CANCELLED" && " หากอนุมัติ คำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้องจะถูกยกเลิกไปด้วย"}
                 </p>
               </div>
             </div>
@@ -923,7 +938,7 @@ export default function StudentSubmissionDetail() {
                 onClick={handleCancelConfirm}
                 className="flex-1 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition"
               >
-                ยกเลิกคำร้อง
+                ส่งคำขอยกเลิก
               </button>
               <button
                 onClick={() => setShowCancelModal(false)}

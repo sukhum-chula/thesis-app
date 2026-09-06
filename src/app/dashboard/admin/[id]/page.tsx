@@ -6,7 +6,7 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge";
-import { FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile, cn } from "@/lib/utils";
+import { FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile, cn, toUserErrorMessage } from "@/lib/utils";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { MockWorkflowStep, MockUpload } from "@/types";
 import Link from "next/link";
@@ -409,7 +409,10 @@ function ProposalFinanceUploadPanel({ submissionId }: { submissionId: string }) 
 export default function AdminSubmissionDetail() {
   const { id }  = useParams<{ id: string }>();
   const router  = useRouter();
-  const { user, submissions, users, adminUpdateSubmission, adminDeleteSubmission, adminOverrideStep, approveCurrentStep, rejectCurrentStep, returnToPrevStep } = useApp();
+  const { user, submissions, users, adminUpdateSubmission, adminDeleteSubmission, adminOverrideStep, approveCurrentStep, rejectCurrentStep, returnToPrevStep, adminAcceptCancel, adminDeclineCancel } = useApp();
+  const { showToast } = useToast();
+  const [cancelActionBusy, setCancelActionBusy] = useState(false);
+  const [confirmAcceptCancel, setConfirmAcceptCancel] = useState(false);
 
   const sub = submissions.find((s) => s.id === id);
 
@@ -471,6 +474,31 @@ export default function AdminSubmissionDetail() {
     : null;
   const doneCount  = visibleSteps.filter((s) => s.status === "APPROVED").length;
   const totalSteps = visibleSteps.length;
+
+  async function handleAcceptCancel() {
+    setCancelActionBusy(true);
+    try {
+      await adminAcceptCancel(sub!.id);
+      setConfirmAcceptCancel(false);
+      showToast("อนุมัติการยกเลิกแล้ว");
+    } catch (err) {
+      showToast(toUserErrorMessage(err, "ไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    } finally {
+      setCancelActionBusy(false);
+    }
+  }
+
+  async function handleDeclineCancel() {
+    setCancelActionBusy(true);
+    try {
+      await adminDeclineCancel(sub!.id);
+      showToast("ปฏิเสธคำขอยกเลิกแล้ว — คำร้องดำเนินการต่อตามปกติ");
+    } catch (err) {
+      showToast(toUserErrorMessage(err, "ไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    } finally {
+      setCancelActionBusy(false);
+    }
+  }
 
   function enterEditMode() {
     if (!sub) return;
@@ -587,6 +615,57 @@ export default function AdminSubmissionDetail() {
             )}
           </div>
         </div>
+
+        {/* Cancellation request — needs ADMIN accept/decline; everything else is frozen meanwhile */}
+        {sub.cancelRequested && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-800">นิสิตขอยกเลิกคำร้องนี้</p>
+                <p className="text-sm text-red-600 mt-0.5">
+                  คำร้องถูกระงับจนกว่าท่านจะอนุมัติหรือปฏิเสธคำขอนี้
+                  {sub.submissionType === "PROPOSAL" && " หากอนุมัติ คำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้อง (ถ้ามี) จะถูกยกเลิกไปด้วย"}
+                </p>
+              </div>
+            </div>
+            {confirmAcceptCancel ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-red-700 font-medium flex-1">ยืนยันอนุมัติการยกเลิก?</span>
+                <button
+                  onClick={handleAcceptCancel}
+                  disabled={cancelActionBusy}
+                  className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 transition"
+                >
+                  {cancelActionBusy ? "กำลังดำเนินการ..." : "ยืนยัน"}
+                </button>
+                <button
+                  onClick={() => setConfirmAcceptCancel(false)}
+                  disabled={cancelActionBusy}
+                  className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmAcceptCancel(true)}
+                  className="flex-1 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition"
+                >
+                  อนุมัติการยกเลิก
+                </button>
+                <button
+                  onClick={handleDeclineCancel}
+                  disabled={cancelActionBusy}
+                  className="flex-1 py-2.5 bg-white border border-red-300 text-red-700 text-sm font-semibold rounded-xl hover:bg-red-50 disabled:opacity-50 transition"
+                >
+                  ปฏิเสธคำขอ
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Meta info — view mode only */}
         {!editMode && (
@@ -893,7 +972,7 @@ export default function AdminSubmissionDetail() {
         <div className="space-y-4">
 
           {/* Task description card — numbered instructions for special admin steps */}
-          {isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisUploadStep) && (
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisUploadStep) && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-500" />
@@ -918,7 +997,7 @@ export default function AdminSubmissionDetail() {
           )}
 
           {/* Admin's action panel — SignatureButton for upload steps, simple approve for others */}
-          {isMyTurn && sub.status !== "REJECTED" && (
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (
             isThesisUploadStep ? (
               <ThesisFacultyUploadPanel submissionId={sub.id} />
             ) : (
