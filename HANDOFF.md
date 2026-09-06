@@ -278,6 +278,38 @@ dated), this section is meant to be edited in place.
   but the new `/admin-dashboard` users-management card and `/dashboard/admin/users` back-link
   haven't been clicked through in a real browser yet.
 
+- **2026-09-06 — SUPER_ADMIN read-only oversight expanded to individual records; ADMIN dashboard
+  reworked into two tabs.** Two related follow-ups on top of the SUPER_ADMIN/ADMIN split above.
+  (1) `/super-dashboard`: `DashboardHeader` removed outright; its stats moved to two places — a
+  standalone "สถิติคำร้อง" submission-count card, later replaced by a full read-only
+  **"รายการคำร้องทั้งหมด"** submission list (`GET /api/super-admin/submissions`, new), positioned
+  right after the "จัดการผู้ดูแลระบบ" user-management card. A new **"รายชื่อผู้ใช้งานทั้งหมด"**
+  read-only directory (`GET /api/super-admin/users`, new) shows every account including
+  STUDENT/PROFESSOR, grouped by role. This is a deliberate, explicit loosening of the previously
+  documented "SUPER_ADMIN cannot view any individual STUDENT/PROFESSOR record or submission" rule —
+  it can now *view* (never act on) both; the old counts-only `GET /api/super-admin/stats` was
+  removed as redundant once these two list endpoints existed. The role-reference card was also
+  reordered to the app's standard SUPER_ADMIN/ADMIN/PROFESSOR/STUDENT sort. See "Super Admin" row
+  and the zero-submission-access bullet in `AGENTS.md`. (2) `/admin-dashboard`: `DashboardHeader`
+  removed too (its stats were already duplicated by the status-tab count badges and the task box's
+  own count, so nothing needed to replace it); the old "ผู้ใช้งานในระบบ" link-out card was replaced
+  by a genuine two-tab layout (`จัดการคำร้อง` / `จัดการผู้ใช้งาน`, full-width `grid grid-cols-2`
+  buttons) sharing one frame (`max-h-[75vh] overflow-y-auto`, so a long list scrolls inside the
+  frame instead of shifting the whole page when the browser's own scrollbar used to appear). The
+  user-management tab embeds a new shared `AdminUsersPanel` component
+  (`src/components/AdminUsersPanel.tsx`, extracted from `/dashboard/admin/users`) instead of just
+  linking out — that standalone route (and its `[uid]` sub-route) still work, now as thin
+  guard+back-link wrappers around the same component, since student names in the submission list
+  still deep-link there directly. See "Admin dashboard" in `AGENTS.md`. **Verified**: `npm run
+  build` passes; `/super-dashboard` was confirmed in a real browser (logged in as the SUPER_ADMIN
+  test account) — the submission list, user directory, and reordered role-reference card all render
+  correctly. **`/admin-dashboard` was NOT verified in a browser this session** — the only ADMIN-role
+  test account (`outanagon2549+suphap@gmail.com`) doesn't use the default seed password (this is the
+  live production DB, not local seed data), and repeatedly guessing a real account's password was
+  judged unsafe rather than attempted further. Next session with working ADMIN credentials should
+  click through the two tabs, the full-width tab bar, and the frame's internal scrollbar before
+  considering this fully done.
+
 ### Carried over from the ownership transfer (not urgent, just not forgotten)
 
 - Retire the old Supabase project (`jttfcoisygcqqshghkmn`) — currently paused, not deleted, per the

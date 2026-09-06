@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { DashboardHeader } from "@/components/DashboardHeader";
+import { AdminUsersPanel } from "@/components/AdminUsersPanel";
 import { ROLE_LABELS, getStepName, formatDate, toUserErrorMessage } from "@/lib/utils";
 import { useToast } from "@/context/ToastContext";
 import { SubmissionStatus } from "@/types";
@@ -13,6 +13,7 @@ import Link from "next/link";
 import {
   ChevronRight, Clock, CheckCircle2, XCircle,
   Trash2, Search, AlertCircle, Bell, BarChart2, BookOpen, GraduationCap, User, Users, Upload, UserPlus,
+  ClipboardList,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep, MockUser } from "@/types";
 import { Role } from "@/types";
@@ -64,6 +65,7 @@ export default function AdminDashboard() {
   const { showToast } = useToast();
   const router = useRouter();
 
+  const [activeTab,     setActiveTab]     = useState<"submissions" | "users">("submissions");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [statusFilter,  setStatusFilter]  = useState<SubmissionStatus | "ALL">("ALL");
   const [search,        setSearch]        = useState("");
@@ -140,34 +142,33 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader
-        role="ADMIN"
-        name={user?.name ?? "ผู้ดูแลระบบ"}
-        title="ภาพรวมคำร้อง"
-        highlight={{ label: "รอดำเนินการ", value: adminTasks.length }}
-        stats={[
-          { label: "ทั้งหมด",        value: counts.ALL },
-          { label: "กำลังดำเนินการ", value: counts.IN_PROGRESS },
-          { label: "เสร็จสิ้น",      value: counts.COMPLETED },
-          { label: "ถูกปฏิเสธ",      value: counts.REJECTED },
-        ]}
-      />
+      {/* Top-level tabs */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setActiveTab("submissions")}
+          className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+            activeTab === "submissions" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <ClipboardList className="w-4 h-4" />
+          จัดการคำร้อง
+        </button>
+        <button
+          onClick={() => setActiveTab("users")}
+          className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+            activeTab === "users" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          จัดการผู้ใช้งาน
+        </button>
+      </div>
 
-      {/* Users management — was a nav link, now an entry-point card since the top bar has no nav */}
-      <Link
-        href="/dashboard/admin/users"
-        className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4 hover:border-blue-300 hover:shadow-sm transition group"
-      >
-        <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center shrink-0">
-          <Users className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-800">ผู้ใช้งานในระบบ</p>
-          <p className="text-xs text-gray-500 mt-0.5">จัดการบัญชีนิสิต อาจารย์ และเจ้าหน้าที่ภาควิชา</p>
-        </div>
-        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-      </Link>
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
+      {activeTab === "users" && <AdminUsersPanel />}
 
+      {activeTab === "submissions" && (
+      <div className="space-y-6">
       {/* Admin task box — all pending tasks with specific descriptions */}
       {adminTasks.length > 0 && (
         <div className="bg-orange-50 border-2 border-orange-300 rounded-2xl p-5 space-y-3">
@@ -494,6 +495,9 @@ export default function AdminDashboard() {
           })}
         </div>
       )}
+      </div>
+      )}
+      </div>
     </div>
   );
 }

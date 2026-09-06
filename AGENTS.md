@@ -148,21 +148,41 @@ THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]
 
 ### Admin dashboard (`src/app/admin-dashboard/page.tsx`) — ADMIN's landing page
 `/dashboard/admin` (old path) now just redirects here. `src/app/dashboard/admin/[id]/page.tsx`
-(submission detail), `src/app/dashboard/admin/users(+[uid])/page.tsx` (ADMIN's own account
-management — STUDENT/PROFESSOR/ADMIN), and `src/app/dashboard/admin/pending-professors/page.tsx`
-(new — see below) still live under the old `/dashboard/admin/` path; only the exact-match overview
-page moved. Layout (top to bottom):
-1. **4 stat cards** — Total / กำลังดำเนินการ (blue) / เสร็จสิ้น (green) / ถูกปฏิเสธ (red)
-2. **"งานที่ต้องดำเนินการ"** orange task box — cancellation requests (`cancel_request` type) always
-   sort first, then PENDING-on-ADMIN steps, then the PROPOSAL step-4 finance-upload task; each card
-   links directly to the submission
-3. **"รอสร้างบัญชีให้อาจารย์/กรรมการ"** amber count card — only shown when any DRAFT submission has
-   an unresolved `pendingPeople` email; links to `/dashboard/admin/pending-professors` (lists each
-   pending email + which submission(s)/student(s) are waiting, with a create-account form)
-4. **Search bar** — filters by thesis title, student name, or student ID
-5. **Status filter tabs** — All / DRAFT / IN_PROGRESS / COMPLETED / REJECTED / CANCELLED, each showing a count badge
-6. **Submission list** — cards sorted by stuck-days descending; each card shows: title, student name + ID (links to user page), status badge, a red "ขอยกเลิก" pill when `cancelRequested`, who it's waiting on + step number, progress bar, created date, delete button (with confirm prompt), "จัดการ" link
-7. **Stuck-day badge** — amber "ค้างมา X วัน" warning appears on submissions stuck > 7 days (IN_PROGRESS only)
+(submission detail) and `src/app/dashboard/admin/pending-professors/page.tsx` still live under the
+old `/dashboard/admin/` path; only the exact-match overview page moved.
+
+**No `DashboardHeader`** (removed 2026-09-06) — the page starts directly with its content; the
+stats it used to show are already duplicated elsewhere on the page (see below), so nothing was
+added back in its place.
+
+**Two full-width tabs** (added 2026-09-06, `useState<"submissions" | "users">`, `grid grid-cols-2
+gap-2` so both buttons split the width equally), rendered inside one shared frame
+(`bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 max-h-[75vh] overflow-y-auto` — the
+`max-h`+`overflow-y-auto` keeps a long list's scrollbar contained inside the frame instead of on
+the outer page, which used to shift the whole layout when the browser's own scrollbar appeared):
+
+1. **จัดการคำร้อง (submissions)** — default tab, everything the page used to show top-to-bottom:
+   - **"งานที่ต้องดำเนินการ"** orange task box — cancellation requests (`cancel_request` type)
+     always sort first, then PENDING-on-ADMIN steps, then the PROPOSAL step-4 finance-upload task;
+     each card links directly to the submission
+   - **"รอสร้างบัญชีให้อาจารย์/กรรมการ"** amber count card — only shown when any DRAFT submission
+     has an unresolved `pendingPeople` email; links to `/dashboard/admin/pending-professors`
+   - **Step distribution** (`StepDistributionDashboard`) — in-progress submissions grouped by
+     pending step, PROPOSAL/THESIS_DEFENSE separately, each step row expandable to a per-student list
+   - **Type filter pills** (ทุกประเภท/โครงร่าง/สอบวิทยานิพนธ์), **search bar**, **status filter
+     tabs** (All/DRAFT/IN_PROGRESS/COMPLETED/REJECTED/CANCELLED, each with a count badge — these
+     badges are what replaced the old header's stat pills, so nothing was lost when the header was
+     removed)
+   - **Submission list** — cards sorted by stuck-days descending; each shows title, student name +
+     ID (links to `/dashboard/admin/users/[uid]`), status badge, a red "ขอยกเลิก" pill when
+     `cancelRequested`, a "ค้างมา X วัน" badge past 7 days, who it's waiting on + step number,
+     progress bar, created date, delete button (with confirm prompt), "จัดการ"/"ดำเนินการ" link
+2. **จัดการผู้ใช้งาน (users)** — renders `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
+   extracted 2026-09-06): the full STUDENT/PROFESSOR/ADMIN account list (expand a row for
+   `UserDetailPanel`), the add-user modal, and demo reset tools. The same component is reused
+   standalone at `/dashboard/admin/users` (now a thin guard+back-link wrapper around it) and its
+   `[uid]` detail route, since student names in the submission list still deep-link there directly
+   — the old "ผู้ใช้งานในระบบ" link-out card on this page was removed in favor of this tab.
 
 ### admin_override_step status priority
 When admin overrides individual steps via `action: "admin_override_step"`, submission status is computed as: **`hasPending → IN_PROGRESS`** (takes priority), then `hasRejected → REJECTED`, then `COMPLETED`. This ensures overriding a step to REJECTED does not lock the submission if later steps are still PENDING.
