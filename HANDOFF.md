@@ -190,3 +190,51 @@ dated), this section is meant to be edited in place.
   original rollback-window plan. Revoke its service-role key once you're confident nothing needs it.
 - The full manual browser smoke test from §7 still hasn't happened — real credentials, real click
   path through at least one full PROPOSAL and one THESIS_DEFENSE submission.
+
+### Dead-code / unused-dependency audit (2026-09-06)
+
+Verified by grepping the whole repo (not just `src/`) for each item before flagging it — this list
+already corrects an earlier miss (`xlsx` was initially flagged unused but is actually required by
+`scripts/make-wordlist.js`/`scripts/import-wordlist.js`, so it was kept).
+
+**Already removed this session (uncommitted — stage/commit when ready):**
+- `src/utils/supabase/` (`client.ts`, `server.ts`, `middleware.ts`) — leftover Supabase Auth-helper
+  boilerplate (`@supabase/ssr`'s `createBrowserClient`/`createServerClient`) from an early scaffold.
+  Zero importers anywhere in the repo, and no root `middleware.ts` exists to wire the middleware
+  helper in even if something had tried. This app's real auth is NextAuth credentials+JWT
+  (`src/lib/auth.ts`); the only legitimate direct Supabase usage is `src/lib/supabase.ts` (Storage
+  only, service-role key).
+- `@supabase/ssr` dependency — was only used by the folder above.
+
+**Confirmed unused, not yet removed (awaiting a decision):**
+- `playwright` (devDependency) — no `playwright.config.*`, no `e2e/` dir, zero references outside
+  `package.json`. `CLAUDE.md` already says to treat it as unused until a real config is added.
+- `zod` (dependency) — zero imports, zero `z.object`/`z.infer` usage anywhere in `src/`.
+- `react-hook-form` (dependency) — zero imports, no `useForm`/`register`/`Controller`/`FormProvider`
+  usage anywhere.
+- `@hookform/resolvers` (dependency) — zero imports.
+- `@auth/prisma-adapter` (dependency) — `src/lib/auth.ts` only calls `Credentials(...)` with JWT
+  sessions; no `PrismaAdapter(...)` call exists anywhere.
+- `src/lib/workflow.ts` — dead mock-build stub (already flagged in `CLAUDE.md`), reconfirmed zero
+  importers.
+
+**Kept — confirmed actually necessary:**
+- `xlsx` (devDependency) — required by `scripts/make-wordlist.js` (writes `../../thesis-wordlist.xlsx`)
+  and `scripts/import-wordlist.js` (reads it back). Not wired into `npm run build`/`dev`, but real
+  tooling scripts break without it.
+
+**Redundant but harmless, lower priority:**
+- `pg` / `@types/pg` (dependencies) — not imported directly anywhere in `src/`; `@prisma/adapter-pg`
+  already lists both as its own dependencies, so they're pulled in transitively regardless. Explicit
+  listing isn't wrong, just not strictly necessary.
+
+**Stale docs, not code:**
+- `docs/ARCHITECTURE.md` / `docs/RECIPES.md` — describe a pre-database, localStorage-only version of
+  the app that no longer exists (per `CLAUDE.md`, "don't follow their instructions"). Still linked
+  from `README.md`, so a reader following the README lands on inaccurate docs.
+
+Found while investigating an unrelated stray file: **`scripts/mass-email-change.ts` is untracked**
+(not in git) and fails `npm run build`'s type-check (`import { PrismaClient } from "@prisma/client"`
+— this project generates the client to `src/generated/prisma` per `prisma.config.ts`, not the
+default location). Left alone since it looks like someone's in-progress local script, not part of
+this audit.
