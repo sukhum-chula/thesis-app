@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getStepName, ROLE_LABELS, PROGRAM_LABELS } from "@/lib/utils";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
+import { buildWorkflowSteps } from "@/lib/workflowSteps";
+import { resolvePeople, type PersonInput } from "@/lib/committee";
 
 function mapSub(s: any) {
   return {
@@ -497,6 +499,52 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await prisma.workflowStep.updateMany({ where: { submissionId: id, status: "PENDING" }, data: { status: "SKIPPED" } });
     await prisma.submission.update({ where: { id }, data: { status: "CANCELLED" } });
+
+    // Cancelling a PROPOSAL also cancels the defense created off it (if any and still in flight) —
+    // this is how a student "starts over": cancel the old proposal, then a new one can be created.
+    if (sub.submissionType === "PROPOSAL") {
+      const linkedDefense = await prisma.submission.findFirst({
+        where: { sourceProposalId: id, status: { notIn: ["CANCELLED", "COMPLETED"] } },
+      });
+      if (linkedDefense) {
+        await prisma.workflowStep.updateMany({ where: { submissionId: linkedDefense.id, status: "PENDING" }, data: { status: "SKIPPED" } });
+        await prisma.submission.update({ where: { id: linkedDefense.id }, data: { status: "CANCELLED" } });
+      }
+    }
+  }
+
+  else if (action === "continue_draft") {
+    if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (sub.status !== "DRAFT") return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่าง" }, { status: 400 });
+
+    const pendingPeople = (sub.pendingPeople as PersonInput[] | null) ?? [];
+    const result = await resolvePeople(pendingPeople);
+    if (!result.ok)
+      return NextResponse.json(
+        { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${result.missingEmails.join(", ")}` },
+        { status: 400 }
+      );
+
+    await prisma.submission.update({
+      where: { id },
+      data: {
+        status: "IN_PROGRESS",
+        pendingPeople: null as any,
+        advisorId: result.advisorId,
+        headCommitteeId: result.headCommitteeId,
+        committeeIds: result.committeeIds,
+        coAdvisorIds: result.coAdvisorIds,
+        invitedCommitteeId: result.invitedCommitteeId,
+        programChairId: result.programChairId,
+        invitedProfName: result.invitedProfName,
+        invitedProfEmail: result.invitedProfEmail,
+        invitedProfPhone: result.invitedProfPhone,
+      },
+    });
+    await prisma.workflowStep.createMany({
+      data: buildWorkflowSteps(sub.submissionType, result.coAdvisorIds, result.committeeIds, result.invitedCommitteeId)
+        .map((s) => ({ ...s, submissionId: id })),
+    });
   }
 
   else if (action === "resubmit") {

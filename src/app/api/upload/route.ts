@@ -41,9 +41,11 @@ export async function POST(req: NextRequest) {
   const sessionRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
   const sessionIsProgramChair = (session.user as any).isProgramChair === true;
   const isAdminRole = sessionRoles.includes("ADMIN") || sessionIsProgramChair;
+  const subCheck = await prisma.submission.findUnique({ where: { id: submissionId } });
+  if (!subCheck) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
+  if (subCheck.status === "CANCELLED")
+    return NextResponse.json({ error: "คำร้องนี้ถูกยกเลิกแล้ว" }, { status: 400 });
   if (!isAdminRole) {
-    const subCheck = await prisma.submission.findUnique({ where: { id: submissionId } });
-    if (!subCheck) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
     const uid = session.user.id;
     const involved =
       subCheck.studentId === uid ||

@@ -13,6 +13,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Send, Upload, Download,
   AlertCircle, Clock, CheckCircle2, RefreshCw, StickyNote, CalendarDays, Car, XCircle, Trash2, User, Users, TriangleAlert,
+  ArrowRight,
 } from "lucide-react";
 import { FileList } from "@/components/FileList";
 import { useToast } from "@/context/ToastContext";
@@ -72,13 +73,14 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
 
 export default function StudentSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user, submissions, users, approveCurrentStep, studentResubmit, cancelSubmission, refresh } = useApp();
+  const { user, submissions, users, approveCurrentStep, studentResubmit, cancelSubmission, continueDraft, refresh } = useApp();
   const { showToast } = useToast();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<FormType, File>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [confirmSigns, setConfirmSigns] = useState(false);
   const [confirmProgram, setConfirmProgram] = useState(false);
+  const [continuing, setContinuing] = useState(false);
 
   const sub = submissions.find((s) => s.id === id);
 
@@ -86,7 +88,7 @@ export default function StudentSubmissionDetail() {
     return (
       <div className="text-center py-20 text-gray-400 space-y-2">
         <p className="text-lg">ไม่พบข้อมูลคำร้อง</p>
-        <Link href="/dashboard/student" className="text-blue-500 hover:underline">กลับหน้าหลัก</Link>
+        <Link href="/student-dashboard" className="text-blue-500 hover:underline">กลับหน้าหลัก</Link>
       </div>
     );
   }
@@ -112,6 +114,8 @@ export default function StudentSubmissionDetail() {
     : 0;
 
   const subType = sub.submissionType ?? "PROPOSAL";
+  const linkedProposal = sub.sourceProposalId ? submissions.find((s) => s.id === sub.sourceProposalId) ?? null : null;
+  const linkedDefense = subType === "PROPOSAL" ? submissions.find((s) => s.sourceProposalId === sub.id) ?? null : null;
 
   // At THESIS step 9 (student uploads แบบรายงานฯ), admin already uploaded SIGNED at step 8.
   // Filter those out so the checklist and uploader don't count the admin's file as the student's own.
@@ -195,8 +199,67 @@ export default function StudentSubmissionDetail() {
     }
   }
 
+  async function handleContinueDraft() {
+    setContinuing(true);
+    try {
+      await continueDraft(sub!.id);
+      showToast("ยืนยันคำร้องแล้ว — เริ่มดำเนินการ", "info");
+    } catch (err) {
+      showToast(toUserErrorMessage(err), "error");
+    } finally {
+      setContinuing(false);
+    }
+  }
+
   function renderStatusBanner() {
     if (!sub) return null;
+
+    if (subStatus === "DRAFT") {
+      const pending = (sub.pendingPeople ?? []) as { name?: string; email?: string; role?: string }[];
+      const resolved = pending.map((p) => ({
+        ...p,
+        hasAccount: !!p.email && users.some((u) => u.email.toLowerCase() === p.email!.trim().toLowerCase()),
+      }));
+      const allResolved = resolved.length > 0 && resolved.every((p) => p.hasAccount);
+      return (
+        <div className="bg-gray-50 border border-gray-300 rounded-2xl p-5 space-y-4">
+          <div className="flex items-start gap-4">
+            <StickyNote className="w-7 h-7 text-gray-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-gray-800 font-bold text-lg">คำร้องนี้เป็นฉบับร่าง</p>
+              <p className="text-gray-500 text-sm mt-1">
+                มีกรรมการที่ยังไม่มีบัญชีในระบบ — รอเจ้าหน้าที่สร้างบัญชีให้ก่อนจึงจะเริ่มดำเนินการได้
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {resolved.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm bg-white rounded-xl px-3 py-2 border border-gray-100">
+                {p.hasAccount
+                  ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                  : <Clock className="w-4 h-4 text-amber-500 shrink-0" />}
+                <span className="flex-1 min-w-0 truncate">
+                  <span className="font-medium text-gray-800">{p.name}</span>
+                  <span className="text-gray-400"> · {ROLE_LABELS[p.role ?? ""] ?? p.role} · {p.email}</span>
+                </span>
+                <span className={`text-xs font-semibold shrink-0 ${p.hasAccount ? "text-green-600" : "text-amber-600"}`}>
+                  {p.hasAccount ? "มีบัญชีแล้ว" : "รอสร้างบัญชี"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleContinueDraft}
+            disabled={!allResolved || continuing}
+            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition ${
+              allResolved && !continuing ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
+          >
+            {continuing ? "กำลังดำเนินการ..." : "ดำเนินการต่อ"}
+          </button>
+        </div>
+      );
+    }
 
     if (subStatus === "CANCELLED") {
       return (
@@ -285,7 +348,7 @@ export default function StudentSubmissionDetail() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <Link href="/dashboard/student" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-800 font-medium py-2 -my-2">
+      <Link href="/student-dashboard" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-800 font-medium py-2 -my-2">
         <ArrowLeft className="w-5 h-5" />
         ย้อนกลับรายการ
       </Link>
@@ -303,6 +366,20 @@ export default function StudentSubmissionDetail() {
         </div>
         <SubmissionStatusBadge status={sub.status} />
       </div>
+
+      {/* Linked proposal / defense */}
+      {linkedProposal && (
+        <Link href={`/dashboard/student/${linkedProposal.id}`} className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          มาจากคำร้องโครงร่าง: {linkedProposal.title}
+        </Link>
+      )}
+      {linkedDefense && (
+        <Link href={`/dashboard/student/${linkedDefense.id}`} className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
+          ดูคำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้อง: {linkedDefense.title}
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      )}
 
       {/* Status banner */}
       {renderStatusBanner()}
@@ -399,23 +476,27 @@ export default function StudentSubmissionDetail() {
         </div>
       )}
 
-      {/* Progress bar */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-            style={{ width: `${totalSteps > 0 ? (doneCount / totalSteps) * 100 : 0}%` }}
-          />
+      {/* Progress bar — no workflow steps exist yet while DRAFT */}
+      {subStatus !== "DRAFT" && (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-500"
+              style={{ width: `${totalSteps > 0 ? (doneCount / totalSteps) * 100 : 0}%` }}
+            />
+          </div>
+          <span className="text-sm font-medium text-gray-600 shrink-0">{doneCount}/{totalSteps} ขั้น</span>
         </div>
-        <span className="text-sm font-medium text-gray-600 shrink-0">{doneCount}/{totalSteps} ขั้น</span>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Timeline — second on mobile so upload/action is reachable first */}
-        <div className="order-2 md:order-none md:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-5">ขั้นตอนทั้งหมด</h2>
-          <WorkflowTimeline steps={sub.workflowSteps} users={allUsers} submissionType={sub.submissionType} submission={sub} />
-        </div>
+        {subStatus !== "DRAFT" && (
+          <div className="order-2 md:order-none md:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-5">ขั้นตอนทั้งหมด</h2>
+            <WorkflowTimeline steps={sub.workflowSteps} users={allUsers} submissionType={sub.submissionType} submission={sub} />
+          </div>
+        )}
 
         {/* Right: files + upload — first on mobile */}
         <div className="order-1 md:order-none space-y-4">
@@ -428,6 +509,20 @@ export default function StudentSubmissionDetail() {
               compact
               hideHistory
             />
+          )}
+
+          {/* Cancel — outside the IN_PROGRESS states (which already show their own cancel button
+              below): lets a PROPOSAL be started over even after REJECTED or already COMPLETED
+              (cancelling also cancels any defense created off it), and lets an abandoned DRAFT
+              (of either type) be given up on entirely. */}
+          {(subType === "PROPOSAL" || subStatus === "DRAFT") && subStatus !== "IN_PROGRESS" && subStatus !== "CANCELLED" && (
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 hover:border-gray-400 transition"
+            >
+              <XCircle className="w-4 h-4" />
+              ยกเลิกคำร้องนี้
+            </button>
           )}
 
           {/* REJECTED: upload corrected docs then resubmit */}
@@ -817,7 +912,10 @@ export default function StudentSubmissionDetail() {
               </div>
               <div>
                 <p className="font-bold text-gray-900">ยืนยันการยกเลิกคำร้อง</p>
-                <p className="text-sm text-gray-500">หลังจากยกเลิกแล้วจะไม่สามารถดำเนินการต่อได้</p>
+                <p className="text-sm text-gray-500">
+                  หลังจากยกเลิกแล้วจะไม่สามารถดำเนินการต่อได้
+                  {linkedDefense && linkedDefense.status !== "CANCELLED" && " คำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้องจะถูกยกเลิกไปด้วย"}
+                </p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -837,6 +935,7 @@ export default function StudentSubmissionDetail() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

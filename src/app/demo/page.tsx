@@ -26,9 +26,9 @@ const GROUPS: { title: string; users: DemoUser[] }[] = [
   {
     title: "นิสิต",
     users: [
-      { email: "student@eng.chula.ac.th",            name: "นายอานนท์ ใจดี",       roleLabel: "นิสิต (mock)",       dashboard: "/dashboard/student",             color: "from-blue-500 to-indigo-600",    emoji: "🎓" },
-      { email: "6733100421@student.chula.ac.th",     name: "ธนากร โถรัตน์",        roleLabel: "นิสิต",             dashboard: "/dashboard/student",             color: "from-blue-500 to-indigo-600",    emoji: "🎓" },
-      { email: "outanagon2549@gmail.com",            name: "นายพันธวิศ มะสัน",     roleLabel: "นิสิต",             dashboard: "/dashboard/student",             color: "from-blue-500 to-indigo-600",    emoji: "🎓" },
+      { email: "student@eng.chula.ac.th",            name: "นายอานนท์ ใจดี",       roleLabel: "นิสิต (mock)",       dashboard: "/student-dashboard",            color: "from-blue-500 to-indigo-600",    emoji: "🎓" },
+      { email: "6733100421@student.chula.ac.th",     name: "ธนากร โถรัตน์",        roleLabel: "นิสิต",             dashboard: "/student-dashboard",            color: "from-blue-500 to-indigo-600",    emoji: "🎓" },
+      { email: "outanagon2549@gmail.com",            name: "นายพันธวิศ มะสัน",     roleLabel: "นิสิต",             dashboard: "/student-dashboard",            color: "from-blue-500 to-indigo-600",    emoji: "🎓" },
     ],
   },
   {

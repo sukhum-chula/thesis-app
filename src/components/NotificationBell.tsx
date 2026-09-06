@@ -55,12 +55,19 @@ export function NotificationBell() {
     setOpen((v) => !v);
   }
 
+  // ADMIN and STUDENT have a landing page (/admin-dashboard, /student-dashboard) split from
+  // where individual submissions actually live (/dashboard/admin/[id], /dashboard/student/[id]).
+  const DETAIL_BASE: Partial<Record<Role, string>> = {
+    ADMIN:   "/dashboard/admin",
+    STUDENT: "/dashboard/student",
+  };
+
   function handleClick(notif: MockNotification) {
     markNotificationRead(notif.id);
     setOpen(false);
     if (!user) return;
     const base = ROLE_ROUTES[user.role as Role] ?? "/dashboard/student";
-    if (notif.submissionId) router.push(`${base}/${notif.submissionId}`);
+    if (notif.submissionId) router.push(`${DETAIL_BASE[user.role as Role] ?? base}/${notif.submissionId}`);
     else router.push(base);
   }
 

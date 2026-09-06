@@ -9,6 +9,7 @@ import {
 export interface SubmissionFormData {
   title: string;
   submissionType?: string;
+  sourceProposalId?: string;
   advisorId?: string;
   studentFullName?: string;
   studentCode?: string;
@@ -60,6 +61,7 @@ interface AppContextType {
   getPendingCount: (role: string) => number;
   studentResubmit: (submissionId: string) => Promise<void>;
   cancelSubmission: (submissionId: string) => Promise<void>;
+  continueDraft: (submissionId: string) => Promise<void>;
   committeeSign: (submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   needsMyAction: (sub: MockSubmission) => boolean;
   markNotificationRead: (id: string) => Promise<void>;
@@ -74,6 +76,7 @@ interface AppContextType {
   superAdminAddUser: (userData: Omit<MockUser, "id">, password?: string) => Promise<void>;
   superAdminChangePassword: (userId: string, newPassword: string) => Promise<void>;
   adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
+  adminCreatePendingProfessor: (name: string, email: string, phone?: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -210,6 +213,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
   }
 
+  async function continueDraft(submissionId: string) {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "continue_draft" });
+    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
+  }
+
   async function committeeSign(submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) {
     const sub = await api<MockSubmission>(`/api/submissions/${submissionId}/sign`, "POST", { decision, notes });
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
@@ -328,6 +336,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => [...prev, newUser]);
   }
 
+  async function adminCreatePendingProfessor(name: string, email: string, phone?: string) {
+    await api("/api/admin/pending-professors", "POST", { name, email, phone });
+    await refresh(); // picks up the new PROFESSOR account and any resolved-draft notifications
+  }
+
   async function superAdminChangePassword(userId: string, newPassword: string) {
     await api(`/api/users/${userId}`, "PATCH", { password: newPassword });
   }
@@ -353,13 +366,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user, users, submissions, notifications, unreadCount, loading,
       logout, refresh,
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
-      addUpload, getPendingCount, studentResubmit, cancelSubmission,
+      addUpload, getPendingCount, studentResubmit, cancelSubmission, continueDraft,
       committeeSign, needsMyAction,
       markNotificationRead, markAllNotificationsRead,
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminChangePassword,
-      adminUpdateUserInfo,
+      adminUpdateUserInfo, adminCreatePendingProfessor,
     }}>
       {children}
     </AppContext.Provider>

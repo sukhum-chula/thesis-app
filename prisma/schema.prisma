@@ -84,11 +84,19 @@ model Submission {
   submissionType SubmissionType?
   status         SubmissionStatus @default(DRAFT)
   adminNote      String?
+  // Raw {name,email,role,phone}[] the student entered while status=DRAFT (some committee person
+  // has no account yet); cleared once resolved and the real committee fields below are set.
+  pendingPeople  Json?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
   student   User   @relation("StudentSubmissions", fields: [studentId], references: [id])
   studentId String
+
+  // A THESIS_DEFENSE is created by importing committee/student info from a completed PROPOSAL.
+  sourceProposal   Submission?  @relation("ProposalToDefense", fields: [sourceProposalId], references: [id])
+  sourceProposalId String?
+  defenses         Submission[] @relation("ProposalToDefense")
 
   advisor   User?   @relation("AdvisorSubmissions", fields: [advisorId], references: [id])
   advisorId String?

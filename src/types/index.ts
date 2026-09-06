@@ -66,6 +66,9 @@ export interface MockSubmission {
   studentId: string;
   advisorId?: string;
   status: SubmissionStatus;
+  sourceProposalId?: string | null;
+  // Raw committee entries while status === "DRAFT" — some person named here has no account yet.
+  pendingPeople?: { name?: string; email?: string; role?: string; phone?: string }[] | null;
   createdAt: string;
   uploads: MockUpload[];
   workflowSteps: MockWorkflowStep[];

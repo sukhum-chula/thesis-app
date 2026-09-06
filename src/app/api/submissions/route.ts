@@ -1,51 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
-import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { sendWelcomeEmail } from "@/lib/email";
 import { isValidEmail, isValidStudentId, isValidThaiPhone } from "@/lib/utils";
-
-// PROPOSAL: 11 steps — บ.วศ.1ก/1ข then บ.วศ.1ค/1ง
-const PROPOSAL_ROLES = [
-  "STUDENT",               // 1  upload BW1A + BW1B
-  "ADMIN",                 // 2  approve
-  "PROGRAM_CHAIR",         // 3  sign BW1A → finance email
-  "STUDENT",               // 4  upload B1C + B1D
-  "HEAD_EXAM_COMMITTEE",   // 5  sign B1C
-  "ADVISOR",               // 6  sign B1C
-  "CO_ADVISOR",            // 7  sign B1C (sequential, skipped if no co-advisors)
-  "INVITED_EXAM_COMMITTEE",// 8  sign B1C
-  "EXAM_COMMITTEE",        // 9  sign B1C + B1D (all members)
-  "ADMIN",                 // 10 approve
-  "PROGRAM_CHAIR",         // 11 sign B1C + B1D
-] as const;
-
-// THESIS_DEFENSE: 22 steps — บ.2/3 through thesis cover signing
-const THESIS_ROLES = [
-  "STUDENT",               // 1  upload B2 + B3
-  "EXAM_COMMITTEE",        // 2  sign B3 (sequential)
-  "ADVISOR",               // 3  sign B2
-  "CO_ADVISOR",            // 4  sign B2 (sequential, skipped if no co-advisors)
-  "HEAD_EXAM_COMMITTEE",   // 5  sign B2
-  "PROGRAM_CHAIR",         // 6  sign B2 → notify admin
-  "ADMIN",                 // 7  collect + send B2+B3 to Faculty
-  "ADMIN",                 // 8  receive faculty docs + upload + send invitation letters
-  "STUDENT",               // 9  fill + sign แบบรายงานฯ
-  "ADVISOR",               // 10 sign แบบรายงาน + ใบรายงานผล
-  "CO_ADVISOR",            // 11 sign แบบรายงาน + ใบรายงานผล (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 12 sign ใบรายงานผล
-  "EXAM_COMMITTEE",        // 13 sign ใบรายงานผล (sequential)
-  "INVITED_EXAM_COMMITTEE",// 14 sign ใบรายงานผล
-  "PROGRAM_CHAIR",         // 15 sign ใบรายงานผล
-  "STUDENT",               // 16 upload B4 + THESIS
-  "PROGRAM_CHAIR",         // 17 sign B4
-  "ADVISOR",               // 18 sign thesis cover
-  "CO_ADVISOR",            // 19 sign thesis cover (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 20 sign thesis cover
-  "EXAM_COMMITTEE",        // 21 sign thesis cover (sequential)
-  "INVITED_EXAM_COMMITTEE",// 22 sign thesis cover
-] as const;
+import { buildWorkflowSteps } from "@/lib/workflowSteps";
+import { validatePeople, resolvePeople, type PersonInput } from "@/lib/committee";
 
 function mapSub(s: any) {
   return {
@@ -119,6 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ชื่อหัวข้อยาวเกิน 500 ตัวอักษร" }, { status: 400 });
   if (data.submissionType !== "PROPOSAL" && data.submissionType !== "THESIS_DEFENSE")
     return NextResponse.json({ error: "ประเภทคำร้องไม่ถูกต้อง" }, { status: 400 });
+  const isDefense = data.submissionType === "THESIS_DEFENSE";
   const studentFullName = typeof data.studentFullName === "string" ? data.studentFullName.trim() : "";
   if (!studentFullName || studentFullName.length > 200)
     return NextResponse.json({ error: "กรุณาระบุชื่อ-นามสกุล (ไม่เกิน 200 ตัวอักษร)" }, { status: 400 });
@@ -148,180 +107,137 @@ export async function POST(req: NextRequest) {
   if (parkingNeeded && (!carPlate || carPlate.length > 50))
     return NextResponse.json({ error: "กรุณาระบุเลขทะเบียนรถ (ไม่เกิน 50 ตัวอักษร)" }, { status: 400 });
 
+  // ── PROPOSAL: only one active proposal per student at a time — cancel the old one first ──
+  if (!isDefense) {
+    const activeProposal = await prisma.submission.findFirst({
+      where: { studentId: userId, submissionType: "PROPOSAL", status: { not: "CANCELLED" } },
+    });
+    if (activeProposal)
+      return NextResponse.json(
+        { error: "คุณมีคำร้องขอสอบโครงร่างที่ใช้งานอยู่แล้ว กรุณายกเลิกคำร้องเดิมก่อนยื่นใหม่" },
+        { status: 400 }
+      );
+  }
+
+  // ── THESIS_DEFENSE: must import committee/student info from an existing completed PROPOSAL ──
+  let sourceProposal: Awaited<ReturnType<typeof prisma.submission.findUnique>> | null = null;
+  if (isDefense) {
+    const sourceProposalId = typeof data.sourceProposalId === "string" ? data.sourceProposalId : "";
+    if (!sourceProposalId)
+      return NextResponse.json({ error: "กรุณาเลือกคำร้องขอสอบโครงร่างที่เสร็จสมบูรณ์แล้ว" }, { status: 400 });
+    sourceProposal = await prisma.submission.findUnique({ where: { id: sourceProposalId } });
+    if (!sourceProposal || sourceProposal.studentId !== userId || sourceProposal.submissionType !== "PROPOSAL")
+      return NextResponse.json({ error: "ไม่พบคำร้องขอสอบโครงร่างที่เลือก" }, { status: 400 });
+    if (sourceProposal.status !== "COMPLETED")
+      return NextResponse.json({ error: "คำร้องขอสอบโครงร่างต้องเสร็จสมบูรณ์ก่อนจึงจะยื่นขอสอบวิทยานิพนธ์ได้" }, { status: 400 });
+    const existingDefense = await prisma.submission.findFirst({
+      where: { sourceProposalId: sourceProposal.id, status: { not: "CANCELLED" } },
+    });
+    if (existingDefense)
+      return NextResponse.json({ error: "มีคำร้องขอสอบวิทยานิพนธ์ที่ใช้งานอยู่แล้วสำหรับข้อเสนอนี้" }, { status: 400 });
+  }
+
   const studentOwnEmails = new Set(
     [session.user.email, studentEmail]
       .filter(Boolean)
       .map((e: string) => e.trim().toLowerCase())
   );
 
-  // ── Committee people: student enters name/email/role/phone for every person
-  //    responsible for their thesis. Accounts are found-or-created by email.
-  type PersonInput = { name?: string; email?: string; role?: string; phone?: string };
-  const PERSON_ROLES = ["ADVISOR", "CO_ADVISOR", "HEAD_EXAM_COMMITTEE", "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE", "PROGRAM_CHAIR"];
+  // ── Committee people: every professor must already have an account. The student enters
+  //    name/email/role/phone for everyone responsible for their thesis — for a PROPOSAL that's
+  //    entered fresh; for a THESIS_DEFENSE it's prefilled from the source proposal but still
+  //    editable, and edits here never touch the proposal's own row (see §THESIS_DEFENSE below).
+  //    If any email doesn't resolve to an existing account, nothing is created — the submission
+  //    is saved as a DRAFT (no committee fields, no workflow steps) until an admin creates the
+  //    missing account(s) and the student explicitly continues (`action: "continue_draft"`).
   const people: PersonInput[] = Array.isArray(data.people) ? data.people : [];
+  const peopleError = validatePeople(people, studentOwnEmails);
+  if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
 
-  // A submission with no committee is unworkable — every workflow step after step 1
-  // would have no assignee. The form always sends people; reject empty at the API too.
-  if (people.length === 0)
-    return NextResponse.json({ error: "กรุณาระบุอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์" }, { status: 400 });
+  const resolved = await resolvePeople(people);
 
-  let advisorId: string | null = data.advisorId || null;
-  let coAdvisorIds: string[] = data.coAdvisorIds ?? [];
-  let headCommitteeId: string | null = data.headCommitteeId || null;
-  let committeeIds: string[] = data.committeeIds ?? [];
-  let invitedCommitteeId: string | null = data.invitedCommitteeId || null;
-  let programChairId: string | null = null;
-  let invitedProfName: string | null = data.invitedProfName ?? null;
-  let invitedProfEmail: string | null = data.invitedProfEmail ?? null;
-  let invitedProfPhone: string | null = data.invitedProfPhone ?? null;
-  const newAccounts: { id: string; name: string; email: string; password: string }[] = [];
-
-  if (people.length) {
-    const seenRoleEmail = new Set<string>();
-    for (const p of people) {
-      if (!p.name?.trim() || !p.email?.trim() || !p.role || !PERSON_ROLES.includes(p.role))
-        return NextResponse.json({ error: "กรุณากรอกชื่อ อีเมล และบทบาทของกรรมการให้ครบทุกคน" }, { status: 400 });
-      if (p.name.trim().length > 200)
-        return NextResponse.json({ error: `ชื่อของกรรมการยาวเกิน 200 ตัวอักษร` }, { status: 400 });
-      // A typo'd email creates an account whose password email goes nowhere — reject early
-      if (!isValidEmail(p.email))
-        return NextResponse.json({ error: `รูปแบบอีเมลของ "${p.name.trim()}" ไม่ถูกต้อง (${p.email.trim()})` }, { status: 400 });
-      if (p.phone?.trim() && !isValidThaiPhone(p.phone))
-        return NextResponse.json({ error: `เบอร์โทรศัพท์ของ "${p.name.trim()}" ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)` }, { status: 400 });
-      const email = p.email.trim().toLowerCase();
-      // A committee person may not be the student themselves
-      if (studentOwnEmails.has(email))
-        return NextResponse.json({ error: "ไม่สามารถใช้อีเมลของนิสิตเป็นกรรมการได้" }, { status: 400 });
-      // Same email may hold multiple roles, but not the SAME role twice (breaks sequential signing)
-      const key = `${p.role}:${email}`;
-      if (seenRoleEmail.has(key))
-        return NextResponse.json({ error: "อีเมลนี้ถูกเพิ่มในบทบาทเดียวกันซ้ำ" }, { status: 400 });
-      seenRoleEmail.add(key);
-    }
-    const count = (r: string) => people.filter((p) => p.role === r).length;
-    if (count("PROGRAM_CHAIR") !== 1)
-      return NextResponse.json({ error: "ต้องระบุประธานหลักสูตร 1 คน (เพิ่มได้เพียง 1 คนเท่านั้น)" }, { status: 400 });
-    if (count("ADVISOR") !== 1)
-      return NextResponse.json({ error: "ต้องระบุอาจารย์ที่ปรึกษา 1 คน" }, { status: 400 });
-    if (count("HEAD_EXAM_COMMITTEE") !== 1)
-      return NextResponse.json({ error: "ต้องระบุประธานกรรมการสอบ 1 คน" }, { status: 400 });
-    if (count("EXAM_COMMITTEE") < 1)
-      return NextResponse.json({ error: "ต้องระบุกรรมการสอบอย่างน้อย 1 คน" }, { status: 400 });
-    if (count("INVITED_EXAM_COMMITTEE") !== 1)
-      return NextResponse.json({ error: "ต้องระบุกรรมการภายนอก 1 คน" }, { status: 400 });
-
-    // Find-or-create one account per unique email (same person may hold several roles)
-    const idByEmail = new Map<string, string>();
-    for (const p of people) {
-      const email = p.email!.trim().toLowerCase();
-      if (idByEmail.has(email)) continue;
-      const existing = await prisma.user.findUnique({ where: { email } });
-      if (existing) {
-        idByEmail.set(email, existing.id);
-        continue;
-      }
-      const tempPassword = randomBytes(8).toString("hex");
-      const passwordHash = await bcrypt.hash(tempPassword, 12);
-      const created = await prisma.user.create({
-        data: { email, name: p.name!.trim(), roles: ["PROFESSOR"], passwordHash },
-      });
-      idByEmail.set(email, created.id);
-      newAccounts.push({ id: created.id, name: created.name, email, password: tempPassword });
-    }
-
-    const idOf = (p: PersonInput) => idByEmail.get(p.email!.trim().toLowerCase())!;
-    advisorId       = idOf(people.find((p) => p.role === "ADVISOR")!);
-    headCommitteeId = idOf(people.find((p) => p.role === "HEAD_EXAM_COMMITTEE")!);
-    programChairId  = idOf(people.find((p) => p.role === "PROGRAM_CHAIR")!);
-    // Dedupe — duplicate ids in committeeMembers would break sequential signing
-    coAdvisorIds    = [...new Set(people.filter((p) => p.role === "CO_ADVISOR").map(idOf))];
-    committeeIds    = [...new Set(people.filter((p) => p.role === "EXAM_COMMITTEE").map(idOf))];
-    const invited   = people.find((p) => p.role === "INVITED_EXAM_COMMITTEE")!;
-    invitedCommitteeId = idOf(invited);
-    invitedProfName    = invited.name!.trim();
-    invitedProfEmail   = invited.email!.trim().toLowerCase();
-    invitedProfPhone   = invited.phone?.trim() || null;
-  } else if (data.invitedProfEmail) {
-    // Legacy path: find-or-create only the invited external committee member
-    const existing = await prisma.user.findUnique({ where: { email: data.invitedProfEmail } });
-    if (existing) {
-      invitedCommitteeId = existing.id;
-    } else {
-      const tempPassword = randomBytes(8).toString("hex");
-      const passwordHash = await bcrypt.hash(tempPassword, 12);
-      const created = await prisma.user.create({
-        data: {
-          email: data.invitedProfEmail,
-          name: data.invitedProfName ?? data.invitedProfEmail,
-          roles: ["PROFESSOR"],
-          passwordHash,
-        },
-      });
-      invitedCommitteeId = created.id;
-      newAccounts.push({ id: created.id, name: created.name, email: created.email, password: tempPassword });
-    }
+  // Student info + title actually stored — a defense overrides the student-info fields from the
+  // source proposal (ignoring anything the client sent) so the two stay consistent. Committee
+  // fields, however, always come from `people` above — never copied from the proposal directly —
+  // so an edited defense committee can never write back to the proposal's own row.
+  const finalTitle         = title;
+  let finalStudentFullName = studentFullName;
+  let finalStudentCode     = studentCode;
+  let finalProgram: string | null | undefined = data.program;
+  let finalStudentEmail    = studentEmail;
+  let finalStudentPhone    = studentPhone;
+  if (isDefense && sourceProposal) {
+    finalStudentFullName = sourceProposal.studentFullName ?? studentFullName;
+    finalStudentCode     = sourceProposal.studentCode ?? studentCode;
+    finalProgram         = sourceProposal.program ?? data.program;
+    finalStudentEmail    = sourceProposal.studentEmail ?? studentEmail;
+    finalStudentPhone    = sourceProposal.studentPhone ?? studentPhone;
   }
 
-  const submission = await prisma.submission.create({
-    data: {
-      title,
-      submissionType: data.submissionType,
-      status: "IN_PROGRESS",
-      studentId: userId,
-      advisorId,
-      studentFullName,
-      studentCode,
-      program: data.program,
-      studentEmail,
-      studentPhone: studentPhone || null,
-      headCommitteeId,
-      committeeIds,
-      coAdvisorIds,
-      invitedCommitteeId,
-      programChairId,
-      invitedProfName,
-      invitedProfAffiliation: data.invitedProfAffiliation,
-      invitedProfEmail,
-      invitedProfPhone,
-      examDate,
-      examTime,
-      roomNeeded: data.roomNeeded ?? false,
-      parkingNeeded,
-      carPlate: parkingNeeded ? carPlate : null,
-      workflowSteps: {
-        create: (data.submissionType === "THESIS_DEFENSE" ? THESIS_ROLES : PROPOSAL_ROLES).map((role, i) => ({
-          stepOrder: i + 1,
-          role,
-          status: role === "CO_ADVISOR" && !coAdvisorIds.length ? "SKIPPED" : "PENDING",
-          committeeMembers:
-            role === "EXAM_COMMITTEE"         ? committeeIds :
-            role === "CO_ADVISOR"             ? coAdvisorIds :
-            role === "INVITED_EXAM_COMMITTEE" && invitedCommitteeId ? [invitedCommitteeId] : [],
-        })),
-      },
-    },
-    include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
-  });
+  const baseData = {
+    title: finalTitle,
+    submissionType: data.submissionType,
+    studentId: userId,
+    sourceProposalId: isDefense ? sourceProposal!.id : null,
+    studentFullName: finalStudentFullName,
+    studentCode: finalStudentCode,
+    program: finalProgram as any,
+    studentEmail: finalStudentEmail,
+    studentPhone: finalStudentPhone || null,
+    examDate,
+    examTime,
+    roomNeeded: data.roomNeeded ?? false,
+    parkingNeeded,
+    carPlate: parkingNeeded ? carPlate : null,
+  };
 
-  // Step 1 starts as PENDING — student must upload required files and click submit.
-  // The approve action will notify step 2 automatically when step 1 is completed.
-
-  // Welcome emails (with passwords) for accounts created by this submission
-  if (newAccounts.length) {
-    await Promise.allSettled(
-      newAccounts.map((a) =>
-        sendWelcomeEmail({ userId: a.id, name: a.name, email: a.email, password: a.password, role: "PROFESSOR" })
-          .catch((e) => console.error("[email/committee-welcome]", a.email, e))
-      )
-    );
-  }
-
-  // Notify all admins that a new submission was created (informational)
-  const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
-  if (admins.length) {
-    await prisma.notification.createMany({
-      data: admins.map((a) => ({ recipientId: a.id, message: "มีคำร้องวิทยานิพนธ์ใหม่", detail: data.title, submissionId: submission.id, type: "info" })),
+  let submission: Awaited<ReturnType<typeof prisma.submission.create>>;
+  if (!resolved.ok) {
+    submission = await prisma.submission.create({
+      data: { ...baseData, status: "DRAFT", pendingPeople: people as any },
+      include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
     });
+    const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
+    if (admins.length) {
+      await prisma.notification.createMany({
+        data: admins.map((a) => ({
+          recipientId: a.id,
+          message: "มีคำร้องใหม่ — รอสร้างบัญชีให้อาจารย์/กรรมการที่ยังไม่มีในระบบ",
+          detail: data.title,
+          submissionId: submission.id,
+          type: "info",
+        })),
+      });
+    }
+  } else {
+    submission = await prisma.submission.create({
+      data: {
+        ...baseData,
+        status: "IN_PROGRESS",
+        advisorId: resolved.advisorId,
+        headCommitteeId: resolved.headCommitteeId,
+        committeeIds: resolved.committeeIds,
+        coAdvisorIds: resolved.coAdvisorIds,
+        invitedCommitteeId: resolved.invitedCommitteeId,
+        programChairId: resolved.programChairId,
+        invitedProfName: resolved.invitedProfName,
+        invitedProfAffiliation: null,
+        invitedProfEmail: resolved.invitedProfEmail,
+        invitedProfPhone: resolved.invitedProfPhone,
+        workflowSteps: {
+          create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId),
+        },
+      },
+      include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
+    });
+    // Step 1 starts as PENDING — student must upload required files and click submit.
+    // The approve action will notify step 2 automatically when step 1 is completed.
+    const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
+    if (admins.length) {
+      await prisma.notification.createMany({
+        data: admins.map((a) => ({ recipientId: a.id, message: "มีคำร้องวิทยานิพนธ์ใหม่", detail: data.title, submissionId: submission.id, type: "info" })),
+      });
+    }
   }
 
   const updated = await prisma.submission.findUnique({
