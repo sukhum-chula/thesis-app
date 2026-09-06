@@ -1,12 +1,16 @@
 # Handoff — ownership transfer to sukhum.s@cp.eng.chula.ac.th
 
-Written 2026-08-17, updated 2026-09-04. Read this **after** `AGENTS.md`. `AGENTS.md` describes the
-app (workflow rules, roles, conventions) and is still accurate about behaviour; this file covers
-what changed when the project moved off the ex-intern's accounts.
+Written 2026-08-17, updated 2026-09-04, updated 2026-09-06. Read this **after** `AGENTS.md`.
+`AGENTS.md` describes the app (workflow rules, roles, conventions) and is still accurate about
+behaviour; this file covers what changed when the project moved off the ex-intern's accounts
+(§1–§7), plus — since 2026-09-06 — an ongoing tracker of active/in-progress development (§8). For
+the dated, change-by-change history, see `CHANGELOG.md`; this file only carries what a session
+needs to *pick up* current work, not a full log.
 
-**Status: the transfer is functionally complete.** Every item in the original open-work list (§2)
-is done and verified. What's left is a couple of judgment calls for the new owner, not technical
-work — see the end of §2.
+**Status: the ownership transfer (§1–§7) is functionally complete.** Every item in the original
+open-work list (§2) is done and verified. What's left there is a couple of judgment calls for the
+new owner, not technical work — see the end of §2. Separately, §8 tracks whatever development is
+active right now — check it for what's mid-flight.
 
 **The app is live with real users.** Treat data and email as production.
 
@@ -150,3 +154,36 @@ cron auth, a real test email send).
 
 Not verified: a real human login/click-through smoke test in the browser (only API/script-level
 checks have been done).
+
+---
+
+## 8. Active / in-progress development
+
+This section tracks work that's mid-flight or needs follow-up **right now** — keep it current:
+add an entry when you start something that spans multiple sessions, and remove/move it to
+`CHANGELOG.md`'s dated log once it's shipped and verified. Unlike `CHANGELOG.md` (append-only,
+dated), this section is meant to be edited in place.
+
+### Shipped, not yet browser-verified
+
+- **2026-09-06 — SUPER_ADMIN/ADMIN responsibility split.** SUPER_ADMIN is now account/user
+  management only (SUPER_ADMIN + ADMIN accounts, via new landing page `/super-dashboard`) with
+  zero submission-workflow access; ADMIN owns the entire submission workflow exclusively plus
+  ADMIN/PROFESSOR/STUDENT account management (new landing page `/admin-dashboard`). Tiered rules
+  in `src/lib/accountScope.ts`. Pushed to `origin/main` — Vercel should have auto-deployed it.
+  **Needs**: a real human login as both a SUPER_ADMIN and an ADMIN account in the deployed app to
+  confirm (a) SUPER_ADMIN is correctly bounced from anything submission-related, (b) SUPER_ADMIN
+  can still manage ADMIN accounts and vice versa, (c) ADMIN can manage STUDENT/PROFESSOR accounts
+  including other ADMIN accounts, (d) logout works from both new dashboards (this broke once
+  already — see `CHANGELOG.md` — because the new routes sit outside `src/app/dashboard/` and
+  needed their own `layout.tsx` reusing the shared sidebar shell).
+- **2026-09-06 — `/demo_users`.** Local-only read-only user listing for picking a test-login email.
+  Gated on `NODE_ENV !== "production"`, not `DEMO_MODE` — confirm it actually 404s on the deployed
+  (production) build if you're ever unsure.
+
+### Carried over from the ownership transfer (not urgent, just not forgotten)
+
+- Retire the old Supabase project (`jttfcoisygcqqshghkmn`) — currently paused, not deleted, per the
+  original rollback-window plan. Revoke its service-role key once you're confident nothing needs it.
+- The full manual browser smoke test from §7 still hasn't happened — real credentials, real click
+  path through at least one full PROPOSAL and one THESIS_DEFENSE submission.
