@@ -40,32 +40,29 @@ export function AdminUsersPanel() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", password: "", isProgramChair: false });
+  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", isProgramChair: false });
   const [saving, setSaving] = useState(false);
 
   const creatableRoles = DB_ROLES.filter((r) => r !== "SUPER_ADMIN");
 
   function closeModal() {
     setShowModal(false);
-    setForm({ name: "", email: "", role: "STUDENT", studentId: "", password: "", isProgramChair: false });
+    setForm({ name: "", email: "", role: "STUDENT", studentId: "", isProgramChair: false });
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      await superAdminAddUser(
-        {
-          name: form.name.trim(),
-          email: form.email.trim().toLowerCase(),
-          role: form.role,
-          roles: [form.role],
-          studentId: form.role === "STUDENT" && form.studentId.trim() ? form.studentId.trim() : undefined,
-          isProgramChair: form.role === "PROFESSOR" ? form.isProgramChair : false,
-        },
-        form.password || undefined,
-      );
-      showToast("เพิ่มผู้ใช้สำเร็จ", "success");
+      await superAdminAddUser({
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        role: form.role,
+        roles: [form.role],
+        studentId: form.role === "STUDENT" && form.studentId.trim() ? form.studentId.trim() : undefined,
+        isProgramChair: form.role === "PROFESSOR" ? form.isProgramChair : false,
+      });
+      showToast("เพิ่มผู้ใช้สำเร็จ — ระบบส่งรหัสเข้าใช้งานไปยังอีเมลของผู้ใช้แล้ว", "success");
       closeModal();
     } catch (err: any) {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
@@ -277,15 +274,7 @@ export function AdminUsersPanel() {
                 </FormField>
               )}
 
-              <FormField label="รหัสผ่าน">
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="เว้นว่างเพื่อให้ระบบสร้างรหัสผ่านให้อัตโนมัติ"
-                  className={INPUT_CLS}
-                />
-              </FormField>
+              <p className="text-xs text-gray-400">ระบบจะสร้างรหัสเข้าใช้งานและส่งอีเมลแจ้งผู้ใช้งานโดยอัตโนมัติ</p>
 
               <div className="flex gap-3 pt-1">
                 <button

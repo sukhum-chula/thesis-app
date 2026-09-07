@@ -271,7 +271,7 @@ function buildHtml(
 
       <p style="color:#374151;margin:24px 0;">
         ท่านสามารถเข้าสู่ระบบเพื่อดูคำร้องได้ที่ <a href="${magicLink}" style="color:#1d4ed8;word-break:break-all;">${magicLink}</a><br><br>
-        <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมล ${rEmail} และรหัสผ่านของท่าน — หากลืมรหัสผ่าน สามารถขอรหัสผ่านใหม่ได้ที่หน้าเข้าสู่ระบบ (ลืมรหัสผ่าน)</span>
+        <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมล ${rEmail} และรหัสเข้าใช้งานของท่าน — หากลืมรหัสเข้าใช้งาน กรุณาติดต่อเจ้าหน้าที่ภาควิชาเพื่อขอรหัสใหม่</span>
       </p>
 
       <p style="color:#374151;margin-top:24px;">จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการ และขอขอบพระคุณมา ณ โอกาสนี้</p>
@@ -335,7 +335,7 @@ function buildRejectedHtml(
 
       <p style="color:#374151;margin:24px 0;">
         ท่านสามารถเข้าสู่ระบบเพื่อดูคำร้องได้ที่ <a href="${magicLink}" style="color:#1d4ed8;word-break:break-all;">${magicLink}</a><br><br>
-        <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมล ${rEmail} และรหัสผ่านของท่าน — หากลืมรหัสผ่าน สามารถขอรหัสผ่านใหม่ได้ที่หน้าเข้าสู่ระบบ (ลืมรหัสผ่าน)</span>
+        <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมล ${rEmail} และรหัสเข้าใช้งานของท่าน — หากลืมรหัสเข้าใช้งาน กรุณาติดต่อเจ้าหน้าที่ภาควิชาเพื่อขอรหัสใหม่</span>
       </p>
 
       <p style="color:#374151;margin-top:24px;">จึงเรียนมาเพื่อโปรดทราบและดำเนินการแก้ไข</p>
@@ -349,13 +349,13 @@ function buildRejectedHtml(
   `;
 }
 
-// ─── Welcome email (sent on registration) ─────────────────────────────────────
+// ─── Welcome email (sent when an admin creates an account) ────────────────────
 
 export interface WelcomeEmailData {
   userId: string;
   name: string;
   email: string;
-  password: string;
+  passcode: string;
   role?: string;
 }
 
@@ -363,8 +363,8 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<{ sent: 
   const loginLink = `${getAppUrl()}/login`;
   const { error } = await sendMail({
     to: data.email,
-    subject: "[ระบบจัดการวิทยานิพนธ์] ยินดีต้อนรับ — รหัสผ่านสำหรับเข้าสู่ระบบ",
-    html: buildWelcomeHtml(data.name, data.email, data.password, loginLink),
+    subject: "[ระบบจัดการวิทยานิพนธ์] ยินดีต้อนรับ — รหัสเข้าใช้งานของท่าน",
+    html: buildWelcomeHtml(data.name, data.email, data.passcode, loginLink),
   });
 
   if (error) {
@@ -375,10 +375,10 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<{ sent: 
   return { sent: true };
 }
 
-function buildWelcomeHtml(name: string, email: string, password: string, loginLink: string): string {
+function buildWelcomeHtml(name: string, email: string, passcode: string, loginLink: string): string {
   const rName  = escapeHtml(name);
   const rEmail = escapeHtml(email);
-  const rPass  = escapeHtml(password);
+  const rPass  = escapeHtml(passcode);
   return `
     <div style="font-family:'Sarabun',sans-serif;max-width:600px;margin:0 auto;padding:24px;">
       <div style="background:linear-gradient(135deg,#1e40af,#4f46e5);border-radius:12px;padding:24px;color:white;margin-bottom:24px;">
@@ -387,17 +387,17 @@ function buildWelcomeHtml(name: string, email: string, password: string, loginLi
       </div>
 
       <p style="color:#374151;font-size:16px;">เรียน ${rName}</p>
-      <p style="color:#374151;">ระบบจัดการวิทยานิพนธ์ได้สร้างบัญชีผู้ใช้งานสำหรับท่านเรียบร้อยแล้ว กรุณาเก็บรักษาข้อมูลด้านล่างไว้สำหรับการเข้าสู่ระบบในครั้งถัดไป</p>
+      <p style="color:#374151;">เจ้าหน้าที่ภาควิชาได้สร้างบัญชีผู้ใช้งานสำหรับท่านเรียบร้อยแล้ว กรุณาเก็บรักษารหัสเข้าใช้งานด้านล่างไว้สำหรับการเข้าสู่ระบบในครั้งถัดไป (ท่านไม่สามารถเปลี่ยนรหัสนี้ได้ด้วยตนเอง — หากลืมหรือต้องการรหัสใหม่ กรุณาติดต่อเจ้าหน้าที่ภาควิชา)</p>
 
       <div style="background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0;">
         <p style="margin:0 0 8px;font-weight:700;color:#166534;font-size:13px;">ข้อมูลบัญชีของท่าน</p>
         <p style="margin:0 0 6px;color:#374151;font-size:15px;"><strong>อีเมล:</strong> ${rEmail}</p>
-        <p style="margin:0;color:#374151;font-size:15px;"><strong>รหัสผ่าน:</strong> <code style="background:#e5e7eb;padding:2px 8px;border-radius:4px;font-family:monospace;font-size:15px;letter-spacing:0.05em;">${rPass}</code></p>
+        <p style="margin:0;color:#374151;font-size:15px;"><strong>รหัสเข้าใช้งาน:</strong> <code style="background:#e5e7eb;padding:2px 8px;border-radius:4px;font-family:monospace;font-size:15px;letter-spacing:0.05em;">${rPass}</code></p>
       </div>
 
       <p style="color:#374151;margin:24px 0;">
         ท่านสามารถเข้าสู่ระบบได้ที่ <a href="${loginLink}" style="color:#1d4ed8;word-break:break-all;">${loginLink}</a><br>
-        <span style="color:#6b7280;font-size:13px;">ใช้อีเมลและรหัสผ่านด้านบนเพื่อเข้าสู่ระบบ</span>
+        <span style="color:#6b7280;font-size:13px;">ใช้อีเมลและรหัสเข้าใช้งานด้านบนเพื่อเข้าสู่ระบบ</span>
       </p>
 
       <p style="color:#374151;margin-top:16px;">ขอแสดงความนับถือ<br>ภาควิชาวิศวกรรมเครื่องกล<br>คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย</p>
@@ -410,35 +410,35 @@ function buildWelcomeHtml(name: string, email: string, password: string, loginLi
   `;
 }
 
-// ─── Forgot-password email ─────────────────────────────────────────────────────
+// ─── Passcode-reset email (sent when an admin resets a user's passcode) ───────
 
-export interface ForgotPasswordEmailData {
+export interface PasscodeResetEmailData {
   userId: string;
   name: string;
   email: string;
-  password: string;
+  passcode: string;
   role: string;
 }
 
-export async function sendForgotPasswordEmail(data: ForgotPasswordEmailData): Promise<void> {
+export async function sendPasscodeResetEmail(data: PasscodeResetEmailData): Promise<void> {
   const loginLink = `${getAppUrl()}/login`;
   const { error } = await sendMail({
     to: data.email,
-    subject: "[ระบบจัดการวิทยานิพนธ์] รหัสผ่านใหม่ของคุณ",
-    html: buildForgotPasswordHtml(data.name, data.email, data.password, loginLink),
+    subject: "[ระบบจัดการวิทยานิพนธ์] รหัสเข้าใช้งานใหม่ของคุณ",
+    html: buildPasscodeResetHtml(data.name, data.email, data.passcode, loginLink),
   });
 
   if (error) {
-    console.error(`[email/forgot-pw] Send error (${data.email}):`, error.message);
+    console.error(`[email/passcode-reset] Send error (${data.email}):`, error.message);
   } else {
-    console.log(`[email/forgot-pw] Sent to ${data.email}`);
+    console.log(`[email/passcode-reset] Sent to ${data.email}`);
   }
 }
 
-function buildForgotPasswordHtml(name: string, email: string, password: string, loginLink: string): string {
+function buildPasscodeResetHtml(name: string, email: string, passcode: string, loginLink: string): string {
   const rName  = escapeHtml(name);
   const rEmail = escapeHtml(email);
-  const rPass  = escapeHtml(password);
+  const rPass  = escapeHtml(passcode);
   return `
     <div style="font-family:'Sarabun',sans-serif;max-width:600px;margin:0 auto;padding:24px;">
       <div style="background:linear-gradient(135deg,#1e40af,#4f46e5);border-radius:12px;padding:24px;color:white;margin-bottom:24px;">
@@ -447,19 +447,19 @@ function buildForgotPasswordHtml(name: string, email: string, password: string, 
       </div>
 
       <p style="color:#374151;font-size:16px;">เรียน ${rName}</p>
-      <p style="color:#374151;">ตามที่ท่านได้แจ้งขอรีเซ็ตรหัสผ่านสำหรับบัญชีผู้ใช้งานระบบจัดการวิทยานิพนธ์ ระบบได้ออกรหัสผ่านใหม่ให้ท่านเรียบร้อยแล้ว ดังนี้</p>
+      <p style="color:#374151;">ผู้ดูแลระบบได้ออกรหัสเข้าใช้งานใหม่สำหรับบัญชีผู้ใช้งานระบบจัดการวิทยานิพนธ์ของท่านเรียบร้อยแล้ว ดังนี้</p>
 
       <div style="background:#fefce8;border-left:4px solid #eab308;border-radius:0 8px 8px 0;padding:16px 20px;margin:20px 0;">
-        <p style="margin:0 0 8px;font-weight:700;color:#713f12;font-size:13px;">รหัสผ่านใหม่</p>
+        <p style="margin:0 0 8px;font-weight:700;color:#713f12;font-size:13px;">รหัสเข้าใช้งานใหม่</p>
         <p style="margin:0 0 6px;color:#374151;font-size:15px;"><strong>อีเมล:</strong> ${rEmail}</p>
-        <p style="margin:0;color:#374151;font-size:15px;"><strong>รหัสผ่านใหม่:</strong> <code style="background:#e5e7eb;padding:2px 8px;border-radius:4px;font-family:monospace;font-size:15px;letter-spacing:0.05em;">${rPass}</code></p>
+        <p style="margin:0;color:#374151;font-size:15px;"><strong>รหัสเข้าใช้งานใหม่:</strong> <code style="background:#e5e7eb;padding:2px 8px;border-radius:4px;font-family:monospace;font-size:15px;letter-spacing:0.05em;">${rPass}</code></p>
       </div>
 
-      <p style="color:#6b7280;font-size:14px;">หากคุณไม่ได้ขอรีเซ็ตรหัสผ่าน กรุณาติดต่อผู้ดูแลระบบทันที</p>
+      <p style="color:#6b7280;font-size:14px;">รหัสเข้าใช้งานเดิมของท่านใช้งานไม่ได้อีกต่อไป หากท่านไม่ได้คาดหมายว่าจะมีการออกรหัสใหม่ กรุณาติดต่อผู้ดูแลระบบทันที</p>
 
       <p style="color:#374151;margin:24px 0;">
         ท่านสามารถเข้าสู่ระบบได้ที่ <a href="${loginLink}" style="color:#1d4ed8;word-break:break-all;">${loginLink}</a><br>
-        <span style="color:#6b7280;font-size:13px;">ใช้อีเมลและรหัสผ่านใหม่ด้านบนเพื่อเข้าสู่ระบบ</span>
+        <span style="color:#6b7280;font-size:13px;">ใช้อีเมลและรหัสเข้าใช้งานใหม่ด้านบนเพื่อเข้าสู่ระบบ</span>
       </p>
 
       <p style="color:#6b7280;font-size:13px;border-top:1px solid #e5e7eb;padding-top:16px;margin-top:24px;">
@@ -684,7 +684,7 @@ function buildExamReminderHtml(data: ExamReminderEmailData, magicLink: string): 
 
       <p style="color:#374151;margin:24px 0;">
         ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบสถานะได้ที่ <a href="${magicLink}" style="color:#1d4ed8;word-break:break-all;">${magicLink}</a><br>
-        <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมลและรหัสผ่านของท่าน</span>
+        <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมลและรหัสเข้าใช้งานของท่าน</span>
       </p>
 
       <p style="color:#6b7280;font-size:13px;border-top:1px solid #e5e7eb;padding-top:16px;margin-top:24px;">

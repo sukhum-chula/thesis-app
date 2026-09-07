@@ -7,7 +7,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
-const PASSWORD = "password123";
+const PASSCODE = "password123";
 
 const users = [
   // System accounts
@@ -55,17 +55,17 @@ const users = [
 
 async function main() {
   console.log("Seeding database with real users...");
-  const hash = await bcrypt.hash(PASSWORD, 12);
+  const hash = await bcrypt.hash(PASSCODE, 12);
 
   for (const u of users) {
     await prisma.user.upsert({
       where: { email: u.email },
       update: { name: u.name, role: u.role },
-      create: { ...u, passwordHash: hash },
+      create: { ...u, passcodeHash: hash },
     });
   }
 
-  console.log(`Seeded ${users.length} users. Default password: ${PASSWORD}`);
+  console.log(`Seeded ${users.length} users. Default passcode: ${PASSCODE}`);
 }
 
 main()

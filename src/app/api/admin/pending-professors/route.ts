@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendWelcomeEmail } from "@/lib/email";
-import { isValidEmail, isValidThaiPhone } from "@/lib/utils";
+import { isValidEmail, isValidThaiPhone, generatePassword } from "@/lib/utils";
 import type { PersonInput } from "@/lib/committee";
 
 // Admin approves a professor named by a student who has no account yet — creates the account
@@ -29,14 +28,14 @@ export async function POST(req: NextRequest) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return NextResponse.json({ error: "อีเมลนี้มีบัญชีอยู่แล้ว" }, { status: 409 });
 
-  const tempPassword = randomBytes(8).toString("hex");
-  const passwordHash = await bcrypt.hash(tempPassword, 12);
+  const tempPasscode = generatePassword();
+  const passcodeHash = await bcrypt.hash(tempPasscode, 12);
   const created = await prisma.user.create({
-    data: { name, email, roles: ["PROFESSOR"], passwordHash },
+    data: { name, email, roles: ["PROFESSOR"], passcodeHash },
   });
 
   try {
-    await sendWelcomeEmail({ userId: created.id, name: created.name, email: created.email, password: tempPassword, role: "PROFESSOR" });
+    await sendWelcomeEmail({ userId: created.id, name: created.name, email: created.email, passcode: tempPasscode, role: "PROFESSOR" });
   } catch (e) {
     console.error("[email/pending-professor-welcome]", email, e);
   }

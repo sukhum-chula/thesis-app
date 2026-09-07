@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canManageAccount, canGrantRole } from "@/lib/accountScope";
+import { generatePassword } from "@/lib/utils";
+import { sendPasscodeResetEmail } from "@/lib/email";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
@@ -62,13 +64,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.studentId = sid || null;
   }
 
-  if (body.password !== undefined) {
-    if (typeof body.password !== "string" || body.password.length < 6)
-      return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, { status: 400 });
-    data.passwordHash = await bcrypt.hash(body.password, 12);
+  let newPasscode: string | null = null;
+  if (body.resetPasscode === true) {
+    // The admin never types a passcode by hand — the system always generates a fresh one
+    // and emails it to the user, since users can't set/change their own passcode.
+    newPasscode = generatePassword();
+    data.passcodeHash = await bcrypt.hash(newPasscode, 12);
   }
 
   const user = await prisma.user.update({ where: { id }, data });
+
+  if (newPasscode) {
+    await sendPasscodeResetEmail({
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      passcode: newPasscode,
+      role: user.roles[0] ?? "",
+    });
+  }
+
   return NextResponse.json(mapUser(user));
 }
 

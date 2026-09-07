@@ -101,7 +101,7 @@ export default function DemoPage() {
             DEMO MODE
           </div>
           <h1 className="text-3xl font-bold text-white">ระบบจัดการวิทยานิพนธ์</h1>
-          <p className="text-gray-400">คลิกที่ผู้ใช้เพื่อเข้าสู่ระบบทันที — ไม่ต้องใส่รหัสผ่าน</p>
+          <p className="text-gray-400">คลิกที่ผู้ใช้เพื่อเข้าสู่ระบบทันที — ไม่ต้องใส่รหัสเข้าใช้งาน</p>
         </div>
 
         {/* Current session */}

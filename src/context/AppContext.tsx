@@ -75,8 +75,8 @@ interface AppContextType {
   adminOverrideStep: (submissionId: string, stepOrder: number, action: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   superAdminUpdateUserRole: (userId: string, newRole: Role) => Promise<void>;
   superAdminDeleteUser: (userId: string) => Promise<void>;
-  superAdminAddUser: (userData: Omit<MockUser, "id">, password?: string) => Promise<void>;
-  superAdminChangePassword: (userId: string, newPassword: string) => Promise<void>;
+  superAdminAddUser: (userData: Omit<MockUser, "id">) => Promise<void>;
+  superAdminResetPasscode: (userId: string) => Promise<void>;
   adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
   adminCreatePendingProfessor: (name: string, email: string, phone?: string) => Promise<void>;
 }
@@ -345,8 +345,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
   }
 
-  async function superAdminAddUser(userData: Omit<MockUser, "id">, password?: string) {
-    const newUser = await api<MockUser>("/api/users", "POST", { ...userData, password });
+  async function superAdminAddUser(userData: Omit<MockUser, "id">) {
+    const newUser = await api<MockUser>("/api/users", "POST", userData);
     setUsers((prev) => [...prev, newUser]);
   }
 
@@ -355,8 +355,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh(); // picks up the new PROFESSOR account and any resolved-draft notifications
   }
 
-  async function superAdminChangePassword(userId: string, newPassword: string) {
-    await api(`/api/users/${userId}`, "PATCH", { password: newPassword });
+  async function superAdminResetPasscode(userId: string) {
+    await api(`/api/users/${userId}`, "PATCH", { resetPasscode: true });
   }
 
   async function adminUpdateUserInfo(userId: string, updates: { name?: string; studentId?: string }) {
@@ -385,7 +385,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       markNotificationRead, markAllNotificationsRead,
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
-      superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminChangePassword,
+      superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
       adminUpdateUserInfo, adminCreatePendingProfessor,
     }}>
       {children}

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
 import { canGrantRole } from "@/lib/accountScope";
+import { generatePassword } from "@/lib/utils";
+import { sendWelcomeEmail } from "@/lib/email";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
@@ -56,13 +57,11 @@ export async function POST(req: NextRequest) {
   if (!session?.user || !postRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, email, role, studentId, password, isProgramChair } = await req.json();
+  const { name, email, role, studentId, isProgramChair } = await req.json();
 
   if (!name?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อ-นามสกุล" }, { status: 400 });
   if (!email?.trim()) return NextResponse.json({ error: "กรุณากรอกอีเมล" }, { status: 400 });
   if (!role)          return NextResponse.json({ error: "กรุณาเลือกบทบาท" }, { status: 400 });
-  if (password && password.length < 6)
-    return NextResponse.json({ error: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" }, { status: 400 });
   // SUPER_ADMIN may only create SUPER_ADMIN/ADMIN accounts; ADMIN may only create
   // ADMIN/PROFESSOR/STUDENT accounts — see src/lib/accountScope.ts
   if (!canGrantRole(postRoles, role))
@@ -71,7 +70,9 @@ export async function POST(req: NextRequest) {
   const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (existing) return NextResponse.json({ error: "อีเมลนี้มีในระบบแล้ว" }, { status: 409 });
 
-  const passwordHash = await bcrypt.hash(password ?? randomBytes(32).toString("hex"), 12);
+  // Passcodes are always system-generated and emailed — the admin never sets one by hand.
+  const passcode = generatePassword();
+  const passcodeHash = await bcrypt.hash(passcode, 12);
 
   const user = await prisma.user.create({
     data: {
@@ -80,9 +81,11 @@ export async function POST(req: NextRequest) {
       roles: role ? [role] : [],
       studentId: studentId?.trim() || null,
       isProgramChair: role === "PROFESSOR" ? (isProgramChair === true) : false,
-      passwordHash,
+      passcodeHash,
     },
   });
 
-  return NextResponse.json(mapUser(user), { status: 201 });
+  const { sent } = await sendWelcomeEmail({ userId: user.id, name: user.name, email: user.email, passcode, role });
+
+  return NextResponse.json({ ...mapUser(user), emailSent: sent }, { status: 201 });
 }

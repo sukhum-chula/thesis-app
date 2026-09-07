@@ -240,6 +240,19 @@ export function isValidThaiPhone(phone: string): boolean {
   return /^0\d{8,9}$/.test(digits);
 }
 
+/**
+ * Auto-generated temporary password: 6 chars in the pattern A00a00 (1 capital, 4 digits,
+ * 1 lowercase) — short enough to type by hand. Excludes visually ambiguous characters
+ * (I, O, l, 0, 1) so it's easy to read back from an email.
+ */
+export function generatePassword(): string {
+  const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const LOWER = "abcdefghjkmnpqrstuvwxyz";
+  const DIGITS = "23456789";
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+  return `${pick(UPPER)}${pick(DIGITS)}${pick(DIGITS)}${pick(LOWER)}${pick(DIGITS)}${pick(DIGITS)}`;
+}
+
 /** Show server error text only when it is a Thai user-facing message; otherwise use a generic fallback. */
 export function toUserErrorMessage(err: unknown, fallback = "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง"): string {
   const msg = err instanceof Error ? err.message : "";

@@ -10,7 +10,7 @@ import { canManageAccount } from "@/lib/accountScope";
 import { MockSubmission, Role } from "@/types";
 import {
   ChevronRight, FileText, Clock,
-  CheckCircle2, XCircle, AlertCircle, Pencil, X, Loader2, Trash2, KeyRound, Eye, EyeOff,
+  CheckCircle2, XCircle, AlertCircle, Pencil, X, Loader2, Trash2, KeyRound,
 } from "lucide-react";
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
@@ -44,7 +44,7 @@ function getRelatedSubmissions(
 }
 
 export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: () => void }) {
-  const { user: viewer, submissions, users, adminUpdateUserInfo, superAdminDeleteUser, superAdminChangePassword } = useApp();
+  const { user: viewer, submissions, users, adminUpdateUserInfo, superAdminDeleteUser, superAdminResetPasscode } = useApp();
   const { showToast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
@@ -52,8 +52,6 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
-  const [pwValue, setPwValue] = useState("");
-  const [pwShow, setPwShow] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
 
   const user = users.find((u) => u.id === uid);
@@ -100,14 +98,12 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
     }
   }
 
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (pwValue.length < 6) { showToast("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร", "error"); return; }
+  async function handleResetPasscode() {
     setPwSaving(true);
     try {
-      await superAdminChangePassword(uid, pwValue);
-      showToast("เปลี่ยนรหัสผ่านสำเร็จ", "success");
-      setPwOpen(false); setPwValue(""); setPwShow(false);
+      await superAdminResetPasscode(uid);
+      showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว", "success");
+      setPwOpen(false);
     } catch (err: any) {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
     } finally {
@@ -159,10 +155,10 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
                 <button
                   onClick={() => setPwOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-                  title="เปลี่ยนรหัสผ่าน"
+                  title="รีเซ็ตรหัสเข้าใช้งาน"
                 >
                   <KeyRound className="w-4 h-4" />
-                  รหัสผ่าน
+                  รหัสเข้าใช้งาน
                 </button>
                 {viewer.id !== user.id && (
                   <button
@@ -395,7 +391,7 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
         </div>
       )}
 
-      {/* Change password modal */}
+      {/* Reset passcode confirm modal */}
       {pwOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
@@ -406,52 +402,35 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">เปลี่ยนรหัสผ่าน</h2>
+              <h2 className="text-lg font-semibold text-gray-800">รีเซ็ตรหัสเข้าใช้งาน</h2>
               <button onClick={() => setPwOpen(false)} className="text-gray-400 hover:text-gray-600 transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</label>
-                <div className="relative">
-                  <input
-                    type={pwShow ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={pwValue}
-                    onChange={(e) => setPwValue(e.target.value)}
-                    className={INPUT_CLS}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPwShow((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {pwShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+            <p className="text-sm text-gray-600">
+              ระบบจะสร้างรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้ง <strong>{user.email}</strong> โดยอัตโนมัติ
+              รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
+            </p>
 
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setPwOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={pwSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
-                >
-                  {pwSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {pwSaving ? "กำลังบันทึก..." : "บันทึก"}
-                </button>
-              </div>
-            </form>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setPwOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleResetPasscode}
+                disabled={pwSaving}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+              >
+                {pwSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {pwSaving ? "กำลังดำเนินการ..." : "ยืนยันรีเซ็ต"}
+              </button>
+            </div>
           </div>
         </div>
       )}

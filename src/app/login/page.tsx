@@ -5,14 +5,13 @@ import { signIn } from "next-auth/react";
 import { useApp } from "@/context/AppContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Eye, EyeOff, LogIn, GraduationCap } from "lucide-react";
 
 export default function LoginPage() {
   const { user } = useApp();
   const router = useRouter();
   const [email, setEmail]           = useState("");
-  const [password, setPassword]     = useState("");
+  const [passcode, setPasscode]     = useState("");
   const [showPw, setShowPw]         = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -23,12 +22,12 @@ export default function LoginPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) { setError("กรุณาใส่อีเมลและรหัสผ่าน"); return; }
+    if (!email.trim() || !passcode.trim()) { setError("กรุณาใส่อีเมลและรหัสเข้าใช้งาน"); return; }
     setSubmitting(true);
     setError(null);
-    const result = await signIn("credentials", { email: email.trim().toLowerCase(), password, redirect: false });
+    const result = await signIn("credentials", { email: email.trim().toLowerCase(), passcode, redirect: false });
     setSubmitting(false);
-    if (result?.error) { setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง"); return; }
+    if (result?.error) { setError("อีเมลหรือรหัสเข้าใช้งานไม่ถูกต้อง"); return; }
   }
 
   return (
@@ -63,14 +62,14 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block font-medium text-gray-700 mb-1.5 text-sm">รหัสผ่าน</label>
+              <label className="block font-medium text-gray-700 mb-1.5 text-sm">รหัสเข้าใช้งาน</label>
               <div className="relative">
                 <input
                   type={showPw ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                  value={passcode}
+                  onChange={(e) => { setPasscode(e.target.value); setError(null); }}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
-                  placeholder="รหัสผ่าน"
+                  placeholder="รหัสเข้าใช้งาน"
                   autoComplete="current-password"
                 />
                 <button type="button" onClick={() => setShowPw(!showPw)}
@@ -91,10 +90,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="flex items-center justify-between text-sm">
-            <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">สร้างบัญชีใหม่</Link>
-            <Link href="/forgot-password" className="text-gray-500 hover:text-gray-700">ลืมรหัสผ่าน?</Link>
-          </div>
+          <p className="text-sm text-gray-500 text-center">
+            ยังไม่มีบัญชี หรือลืมรหัสเข้าใช้งาน? ติดต่อเจ้าหน้าที่ภาควิชาเพื่อขอความช่วยเหลือ
+          </p>
         </div>
 
       </div>

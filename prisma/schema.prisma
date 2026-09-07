@@ -60,7 +60,7 @@ enum SubmissionStatus {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passcodeHash String
   name         String
   roles          Role[]
   studentId      String?  @unique

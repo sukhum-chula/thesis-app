@@ -10,7 +10,7 @@ import { useToast } from "@/context/ToastContext";
 import { Role, MockUser } from "@/types";
 import {
   Crown, Users, ClipboardList, BookOpen, GraduationCap, XCircle,
-  Trash2, Plus, X, AlertTriangle, KeyRound, Eye, EyeOff,
+  Trash2, Plus, X, AlertTriangle, KeyRound,
 } from "lucide-react";
 
 // SUPER_ADMIN's own remit: SUPER_ADMIN + ADMIN accounts only — everything else (STUDENT,
@@ -46,7 +46,7 @@ interface DirectorySubmission {
 export default function SuperDashboardPage() {
   const {
     user, users,
-    superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminChangePassword,
+    superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
   } = useApp();
   const { showToast } = useToast();
   const router = useRouter();
@@ -76,33 +76,23 @@ export default function SuperDashboardPage() {
   const [newName,          setNewName]           = useState("");
   const [newEmail,         setNewEmail]          = useState("");
   const [newRole,          setNewRole]           = useState<Role>("ADMIN");
-  const [newPassword,      setNewPassword]       = useState("");
-  const [newPwShow,        setNewPwShow]         = useState(false);
-  const [newPwError,       setNewPwError]        = useState<string | null>(null);
   const [pwUserId,         setPwUserId]          = useState<string | null>(null);
-  const [pwValue,          setPwValue]           = useState("");
-  const [pwConfirm,        setPwConfirm]         = useState("");
-  const [pwShow,           setPwShow]            = useState(false);
   const [pwLoading,        setPwLoading]         = useState(false);
-  const [pwError,          setPwError]           = useState<string | null>(null);
 
   function openPasswordForm(uid: string) {
-    setPwUserId(uid); setPwValue(""); setPwConfirm(""); setPwError(null); setPwShow(false);
+    setPwUserId(uid);
   }
   function closePasswordForm() {
-    setPwUserId(null); setPwValue(""); setPwConfirm(""); setPwError(null);
+    setPwUserId(null);
   }
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (pwValue.length < 6)           { setPwError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
-    if (pwValue !== pwConfirm)        { setPwError("รหัสผ่านไม่ตรงกัน"); return; }
-    setPwLoading(true); setPwError(null);
+  async function handleResetPasscode() {
+    setPwLoading(true);
     try {
-      await superAdminChangePassword(pwUserId!, pwValue);
-      showToast("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว ✓");
+      await superAdminResetPasscode(pwUserId!);
+      showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว ✓");
       closePasswordForm();
     } catch {
-      setPwError("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
+      showToast("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง", "error");
     } finally {
       setPwLoading(false);
     }
@@ -113,8 +103,6 @@ export default function SuperDashboardPage() {
   function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim()) return;
-    if (newPassword.length < 6) { setNewPwError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"); return; }
-    setNewPwError(null);
     const userData: Omit<MockUser, "id"> = {
       name:  newName.trim(),
       email: newEmail.trim().toLowerCase(),
@@ -122,9 +110,8 @@ export default function SuperDashboardPage() {
       roles: [newRole],
       isProgramChair: false,
     };
-    superAdminAddUser(userData, newPassword);
+    superAdminAddUser(userData);
     setNewName(""); setNewEmail(""); setNewRole("ADMIN");
-    setNewPassword(""); setNewPwShow(false); setNewPwError(null);
     setShowAddForm(false);
   }
 
@@ -184,26 +171,8 @@ export default function SuperDashboardPage() {
                   ))}
                 </select>
               </div>
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน *</label>
-                <input
-                  required
-                  type={newPwShow ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => { setNewPassword(e.target.value); setNewPwError(null); }}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  placeholder="อย่างน้อย 6 ตัวอักษร"
-                />
-                <button
-                  type="button"
-                  onClick={() => setNewPwShow((v) => !v)}
-                  className="absolute right-3 bottom-2.5 text-gray-400 hover:text-gray-600"
-                >
-                  {newPwShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
             </div>
-            {newPwError && <p className="text-sm text-red-600">{newPwError}</p>}
+            <p className="text-sm text-amber-700">ระบบจะสร้างรหัสเข้าใช้งานและส่งอีเมลแจ้งบัญชีนี้โดยอัตโนมัติ</p>
             <button
               type="submit"
               className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition"
@@ -244,7 +213,7 @@ export default function SuperDashboardPage() {
                   ))}
                 </select>
 
-                {/* Change password */}
+                {/* Reset passcode */}
                 <button
                   onClick={() => pwUserId === u.id ? closePasswordForm() : openPasswordForm(u.id)}
                   className={`p-2 rounded-lg transition shrink-0 ${
@@ -252,7 +221,7 @@ export default function SuperDashboardPage() {
                       ? "text-amber-600 bg-amber-100"
                       : "text-gray-300 hover:text-amber-500 hover:bg-amber-50"
                   }`}
-                  title="เปลี่ยนรหัสผ่าน"
+                  title="รีเซ็ตรหัสเข้าใช้งาน"
                 >
                   <KeyRound className="w-4 h-4" />
                 </button>
@@ -282,50 +251,25 @@ export default function SuperDashboardPage() {
                 )}
               </div>
 
-              {/* Inline password form */}
+              {/* Inline reset-passcode confirm */}
               {pwUserId === u.id && (
-                <form
-                  onSubmit={handleChangePassword}
-                  className="mx-5 mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3"
-                >
+                <div className="mx-5 mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
                   <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
                     <KeyRound className="w-4 h-4" />
-                    ตั้งรหัสผ่านใหม่สำหรับ {u.name}
+                    รีเซ็ตรหัสเข้าใช้งานสำหรับ {u.name}
                   </p>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div className="relative">
-                      <input
-                        type={pwShow ? "text" : "password"}
-                        value={pwValue}
-                        onChange={(e) => { setPwValue(e.target.value); setPwError(null); }}
-                        placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)"
-                        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setPwShow((v) => !v)}
-                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                      >
-                        {pwShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <input
-                      type={pwShow ? "text" : "password"}
-                      value={pwConfirm}
-                      onChange={(e) => { setPwConfirm(e.target.value); setPwError(null); }}
-                      placeholder="ยืนยันรหัสผ่าน"
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  {pwError && <p className="text-sm text-red-600">{pwError}</p>}
+                  <p className="text-sm text-amber-700">
+                    ระบบจะสร้างรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้ง {u.email} โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
+                  </p>
                   <div className="flex gap-2">
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={handleResetPasscode}
                       disabled={pwLoading}
                       className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl disabled:opacity-60 transition"
                     >
                       <KeyRound className="w-3.5 h-3.5" />
-                      {pwLoading ? "กำลังบันทึก..." : "บันทึกรหัสผ่าน"}
+                      {pwLoading ? "กำลังดำเนินการ..." : "ยืนยันรีเซ็ต"}
                     </button>
                     <button
                       type="button"
@@ -335,7 +279,7 @@ export default function SuperDashboardPage() {
                       ยกเลิก
                     </button>
                   </div>
-                </form>
+                </div>
               )}
             </div>
           ))}
