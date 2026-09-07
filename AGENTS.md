@@ -32,7 +32,9 @@ SMTP_PORT             # optional, default 587 (STARTTLS)
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY  # or NEXT_PUBLIC_SUPABASE_ANON_KEY (either name works, src/lib/supabase.ts)
 SUPABASE_SERVICE_ROLE_KEY             # server-side only; storage admin ops + signed URLs
-FINANCE_EMAIL         # recipient for finance notifications
+FINANCE_EMAIL         # fallback recipient for finance notifications — only used when no ADMIN is
+                      # designated as finance contact (SystemSetting key "financeContact", set via
+                      # the "ตั้งค่าระบบ" tab); see "Program Chair & finance-contact assignment"
 CRON_SECRET           # guards /api/cron/exam-reminders; unset makes the endpoint publicly callable.
                       # Vercel's own Cron scheduler (see vercel.json) sends the matching Bearer header
                       # automatically when this is set in the project.
@@ -109,34 +111,64 @@ the value doesn't change that it's still emailed to the account owner. `AppConte
 `superAdminAddUser(userData)` takes an optional `passcode` field on `userData`, and
 `superAdminResetPasscode(userId, passcode?)` takes an optional second argument.
 
-### Program Chair assignment — admin-designated, one PROFESSOR per program (2026-09-07)
-`User.programChairFor: ProgramType?` (nullable, `@unique`) replaces the old global `isProgramChair`
-boolean flag — a PROFESSOR now holds this for at most one of the 3 `ProgramType` values (`PHD` /
-`ME_MECH` / `ME_CPS`) at a time; the DB's unique constraint enforces "at most one holder per
-program" (Postgres allows unlimited `NULL`s under a unique index, so any number of non-chair users
-share `null`). This is purely a **fallback** — the primary source of PROGRAM_CHAIR truth is always
-`sub.programChairId`, set per-submission from the student's `people[]` committee list; the
-`programChairFor` holder for that submission's `program` is only consulted when `programChairId`
-is unset.
+### Program Chair & finance-contact assignment — SystemSetting table (redesigned 2026-09-07)
+Both of these admin-designated single-holder-per-key assignments live in one generic key/value
+table, `SystemSetting` (`prisma/schema.prisma`: `key String @id`, `userId String?`,
+`updatedAt`) — **not** columns on `User` (an earlier `User.programChairFor ProgramType? @unique` /
+`User.isFinanceContact Boolean` design was replaced the same day once account records started
+carrying too much system-configuration state). All reads/writes go through
+`src/lib/systemSettings.ts` — nothing else touches this table directly:
+- `getProgramChairUserId(program)` / `getProgramChairUser(program)` — who chairs a given program.
+- `getProgramChairsOfUser(userId)` — every program a given user chairs (an **array** — see below).
+- `getAllProgramChairs()` — full program→userId map (rows with no holder are excluded).
+- `setProgramChair(program, userId | null)` — upserts `programChair:<program>`.
+- `getFinanceContactUserId()` / `getFinanceContactUser()` / `setFinanceContact(userId | null)` —
+  the `financeContact` key.
+- `clearUserFromSystemSettings(userId)` — called from `DELETE /api/users/[id]` after a successful
+  delete, so a deleted account never leaves a dangling reference.
+- `attachSystemSettings(users)` — decorates a list of DB user rows with computed
+  `programChairFor: string[]` / `isFinanceContact: boolean` fields for the API response; used by
+  `GET /api/users`, `PATCH /api/users/[id]`, `auth.ts`'s `authorize()`, and the magic-link route.
 
-ADMIN manages this via a dedicated **"จัดการประธานหลักสูตร"** card in `AdminUsersPanel`
-(`src/components/AdminUsersPanel.tsx`), rendered directly below the user list on both
-`/admin-dashboard`'s "จัดการผู้ใช้งาน" tab and the standalone `/dashboard/admin/users` — 3 rows (one
-per `ProgramType`), each a `<select>` of every PROFESSOR defaulting to whoever currently holds that
-program (or "— ไม่มี —"). Changing a row calls `POST /api/admin/program-chairs`
-(`{ program, userId }`, ADMIN-only) which, in one transaction, clears whoever currently holds that
-program then (if `userId` given) assigns it to the selected PROFESSOR — reassigning a professor who
-already chairs a different program silently moves them (a user can hold only one `programChairFor`
-value; there's no separate "clear the old one first" step needed since the field is single-valued).
-`AppContext.adminSetProgramChair(program, userId | null)` wraps this and refreshes the user list.
+**Rows are never deleted, only nulled.** Clearing an assignment (or deleting the account that held
+it) sets `userId: null` on that key's row rather than removing it — the key (`programChair:PHD`,
+`programChair:ME_MECH`, `programChair:ME_CPS`, `financeContact`) always stays present in the table.
+
+**A professor may chair more than one program at once.** Each `programChair:<program>` key still
+holds at most one user (a program has one chair), but assigning a professor to a program no longer
+clears any other program they already hold — this was a deliberate relaxation of the original
+"one PROFESSOR, one program" rule. Correspondingly, `programChairFor` is an **array** everywhere it
+appears client-side (`MockUser.programChairFor: ProgramType[]`, the NextAuth session/JWT field) —
+every place that used to compare `=== program` now does `.includes(program)` (`AppContext.tsx`'s
+`needsMyAction`/`getPendingCount`, `RoleSubmissionDetail.tsx`, `WorkflowTimeline.tsx`,
+`StudentSubmissionActions.tsx`, both dashboard pages' step-assignee resolvers,
+`AdminSubmissionPanel.tsx`, `AdminSettingsPanel.tsx`). Server-side, `getProgramChairsOfUser` is the
+one place this fan-out happens (`findMany` instead of `findFirst`).
+
+Either assignment is purely a **fallback** — the primary source of PROGRAM_CHAIR truth is always
+`sub.programChairId` (per-submission, set from the student's `people[]` list); a program's
+designated chair is only consulted when `programChairId` is unset. Likewise `sendFinanceEmail()`
+(`src/lib/email.ts`) prefers the designated finance-contact user's email over the legacy
+`FINANCE_EMAIL` env var, which is now only a fallback for when no contact has been set.
+
+ADMIN manages both from one **"ตั้งค่าระบบ"** tab on `/admin-dashboard` (third tab, alongside
+"จัดการคำร้อง"/"จัดการผู้ใช้งาน") and standalone below `AdminUsersPanel` at
+`/dashboard/admin/users` — both render `AdminSettingsPanel`
+(`src/components/AdminSettingsPanel.tsx`, extracted 2026-09-07 from what used to be a card inside
+`AdminUsersPanel`): 3 program-chair `<select>` rows (one per `ProgramType`, each a dropdown of
+every PROFESSOR — picking one already assigned elsewhere shows "(เป็นประธานหลักสูตร X ด้วย)" as
+information, not a warning, since it doesn't move them), and one finance-contact `<select>` row
+(dropdown of every ADMIN account). Changing a row calls `POST /api/admin/program-chairs`
+(`{ program, userId }`) or `POST /api/admin/finance-contact` (`{ userId }`), both ADMIN-only.
+`AppContext.adminSetProgramChair(program, userId | null)` / `adminSetFinanceContact(userId | null)`
+wrap these and refresh the user list.
 
 On the admin submission-edit form (`src/app/dashboard/admin/[id]/page.tsx`, edit mode), "ประธาน
 หลักสูตร" is **not** a free `<select>` — it's a read-only value auto-resolved from whichever
-`programChairFor` holder matches the edit draft's currently-selected "หลักสูตร" field, recomputed
-live as that field changes. An admin can no longer set an arbitrary professor as one submission's
-program chair from this form; to change it they go reassign the program-level chair via the
-"จัดการประธานหลักสูตร" card instead. Saving the edit writes that resolved id (or `null` if the
-program has no chair assigned) as `programChairId`.
+professor chairs the edit draft's currently-selected "หลักสูตร" field, recomputed live as that field
+changes. An admin can no longer set an arbitrary professor as one submission's program chair from
+this form; to change it they reassign the program-level chair via "ตั้งค่าระบบ" instead. Saving the
+edit writes that resolved id (or `null` if the program has no chair assigned) as `programChairId`.
 
 ### Committee accounts must pre-exist — DRAFT + admin approval (unified creation route 2026-09-07)
 Every person named in `people[]` (both PROPOSAL creation and defense committee edits) must already
@@ -227,8 +259,9 @@ old `/dashboard/admin/` path; only the exact-match overview page moved.
 stats it used to show are already duplicated elsewhere on the page (see below), so nothing was
 added back in its place.
 
-**Two full-width tabs** (added 2026-09-06, `useState<"submissions" | "users">`, `grid grid-cols-2
-gap-2` so both buttons split the width equally), rendered inside one shared frame
+**Three full-width tabs** (added 2026-09-06 as two, a third "ตั้งค่าระบบ" split out 2026-09-07;
+`useState<"submissions" | "users" | "settings">`, `grid grid-cols-3 gap-2` so the buttons split the
+width equally), rendered inside one shared frame
 (`bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 max-h-[75vh] overflow-y-auto` — the
 `max-h`+`overflow-y-auto` keeps a long list's scrollbar contained inside the frame instead of on
 the outer page, which used to shift the whole layout when the browser's own scrollbar appeared):
@@ -246,16 +279,28 @@ the outer page, which used to shift the whole layout when the browser's own scro
    - **Submission list** — cards sorted by stuck-days descending; each shows title, student name +
      ID (links to `/dashboard/admin/users/[uid]`), status badge, a red "ขอยกเลิก" pill when
      `cancelRequested`, a "ค้างมา X วัน" badge past 7 days, who it's waiting on + step number,
-     progress bar, created date, delete button (with confirm prompt), "จัดการ"/"ดำเนินการ" link
+     progress bar, created date. **No separate "จัดการ"/"ดำเนินการ" link and no list-level delete
+     button** (removed 2026-09-07) — the whole card is clickable and toggles a chevron
+     (`expandedId` state, one open at a time); clicking expands the full admin action surface
+     (`AdminSubmissionPanel`, see below) inline directly under that row. Expanding a card — including
+     switching straight from one open card to another — smoothly scrolls it to the top of the list
+     frame (`cardRefs` map + `scrollIntoView` on `expandedId` change), so a lower card never opens
+     stranded mid-scroll. Deleting a submission is done from inside the expanded panel only (typed
+     "ลบ" confirmation), not from the list row.
 2. **จัดการผู้ใช้งาน (users)** — renders `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
    extracted 2026-09-06): pending committee-account requests **at the top of the user list** (see
    "Committee accounts must pre-exist" above), the full STUDENT/PROFESSOR/ADMIN account list
-   (expand a row for `UserDetailPanel`), the add-user modal, a **"จัดการประธานหลักสูตร"** card right
-   below the user list (3 per-program PROFESSOR assignment dropdowns — see "Program Chair
-   assignment" above), and demo reset tools. The same component is reused standalone at
-   `/dashboard/admin/users` (now a thin guard+back-link wrapper around it) and its `[uid]` detail
-   route, since student names in the submission list still deep-link there directly — the old
-   "ผู้ใช้งานในระบบ" link-out card on this page was removed in favor of this tab.
+   (expand a row for `UserDetailPanel`), the add-user modal, and demo reset tools. The same
+   component is reused standalone at `/dashboard/admin/users` (now a thin guard+back-link wrapper
+   around it) and its `[uid]` detail route, since student names in the submission list still
+   deep-link there directly — the old "ผู้ใช้งานในระบบ" link-out card on this page was removed in
+   favor of this tab.
+3. **ตั้งค่าระบบ (settings)** — renders `AdminSettingsPanel`
+   (`src/components/AdminSettingsPanel.tsx`, extracted 2026-09-07 from what used to be a card
+   inside `AdminUsersPanel`, at which point the finance-contact row was added alongside it): 3
+   per-program PROFESSOR chair-assignment dropdowns plus one ADMIN finance-contact dropdown — see
+   "Program Chair & finance-contact assignment" above. Also rendered standalone below
+   `AdminUsersPanel` at `/dashboard/admin/users`.
 
 ### admin_override_step status priority
 When admin overrides individual steps via `action: "admin_override_step"`, submission status is computed as: **`hasPending → IN_PROGRESS`** (takes priority), then `hasRejected → REJECTED`, then `COMPLETED`. This ensures overriding a step to REJECTED does not lock the submission if later steps are still PENDING.
@@ -307,10 +352,10 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE) |
-| Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`users.programChairFor`, one PROFESSOR per `ProgramType`, see "Program Chair assignment" below) |
+| Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`SystemSetting` key `programChair:<program>` — a professor may chair more than one program, see "Program Chair & finance-contact assignment" below) |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student |
-| Invited Exam Committee | กรรมการภายนอก | External examiner — assigned per submission by Student; **must already have an account** (submission is saved as DRAFT pending admin approval otherwise — see "Committee accounts must pre-exist" above) |
+| Invited Exam Committee | กรรมการภายนอก | External examiner — assigned per submission by Student, selected from existing `EXTERNAL`-role accounts only (see "Committee people" below and "EXTERNAL account requests" further down) |
 
 ### External roles (no login)
 | Role | How they interact |
@@ -327,9 +372,50 @@ stepUploads={isFutureStep ? [] : stepUploads}
 
 **Student info:** ชื่อ-นามสกุล, รหัสนิสิต, หลักสูตร (PHD=วิศวกรรมศาสตรดุษฎีบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_MECH=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_CPS=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาระบบกายภาพที่เชื่อมประสานด้วยเครือข่ายไซเบอร์), อีเมล์, เบอร์โทร
 
-**Committee people (`data.people[]`):** the student manually enters every person responsible for their thesis as `{ name, email, role, phone? }` rows — there are NO professor dropdowns. For a THESIS_DEFENSE this list is prefilled from the source proposal's committee but remains fully editable (see "Proposal-first" above). **Every email must already belong to an account** — the API (`src/lib/committee.ts`'s `resolvePeople`) only looks up existing users, it never creates one; if any email doesn't resolve, the submission is saved as `DRAFT` with the raw rows in `pendingPeople` instead of being mapped to `advisorId` / `coAdvisorIds` / `headCommitteeId` / `committeeIds` / `invitedCommitteeId` / `programChairId` (see "Committee accounts must pre-exist" above). Once resolved, the same email may hold multiple roles (one account); committee id arrays are deduped — duplicates would break sequential signing.
+**Committee people (`data.people[]`, 2026-09-07 — selected from accounts, not typed):**
+`CommitteePeopleEditor` (`src/components/SubmissionForms.tsx`, shared by `ProposalForm`,
+`DefenseForm` and `DefenseDraftReview`) renders each row as a role `<select>` plus an account
+`<select>` — never free-text name/email entry. ADVISOR/CO_ADVISOR/HEAD_EXAM_COMMITTEE/
+EXAM_COMMITTEE pick from every `PROFESSOR`-role account; INVITED_EXAM_COMMITTEE (กรรมการภายนอก)
+picks from every `EXTERNAL`-role account (see "EXTERNAL account requests" below for how those get
+created). Picking an account fills `{name, email, phone}` from it (phone stays editable — it
+isn't stored on `User` for internal-role accounts). The submitted shape is still `{name, email,
+role, phone?}[]`, identical to before, so server-side resolution (`src/lib/committee.ts`'s
+`resolvePeople`, email lookup only, never creates an account) is unchanged — since every option
+in the dropdown is already a real account, an unresolved email is now only a theoretical race
+(account deleted between page load and submit), but the `DRAFT`/`pendingPeople` fallback (see
+"Committee accounts must pre-exist" above) still exists as defense-in-depth. **PROGRAM_CHAIR is
+never a row in this editor at all** — the student's own account-level `Role` for creating a
+submission has nothing to do with it; instead `resolveProgramChair()`/`ProgramChairAutoField`
+auto-resolve and display (read-only) whichever `PROFESSOR`'s `programChairFor` array includes the
+selected/inherited program, and the chair is injected into the submitted `people[]` right before
+validation — same fallback mechanism as "Program Chair assignment" below, just applied at
+creation time instead of only in the admin edit form. Submitting is blocked client-side with a
+Thai error if no chair is assigned for that program yet. For a THESIS_DEFENSE this list is
+prefilled from the source proposal's committee (`buildPeopleFromSubmission`, which also excludes
+PROGRAM_CHAIR) but remains fully editable (see "Proposal-first" above). The same email may hold
+multiple roles (one account); committee id arrays are deduped — duplicates would break sequential
+signing.
 
-**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (role option disabled in other rows once taken) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role. วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
+**EXTERNAL account requests (2026-09-07):** a STUDENT who can't find the external examiner they
+need in the INVITED_EXAM_COMMITTEE dropdown submits a request via the "กรรมการภายนอก" tab on
+`/student-dashboard` (`StudentExternalRequests.tsx`) — `{name, email, affiliation?, phone?}`,
+independent of any specific submission, saved as an `ExternalCommitteeRequest` row (`status:
+PENDING`). ADMIN reviews every pending request as a card at the top of `AdminUsersPanel`'s user
+list (same visual pattern as the missing-committee-account cards) with two actions: **อนุมัติ**
+opens the same "เพิ่มผู้ใช้งาน" modal used for any new account, prefilled (name/email locked,
+role forced to `EXTERNAL`, affiliation/phone editable) — submitting it calls the same
+`POST /api/users` every account is created through (see "Account creation & passcodes" above),
+passing `externalRequestId` so the route also marks the request `APPROVED`, links
+`createdUserId`, and notifies the requesting student; **ปฏิเสธ** (`PATCH
+/api/external-requests/[id]`, ADMIN-only) sets `status: REJECTED` with an optional reason and
+notifies the student. `GET /api/external-requests` scopes by caller — STUDENT sees only their own
+requests, ADMIN sees every request. `User.affiliation`/`User.phone` (both nullable, meaningful
+mainly for EXTERNAL accounts) were added for this. `Notification.submissionId` is nullable to
+support these submission-independent notifications — `NotificationBell` already falls back to the
+recipient's landing page when it's null.
+
+**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
 
 **Exam logistics:** วันที่สอบ + เวลา, ห้องประชุม (yes/no), ที่จอดรถ (yes/no), เลขทะเบียนรถ
 
@@ -412,11 +498,18 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Sequential only** — no parallel signing
 - **EXAM_COMMITTEE and CO_ADVISOR** steps: all assigned members must approve (tracked via `committeeActions` JSON on `WorkflowStep`). CO_ADVISOR uses `coAdvisorIds` (DB field `String[]`) the same way EXAM_COMMITTEE uses `committeeIds`. INVITED_EXAM_COMMITTEE steps carry `[invitedCommitteeId]` in `committeeMembers` for self-containment.
 - **CO_ADVISOR auto-skip**: when `coAdvisorIds` is empty at submission creation, all CO_ADVISOR steps are created with `status: "SKIPPED"` so they are transparently bypassed.
-- **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR holds `programChairFor === sub.program` (see "Program Chair assignment" below — `null`/no match means no fallback recipient). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
-- **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = `FINANCE_EMAIL` env var (skips if unset).
+- **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR's `programChairFor` array includes `sub.program` (see "Program Chair & finance-contact assignment" above — no holder means no fallback recipient; since a professor may now chair more than one program, this is an `.includes()` check, not `===`). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
+- **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
 - **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
 - **SUPER_ADMIN has zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission (no detail-page views either — `src/app/dashboard/admin/[id]` stays ADMIN-only). That responsibility belongs exclusively to ADMIN. It does have read-only oversight: a full user directory (incl. STUDENT/PROFESSOR) via `GET /api/super-admin/users`, and a full submission list via `GET /api/super-admin/submissions` (both SUPER_ADMIN-only, view-only; the older counts-only `GET /api/super-admin/stats` was removed once these shipped) — but account *management* of STUDENT/PROFESSOR/ADMIN stays exclusively ADMIN's (SUPER_ADMIN can only create/edit/delete SUPER_ADMIN/ADMIN accounts, per `src/lib/accountScope.ts`).
 - **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.
+- **A user with any submission history cannot be deleted** — `DELETE /api/users/[id]` is a hard delete
+  with no cascade for `Submission.studentId`/`advisorId`, `FormUpload.uploadedById`,
+  `Signature.userId`, or `WorkflowStep.actedById` (all reference `User` without `onDelete: Cascade`,
+  deliberately — deleting an account must never silently destroy thesis records). Deleting a
+  student/professor who has ever submitted, uploaded, signed, or acted on a step now fails fast with
+  a `409` and a clear Thai message instead of an unhandled Prisma FK error surfacing as a bare `500`
+  (`src/app/api/users/[id]/route.ts` catches `Prisma.PrismaClientKnownRequestError` code `P2003`).
 - **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 7–8 — step 7: send B2+B3 to Faculty; step 8: receive back docs (ใบรายงานผล, แบบรายงานฯ, invitation letter), upload, forward to student, then approve → triggers invitation emails. Admin panel shows step-7-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)

@@ -43,7 +43,7 @@ function resolveAssignees(
       const u = (sub as any).programChairId
         ? find((sub as any).programChairId)
         : sub.program
-        ? users.find((u) => (u as any).programChairFor === sub.program)
+        ? users.find((u) => (u as any).programChairFor?.includes(sub.program))
         : undefined;
       return u ? [{ id: u.id, name: u.name }] : [];
     }

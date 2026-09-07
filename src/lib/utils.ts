@@ -56,6 +56,7 @@ export const ROLE_LABELS: Record<string, string> = {
   ADMIN:                 "เจ้าหน้าที่ภาควิชา",
   STUDENT:               "นักศึกษา",
   PROFESSOR:             "อาจารย์",
+  EXTERNAL:              "กรรมการภายนอก",
   // Step role display labels:
   ADVISOR:               "อาจารย์ที่ปรึกษา",
   CO_ADVISOR:            "อาจารย์ที่ปรึกษาร่วม",
@@ -73,6 +74,7 @@ export const ROLE_EMOJI: Record<string, string> = {
   ADMIN:                  "🛡️",
   STUDENT:                "🎓",
   PROFESSOR:              "👨‍🏫",
+  EXTERNAL:               "🎓",
   ADVISOR:                "👨‍🏫",
   CO_ADVISOR:             "👨‍🏫",
   PROGRAM_CHAIR:          "🏛️",
@@ -89,6 +91,7 @@ export const ROLE_GRADIENT: Record<string, string> = {
   ADMIN:                  "from-slate-700 to-gray-900",
   STUDENT:                "from-blue-500 to-indigo-600",
   PROFESSOR:              "from-violet-500 to-purple-600",
+  EXTERNAL:               "from-sky-500 to-blue-600",
   ADVISOR:                "from-violet-500 to-purple-600",
   CO_ADVISOR:             "from-purple-500 to-fuchsia-600",
   PROGRAM_CHAIR:          "from-indigo-600 to-blue-700",
@@ -105,6 +108,7 @@ export const ROLE_DESC: Record<string, string> = {
   ADMIN:       "ดูภาพรวมและจัดการคำร้องทั้งหมด",
   STUDENT:     "ยื่นหัวข้อ อัปโหลดเอกสาร ติดตามสถานะ",
   PROFESSOR:   "ที่ปรึกษา / กรรมการสอบ — ลงนามเอกสารตามที่ได้รับมอบหมาย",
+  EXTERNAL:    "กรรมการภายนอก — ลงนามเอกสารตามที่ได้รับมอบหมาย",
 };
 
 const ROLE_SORT_ORDER: Record<string, number> = {

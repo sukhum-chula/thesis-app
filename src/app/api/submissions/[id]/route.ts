@@ -6,6 +6,7 @@ import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
 import { validatePeople, resolvePeople, type PersonInput } from "@/lib/committee";
+import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
   return {
@@ -67,8 +68,7 @@ async function notifyRole(role: string, sub: any, message: string, type: string)
     if ((sub as any).programChairId) {
       recipientId = (sub as any).programChairId;
     } else if ((sub as any).program) {
-      const chair = await prisma.user.findFirst({ where: { programChairFor: (sub as any).program } });
-      recipientId = chair?.id ?? null;
+      recipientId = await getProgramChairUserId((sub as any).program);
     }
   } else {
     const user = await prisma.user.findFirst({ where: { roles: { has: role as any } } });
@@ -89,9 +89,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { id: userId, role } = session.user;
-  const getUser = await prisma.user.findUnique({ where: { id: userId }, select: { programChairFor: true } });
   // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
-  const isPrivileged = role === "ADMIN" || (!!sub.program && getUser?.programChairFor === sub.program);
+  const isPrivileged = role === "ADMIN" || (!!sub.program && (await getProgramChairsOfUser(userId)).includes(sub.program));
   const isInvolved =
     sub.studentId === userId ||
     sub.advisorId === userId ||
@@ -116,7 +115,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: userId, name: userName } = session.user;
 
   // Always look up roles from DB — JWT role can be stale after a role change
-  const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true, programChairFor: true } });
+  const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true } });
+  const userChairedPrograms = await getProgramChairsOfUser(userId);
   const userRoles: string[] = dbUser?.roles as string[] ?? (session.user as any).roles ?? [session.user.role as string];
   const role: string = userRoles[0] ?? "";
 
@@ -153,7 +153,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (step.role === "PROGRAM_CHAIR")
         return (sub as any).programChairId
           ? (sub as any).programChairId === userId
-          : !!sub.program && dbUser?.programChairFor === sub.program;
+          : !!sub.program && userChairedPrograms.includes(sub.program);
       return userRoles.includes(step.role); // ADMIN, EXAM_COMMITTEE
     })();
     if (!canApprove) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -852,6 +852,25 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!deleteRoles.includes("ADMIN"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
+
+  const target = await prisma.submission.findUnique({ where: { id }, select: { submissionType: true } });
+  if (target?.submissionType === "PROPOSAL") {
+    // sourceProposalId is an optional FK, so Prisma would otherwise just SetNull it on
+    // delete and silently orphan a still-running defense instead of stopping it — see
+    // how accept_cancel (above) deliberately cascades a proposal cancellation to its
+    // linked defense. A hard delete must not be allowed to skip that check.
+    const linkedDefense = await prisma.submission.findFirst({
+      where: { sourceProposalId: id, status: { notIn: ["CANCELLED", "COMPLETED"] } },
+      select: { id: true, title: true },
+    });
+    if (linkedDefense) {
+      return NextResponse.json(
+        { error: `ไม่สามารถลบคำร้องนี้ได้ เนื่องจากมีคำร้องขอสอบวิทยานิพนธ์ "${linkedDefense.title}" ที่สร้างจากคำร้องนี้และยังดำเนินการอยู่ กรุณายกเลิกคำร้องสอบวิทยานิพนธ์ก่อน` },
+        { status: 409 },
+      );
+    }
+  }
+
   // Remove the submission's files from storage first — the DB delete alone would
   // leave them orphaned in the bucket forever. Storage failure must not block the
   // delete itself (files can be swept later; a half-deleted submission cannot).

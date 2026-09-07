@@ -180,7 +180,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
       case "HEAD_EXAM_COMMITTEE": return allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? ROLE_LABELS[currentStep.role];
       case "PROGRAM_CHAIR":
         return allUsers.find((u) => u.id === (sub as any).programChairId)?.name
-          ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor === sub.program)?.name : undefined)
+          ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program))?.name : undefined)
           ?? ROLE_LABELS[currentStep.role];
       case "EXAM_COMMITTEE": {
         const memberIds = (currentStep.committeeMembers?.length ? currentStep.committeeMembers : (sub.committeeIds ?? [])) as string[];

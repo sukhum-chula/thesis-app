@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, PROGRAM_LABELS, sortUsersByRole, generatePassword, isValidPasscode } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { PasscodeField } from "@/components/PasscodeField";
-import { Role, ProgramType } from "@/types";
+import { Role } from "@/types";
 import type { MockSubmission } from "@/types";
 import {
   Users, RotateCcw,
-  UserPlus, X, Loader2, Landmark, Mail,
+  UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown,
 } from "lucide-react";
 
 type PendingPerson = { name?: string; email?: string; role?: string };
@@ -24,8 +24,6 @@ interface PendingProfessorRequest {
   submissions: MockSubmission[];
 }
 
-const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
-
 // Left accent border on each user's card — role at a glance without a second, redundant card
 // wrapper around UserProfileHeader's own white card.
 const ROLE_ACCENT: Record<Role, string> = {
@@ -33,9 +31,10 @@ const ROLE_ACCENT: Record<Role, string> = {
   ADMIN:       "border-l-4 border-l-orange-400",
   STUDENT:     "border-l-4 border-l-blue-400",
   PROFESSOR:   "border-l-4 border-l-purple-400",
+  EXTERNAL:    "border-l-4 border-l-purple-400",
 };
 
-const DB_ROLES: Role[] = ["STUDENT", "PROFESSOR", "ADMIN", "SUPER_ADMIN"];
+const DB_ROLES: Role[] = ["STUDENT", "PROFESSOR", "EXTERNAL", "ADMIN", "SUPER_ADMIN"];
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
@@ -44,17 +43,26 @@ const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm 
 // names in the submission list deep-link to /dashboard/admin/users/[uid]). Callers are
 // responsible for their own ADMIN-role guard before rendering this.
 export function AdminUsersPanel() {
-  const { submissions, users: allUsers, superAdminAddUser, adminSetProgramChair } = useApp();
+  const { submissions, users: allUsers, externalRequests, superAdminAddUser, rejectExternalRequest } = useApp();
   const { showToast } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", passcode: generatePassword() });
+  const [form, setForm] = useState({
+    name: "", email: "", role: "STUDENT" as Role, studentId: "",
+    affiliation: "", phone: "", externalRequestId: undefined as string | undefined,
+    passcode: generatePassword(),
+  });
   const [saving, setSaving] = useState(false);
-  const [savingProgram, setSavingProgram] = useState<ProgramType | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+
+  const pendingExternalRequests = externalRequests
+    .filter((r) => r.status === "PENDING")
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const creatableRoles = DB_ROLES.filter((r) => r !== "SUPER_ADMIN");
-  const professors = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
 
   // People named as committee on a DRAFT submission who don't have an account yet — grouped by
   // email (the same person may be named on multiple drafts, or in multiple roles). Shown as
@@ -84,16 +92,24 @@ export function AdminUsersPanel() {
 
   function closeModal() {
     setShowModal(false);
-    setForm({ name: "", email: "", role: "STUDENT", studentId: "", passcode: generatePassword() });
+    setForm({ name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() });
   }
 
   // Opens the same "เพิ่มผู้ใช้" modal used for any new account, prefilled from a pending
-  // committee request — role defaults to PROFESSOR since every committee person is one.
-  function openAddUserModal(prefill?: { name: string; email: string }) {
+  // committee request — role defaults to PROFESSOR since every unresolved-email committee
+  // person is one. Approving an ExternalCommitteeRequest instead prefills role EXTERNAL plus
+  // its affiliation/phone and carries the request id through to POST /api/users.
+  function openAddUserModal(prefill?: {
+    name: string; email: string; role?: Role; affiliation?: string; phone?: string; externalRequestId?: string;
+  }) {
     setForm(
       prefill
-        ? { name: prefill.name, email: prefill.email, role: "PROFESSOR", studentId: "", passcode: generatePassword() }
-        : { name: "", email: "", role: "STUDENT", studentId: "", passcode: generatePassword() }
+        ? {
+            name: prefill.name, email: prefill.email, role: prefill.role ?? "PROFESSOR", studentId: "",
+            affiliation: prefill.affiliation ?? "", phone: prefill.phone ?? "", externalRequestId: prefill.externalRequestId,
+            passcode: generatePassword(),
+          }
+        : { name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() }
     );
     setShowModal(true);
   }
@@ -112,6 +128,9 @@ export function AdminUsersPanel() {
         role: form.role,
         roles: [form.role],
         studentId: form.role === "STUDENT" && form.studentId.trim() ? form.studentId.trim() : undefined,
+        affiliation: form.role === "EXTERNAL" && form.affiliation.trim() ? form.affiliation.trim() : undefined,
+        phone: form.role === "EXTERNAL" && form.phone.trim() ? form.phone.trim() : undefined,
+        externalRequestId: form.externalRequestId,
         passcode: form.passcode.trim(),
       });
       showToast("เพิ่มผู้ใช้สำเร็จ — ระบบส่งรหัสเข้าใช้งานไปยังอีเมลของผู้ใช้แล้ว", "success");
@@ -123,15 +142,17 @@ export function AdminUsersPanel() {
     }
   }
 
-  async function handleSetProgramChair(program: ProgramType, userId: string) {
-    setSavingProgram(program);
+  async function handleReject(id: string) {
+    setRejecting(true);
     try {
-      await adminSetProgramChair(program, userId || null);
-      showToast("บันทึกประธานหลักสูตรสำเร็จ", "success");
-    } catch (err: any) {
-      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+      await rejectExternalRequest(id, rejectNote.trim() || undefined);
+      showToast("ปฏิเสธคำขอแล้ว", "info");
+      setRejectingId(null);
+      setRejectNote("");
+    } catch (err) {
+      showToast(toUserErrorMessage(err), "error");
     } finally {
-      setSavingProgram(null);
+      setRejecting(false);
     }
   }
 
@@ -184,6 +205,75 @@ export function AdminUsersPanel() {
           </div>
         ))}
 
+        {/* Students' standalone requests for a new กรรมการภายนอก (EXTERNAL) account — see the
+            "กรรมการภายนอก" tab on /student-dashboard. Approve opens the same "เพิ่มผู้ใช้" modal,
+            prefilled, with the request id carried through so POST /api/users can link the two. */}
+        {pendingExternalRequests.map((req) => (
+          <div key={req.id} className="p-5 rounded-2xl border-2 border-sky-300 bg-sky-50 space-y-3">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                <UserCheck className="w-5 h-5 text-sky-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-sky-900 text-lg">{req.name}</p>
+                  <span className="text-xs font-semibold text-sky-700 bg-white px-2 py-0.5 rounded-full border border-sky-200">
+                    คำขอกรรมการภายนอกใหม่
+                  </span>
+                </div>
+                <p className="text-sky-700 text-sm mt-0.5 flex items-center gap-1.5 truncate">
+                  <Mail className="w-3.5 h-3.5 shrink-0" />{req.email}
+                  {req.affiliation ? ` — ${req.affiliation}` : ""}
+                </p>
+                <p className="text-sky-600 text-xs mt-1">ยื่นเมื่อ {formatDate(req.createdAt)}</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={() => openAddUserModal({
+                    name: req.name, email: req.email, role: "EXTERNAL",
+                    affiliation: req.affiliation ?? undefined, phone: req.phone ?? undefined,
+                    externalRequestId: req.id,
+                  })}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-sky-500 text-white text-sm font-semibold rounded-xl hover:bg-sky-600 transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  อนุมัติ
+                </button>
+                <button
+                  onClick={() => setRejectingId(rejectingId === req.id ? null : req.id)}
+                  className="flex items-center gap-2 px-4 py-2.5 border border-sky-300 text-sky-700 text-sm font-semibold rounded-xl hover:bg-sky-100 transition"
+                >
+                  <ThumbsDown className="w-4 h-4" />
+                  ปฏิเสธ
+                </button>
+              </div>
+            </div>
+            {rejectingId === req.id && (
+              <div className="flex items-center gap-2 pt-1 border-t border-sky-200">
+                <input
+                  value={rejectNote}
+                  onChange={(e) => setRejectNote(e.target.value)}
+                  placeholder="เหตุผล (ถ้ามี)"
+                  className="flex-1 border border-sky-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+                />
+                <button
+                  onClick={() => handleReject(req.id)}
+                  disabled={rejecting}
+                  className="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 transition"
+                >
+                  ยืนยันปฏิเสธ
+                </button>
+                <button
+                  onClick={() => { setRejectingId(null); setRejectNote(""); }}
+                  className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+
         {sortUsersByRole(allUsers).map((u) => {
           const isExpanded = expandedId === u.id;
           return (
@@ -202,45 +292,6 @@ export function AdminUsersPanel() {
             </div>
           );
         })}
-      </div>
-
-      {/* Program Chair assignment — one PROFESSOR per program (3 slots) */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Landmark className="w-5 h-5 text-indigo-500" />
-          <h2 className="font-semibold text-gray-800">จัดการประธานหลักสูตร</h2>
-        </div>
-        <p className="text-sm text-gray-400">
-          กำหนดอาจารย์ผู้เป็นประธานหลักสูตรของแต่ละหลักสูตร — ใช้เป็นผู้รับผิดชอบสำรองเมื่อคำร้องไม่ได้ระบุประธานหลักสูตรไว้โดยตรง
-          แต่ละหลักสูตรมีประธานได้เพียงคนเดียว
-        </p>
-        <div className="space-y-3">
-          {PROGRAMS.map((program) => {
-            const current = professors.find((u) => u.programChairFor === program);
-            return (
-              <div key={program} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
-                <p className="text-sm font-medium text-gray-700 sm:w-64 shrink-0">{PROGRAM_LABELS[program]}</p>
-                <select
-                  value={current?.id ?? ""}
-                  onChange={(e) => handleSetProgramChair(program, e.target.value)}
-                  disabled={savingProgram === program}
-                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
-                >
-                  <option value="">— ไม่มี —</option>
-                  {professors.map((p) => {
-                    const heldElsewhere = p.programChairFor && p.programChairFor !== program
-                      ? ` (ปัจจุบันเป็นประธานหลักสูตร ${p.programChairFor})`
-                      : "";
-                    return (
-                      <option key={p.id} value={p.id}>{p.name}{heldElsewhere}</option>
-                    );
-                  })}
-                </select>
-                {savingProgram === program && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* Demo tools */}
@@ -316,18 +367,23 @@ export function AdminUsersPanel() {
                 <input
                   type="email"
                   required
+                  disabled={!!form.externalRequestId}
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="example@eng.chula.ac.th"
-                  className={INPUT_CLS}
+                  className={INPUT_CLS + " disabled:opacity-60"}
                 />
+                {form.externalRequestId && (
+                  <p className="text-xs text-gray-400 mt-1">ล็อกตามคำขอที่เลือกอนุมัติ</p>
+                )}
               </FormField>
 
               <FormField label="บทบาท *">
                 <select
                   value={form.role}
+                  disabled={!!form.externalRequestId}
                   onChange={(e) => setForm({ ...form, role: e.target.value as Role, studentId: "" })}
-                  className={INPUT_CLS}
+                  className={INPUT_CLS + " disabled:opacity-60"}
                 >
                   {creatableRoles.map((r) => (
                     <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -345,6 +401,29 @@ export function AdminUsersPanel() {
                     className={INPUT_CLS}
                   />
                 </FormField>
+              )}
+
+              {form.role === "EXTERNAL" && (
+                <>
+                  <FormField label="สังกัด">
+                    <input
+                      type="text"
+                      value={form.affiliation}
+                      onChange={(e) => setForm({ ...form, affiliation: e.target.value })}
+                      placeholder="เช่น มหาวิทยาลัย..."
+                      className={INPUT_CLS}
+                    />
+                  </FormField>
+                  <FormField label="เบอร์โทรศัพท์">
+                    <input
+                      type="text"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="0812345678"
+                      className={INPUT_CLS}
+                    />
+                  </FormField>
+                </>
               )}
 
               <PasscodeField

@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import { getProgramChairsOfUser } from "./systemSettings";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -25,7 +26,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           roles: user.roles as string[],
           role: (user.roles[0] ?? "") as string,
           studentId: user.studentId ?? undefined,
-          programChairFor: user.programChairFor,
+          programChairFor: await getProgramChairsOfUser(user.id),
         };
       },
     }),
@@ -37,7 +38,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.roles = (user as any).roles as string[];
         token.role = ((user as any).roles?.[0] ?? "") as string;
         token.studentId = (user as any).studentId as string | undefined;
-        token.programChairFor = (user as any).programChairFor as string | null | undefined;
+        token.programChairFor = (user as any).programChairFor as string[] | undefined;
       }
       if (!token.roles && token.role) {
         token.roles = [token.role as string];
@@ -49,7 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.roles = (token.roles ?? [token.role]) as string[];
       session.user.role = ((token.roles as string[])?.[0] ?? token.role) as string;
       session.user.studentId = token.studentId as string | undefined;
-      session.user.programChairFor = token.programChairFor as string | null | undefined;
+      session.user.programChairFor = (token.programChairFor as string[] | undefined) ?? [];
       return session;
     },
   },

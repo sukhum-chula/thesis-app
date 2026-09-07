@@ -1,4 +1,5 @@
-export type Role = "SUPER_ADMIN" | "ADMIN" | "STUDENT" | "PROFESSOR";
+export type Role = "SUPER_ADMIN" | "ADMIN" | "STUDENT" | "PROFESSOR" | "EXTERNAL";
+export type ExternalRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type FormType = "BW1A" | "BW1B" | "B1C" | "B1D" | "B2" | "B3" | "B4" | "THESIS" | "SIGNED" | "FINANCE_DOC" | "FINANCE_ATTACH" | "EXAM_RESULT" | "INVITE_LETTER" | "VERY_GOOD_EVAL";
 export type ProgramType = "PHD" | "ME_MECH" | "ME_CPS";
@@ -13,7 +14,25 @@ export interface MockUser {
   roles: Role[];
   role: Role; // primary role = roles[0]
   studentId?: string;
-  programChairFor?: ProgramType | null;
+  // Every program this user chairs — a professor may chair more than one at once.
+  programChairFor?: ProgramType[];
+  isFinanceContact?: boolean;
+  affiliation?: string | null;
+  phone?: string | null;
+}
+
+export interface MockExternalRequest {
+  id: string;
+  name: string;
+  email: string;
+  affiliation?: string | null;
+  phone?: string | null;
+  status: ExternalRequestStatus;
+  reviewNote?: string | null;
+  requestedById: string;
+  createdUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MockUpload {
@@ -53,7 +72,7 @@ export interface MockNotification {
   recipientId: string;
   message: string;
   detail: string;
-  submissionId: string;
+  submissionId: string | null;
   isRead: boolean;
   createdAt: string;
   type: NotificationType;

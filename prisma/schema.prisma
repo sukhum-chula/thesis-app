@@ -12,6 +12,18 @@ enum Role {
   ADMIN
   STUDENT
   PROFESSOR
+  // กรรมการภายนอก — external examiner accounts. Functionally identical to PROFESSOR (same
+  // login, same ability to be named on a submission's committee and sign documents), tagged
+  // separately only so committee-picker dropdowns can offer "internal faculty" vs "external
+  // examiner" as distinct lists. Created either directly by ADMIN via POST /api/users, or by
+  // ADMIN approving a student's ExternalCommitteeRequest (see that model below).
+  EXTERNAL
+}
+
+enum ExternalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum FormType {
@@ -64,11 +76,10 @@ model User {
   name         String
   roles           Role[]
   studentId       String?      @unique
-  // At most one PROFESSOR per ProgramType — admin-assigned via /api/admin/program-chairs,
-  // used as the fallback PROGRAM_CHAIR recipient/authorizer when a submission's own
-  // programChairId isn't set. Postgres allows unlimited NULLs under a unique constraint, so
-  // any number of non-chair users can share `null` here.
-  programChairFor ProgramType? @unique
+  // Meaningful mainly for EXTERNAL (กรรมการภายนอก) accounts — their institution, shown wherever
+  // a submission displays its invited committee member. Harmless/unused for other roles.
+  affiliation String?
+  phone       String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -79,7 +90,39 @@ model User {
   uploads            FormUpload[]
   notifications      Notification[]
 
+  // A STUDENT's requests to add a new กรรมการภายนอก (EXTERNAL) account — see
+  // ExternalCommitteeRequest below. requestedExternalAccounts links back to the account actually
+  // created once ADMIN approves one of this user's requests (via POST /api/users).
+  externalRequestsMade   ExternalCommitteeRequest[] @relation("ExternalRequestsByStudent")
+  externalRequestCreated ExternalCommitteeRequest?  @relation("ExternalRequestCreatedUser")
+
   @@map("users")
+}
+
+// A STUDENT-initiated request to add a new กรรมการภายนอก (external examiner) account — students
+// can only pick existing accounts for a submission's committee, so this is the self-service path
+// when the person they need isn't in the system yet. ADMIN reviews and either approves (creates
+// the real User with role EXTERNAL via POST /api/users, which also links createdUserId back here)
+// or rejects it. Independent of any specific submission — the resulting account can then be
+// selected on any future proposal/defense.
+model ExternalCommitteeRequest {
+  id          String                @id @default(cuid())
+  name        String
+  email       String
+  affiliation String?
+  phone       String?
+  status      ExternalRequestStatus @default(PENDING)
+  reviewNote  String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  requestedBy   User   @relation("ExternalRequestsByStudent", fields: [requestedById], references: [id])
+  requestedById String
+
+  createdUser   User?   @relation("ExternalRequestCreatedUser", fields: [createdUserId], references: [id])
+  createdUserId String? @unique
+
+  @@map("external_committee_requests")
 }
 
 model Submission {
@@ -228,8 +271,29 @@ model Notification {
   recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
   recipientId String
 
-  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  submissionId String
+  // Nullable — some notifications (e.g. ExternalCommitteeRequest review) aren't about a
+  // submission at all. NotificationBell already falls back to the recipient's landing page
+  // when this is null.
+  submission   Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId String?
 
   @@map("notifications")
+}
+
+// Admin-designated single-holder-per-key assignments that used to live as columns directly on
+// User (programChairFor per ProgramType, isFinanceContact) — moved into their own table so
+// account records don't carry system-configuration state. `key` identifies the setting:
+//   "programChair:PHD" | "programChair:ME_MECH" | "programChair:ME_CPS" | "financeContact"
+// `userId` is the designated user's id — validated against User in application code
+// (src/lib/systemSettings.ts), not enforced as a DB-level foreign key. The row itself is never
+// deleted once created: clearing an assignment (or the holder's account being deleted) sets
+// `userId` to null instead, so the key always stays present in the table. Each key holds at most
+// one user, but the same user id may appear under multiple "programChair:*" keys — one professor
+// can chair several programs at once (see setProgramChair() in systemSettings.ts).
+model SystemSetting {
+  key       String   @id
+  userId    String?
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
 }

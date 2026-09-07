@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSignedUrl } from "@/lib/supabase";
+import { getProgramChairsOfUser } from "@/lib/systemSettings";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ uploadId: string }> }) {
   const session = await auth();
@@ -13,8 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ upl
 
   const sub = upload.submission;
   const { id: userId, role } = session.user;
-  const getUser = await prisma.user.findUnique({ where: { id: userId }, select: { programChairFor: true } });
-  const isPrivileged = role === "ADMIN" || (!!sub.program && getUser?.programChairFor === sub.program);
+  const isPrivileged = role === "ADMIN" || (!!sub.program && (await getProgramChairsOfUser(userId)).includes(sub.program));
   const isInvolved =
     sub.studentId === userId ||
     sub.advisorId === userId ||

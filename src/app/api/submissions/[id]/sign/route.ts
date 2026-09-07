@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStepName, ROLE_LABELS } from "@/lib/utils";
 import { sendStepEmail } from "@/lib/email";
+import { getProgramChairUserId } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
   return {
@@ -223,8 +224,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           if ((sub as any).programChairId) {
             recipientId = (sub as any).programChairId;
           } else if ((sub as any).program) {
-            const chair = await prisma.user.findFirst({ where: { programChairFor: (sub as any).program } });
-            recipientId = chair?.id ?? null;
+            recipientId = await getProgramChairUserId((sub as any).program);
           }
         } else if (nextRole === "CO_ADVISOR") {
           const coIds: string[] = (sub as any).coAdvisorIds ?? [];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendExamReminderEmail } from "@/lib/email";
+import { getProgramChairUserId } from "@/lib/systemSettings";
 
 export const runtime = "nodejs";
 
@@ -109,11 +110,8 @@ export async function GET(req: NextRequest) {
             if ((sub as any).programChairId) {
               recipIds.add((sub as any).programChairId);
             } else if (sub.program) {
-              const chair = await prisma.user.findFirst({
-                where: { programChairFor: sub.program },
-                select: { id: true },
-              });
-              if (chair) recipIds.add(chair.id);
+              const chairId = await getProgramChairUserId(sub.program);
+              if (chairId) recipIds.add(chairId);
             }
           }
         }

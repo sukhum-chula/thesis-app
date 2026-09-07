@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { AdminUsersPanel } from "@/components/AdminUsersPanel";
-import { ROLE_LABELS, getStepName, formatDate, toUserErrorMessage } from "@/lib/utils";
-import { useToast } from "@/context/ToastContext";
+import { AdminSettingsPanel } from "@/components/AdminSettingsPanel";
+import { AdminSubmissionPanel } from "@/components/AdminSubmissionPanel";
+import { ROLE_LABELS, getStepName, formatDate } from "@/lib/utils";
 import { SubmissionStatus } from "@/types";
 import Link from "next/link";
 import {
-  ChevronRight, Clock, CheckCircle2, XCircle,
-  Trash2, Search, AlertCircle, Bell, BookOpen, GraduationCap, User, Users, Upload, UserPlus,
-  ClipboardList,
+  ChevronRight, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle,
+  Search, AlertCircle, Bell, BookOpen, GraduationCap, User, Users, Upload, UserPlus,
+  ClipboardList, Settings,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
 
@@ -39,7 +40,7 @@ function resolvePendingName(
     case "HEAD_EXAM_COMMITTEE": return users.find((u) => u.id === sub.headCommitteeId)?.name ?? ROLE_LABELS[step.role];
     case "PROGRAM_CHAIR":
       return users.find((u) => u.id === (sub as any).programChairId)?.name
-        ?? (sub.program ? users.find((u) => (u as any).programChairFor === sub.program)?.name : undefined)
+        ?? (sub.program ? users.find((u) => (u as any).programChairFor?.includes(sub.program))?.name : undefined)
         ?? ROLE_LABELS[step.role];
     case "EXAM_COMMITTEE": {
       const memberIds = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);
@@ -60,20 +61,26 @@ const STATUS_TABS: { label: string; value: SubmissionStatus | "ALL" }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { submissions, adminDeleteSubmission, user, users } = useApp();
-  const { showToast } = useToast();
+  const { submissions, user, users } = useApp();
   const router = useRouter();
 
-  const [activeTab,     setActiveTab]     = useState<"submissions" | "users">("submissions");
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [activeTab,     setActiveTab]     = useState<"submissions" | "users" | "settings">("submissions");
   const [statusFilter,  setStatusFilter]  = useState<SubmissionStatus | "ALL">("ALL");
   const [search,        setSearch]        = useState("");
   const [typeFilter,    setTypeFilter]    = useState<"ALL" | "PROPOSAL" | "THESIS_DEFENSE">("ALL");
+  const [expandedId,    setExpandedId]    = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
   useEffect(() => {
     if (user && !user.roles.includes("ADMIN")) router.replace(ROLE_ROUTES[user.role] ?? "/login");
   }, [user, router]);
+
+  // Scroll the newly expanded card to the top of the (internally-scrolling) list frame —
+  // otherwise expanding a lower card while another is open leaves it stranded mid-scroll.
+  useEffect(() => {
+    if (expandedId) cardRefs.current[expandedId]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [expandedId]);
 
   const typeSubs           = typeFilter === "ALL" ? submissions : submissions.filter((s) => s.submissionType === typeFilter);
   const inProgress         = typeSubs.filter((s) => s.status === "IN_PROGRESS");
@@ -140,7 +147,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Top-level tabs */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <button
           onClick={() => setActiveTab("submissions")}
           className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
@@ -159,10 +166,21 @@ export default function AdminDashboard() {
           <Users className="w-4 h-4" />
           จัดการผู้ใช้งาน
         </button>
+        <button
+          onClick={() => setActiveTab("settings")}
+          className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition ${
+            activeTab === "settings" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          ตั้งค่าระบบ
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
       {activeTab === "users" && <AdminUsersPanel />}
+
+      {activeTab === "settings" && <AdminSettingsPanel />}
 
       {activeTab === "submissions" && (
       <div className="space-y-6">
@@ -331,17 +349,23 @@ export default function AdminDashboard() {
             const pendingName = currentStep ? resolvePendingName(sub, currentStep, users) : null;
             const stepName    = currentStep ? (getStepName(currentStep.stepOrder, sub.submissionType) || ROLE_LABELS[currentStep.role]) : null;
 
+            const isExpanded = expandedId === sub.id;
+
             return (
               <div
                 key={sub.id}
-                className="bg-white rounded-2xl border border-gray-200 overflow-hidden"
+                ref={(el) => { cardRefs.current[sub.id] = el; }}
+                className="bg-white rounded-2xl border border-gray-200 overflow-hidden scroll-mt-4"
               >
                 {/* Top accent bar for urgency */}
                 {(isMyTurn || stuckDays > 7) && (
                   <div className={`h-1 w-full ${isMyTurn ? "bg-orange-400" : "bg-amber-300"}`} />
                 )}
 
-                <div className="p-5 space-y-3">
+                <div
+                  className="p-5 space-y-3 cursor-pointer"
+                  onClick={() => setExpandedId(isExpanded ? null : sub.id)}
+                >
                   {/* Row 1: type + title + actions */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -384,37 +408,19 @@ export default function AdminDashboard() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {confirmDelete === sub.id ? (
-                        <>
-                          <span className="text-sm text-red-600 font-medium">ยืนยันลบ?</span>
-                          <button
-                            onClick={async () => {
-                              setConfirmDelete(null);
-                              try {
-                                await adminDeleteSubmission(sub.id);
-                                showToast("ลบคำร้องแล้ว");
-                              } catch (err) {
-                                showToast(toUserErrorMessage(err, "ลบไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700">ลบ</button>
-                          <button onClick={() => setConfirmDelete(null)}
-                            className="px-3 py-1.5 bg-gray-100 text-gray-600 text-sm rounded-lg">ยกเลิก</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => setConfirmDelete(sub.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <Link href={`/dashboard/admin/${sub.id}`}
-                            className={`flex items-center gap-1.5 px-4 py-2 text-white text-sm font-semibold rounded-xl transition ${
-                              isMyTurn ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"
-                            }`}>
-                            {isMyTurn ? "ดำเนินการ" : "จัดการ"} <ChevronRight className="w-4 h-4" />
-                          </Link>
-                        </>
+                      {isMyTurn && (
+                        <span className="hidden sm:inline text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+                          รอท่าน
+                        </span>
                       )}
+                      <button
+                        aria-label={isExpanded ? "ย่อรายละเอียด" : "ขยายรายละเอียด"}
+                        className={`flex items-center justify-center w-9 h-9 rounded-xl transition ${
+                          isMyTurn ? "bg-orange-100 text-orange-600 hover:bg-orange-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}
+                      >
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </button>
                     </div>
                   </div>
 
@@ -478,6 +484,12 @@ export default function AdminDashboard() {
                     <span className="text-xs text-gray-400">{formatDate(sub.createdAt)}</span>
                   )}
                 </div>
+
+                {isExpanded && (
+                  <div className="border-t border-gray-200 bg-gray-50 p-4 sm:p-5">
+                    <AdminSubmissionPanel submissionId={sub.id} onDeleted={() => setExpandedId(null)} />
+                  </div>
+                )}
               </div>
             );
           })}

@@ -185,6 +185,108 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-07 — Student committee selection restricted to existing accounts only; new `EXTERNAL`
+  account role + self-service request flow for external examiners.** Previously students typed
+  every committee member's name/email/phone by hand (see "Committee accounts must pre-exist" —
+  unresolved emails saved the submission as `DRAFT`). Now `CommitteePeopleEditor`
+  (`src/components/SubmissionForms.tsx`, shared by `ProposalForm`/`DefenseForm`/
+  `DefenseDraftReview`) renders a role `<select>` + an account `<select>` per row — no free-text
+  entry at all. ADVISOR/CO_ADVISOR/HEAD_EXAM_COMMITTEE/EXAM_COMMITTEE pick from `PROFESSOR`
+  accounts; INVITED_EXAM_COMMITTEE (กรรมการภายนอก) picks from a brand-new `EXTERNAL` role, added to
+  the `Role` enum specifically so the two account types can be offered as distinct dropdown lists
+  (`FACULTY_ROLES` in `src/app/api/users/route.ts` includes both). `User` gained nullable
+  `affiliation`/`phone` columns for this. Separately, ประธานหลักสูตร was pulled out of the
+  committee editor entirely — it was already effectively "pick a person" busywork the account
+  couldn't skip even though the answer is always auto-derivable; new `resolveProgramChair()`/
+  `ProgramChairAutoField`/`withProgramChair()` (same file) auto-resolve and display it read-only,
+  injecting it into the submitted `people[]` right before validation so the unchanged server-side
+  `validatePeople`/`resolvePeople` pipeline still sees exactly one PROGRAM_CHAIR entry. Student
+  identity fields (name/studentId/email) in `ProposalForm` are now read-only (pulled from the
+  account) instead of free-text — only phone stays editable since it isn't stored on `User` for
+  STUDENT accounts. See "Committee people" and "EXTERNAL account requests" in `AGENTS.md`.
+  New self-service request flow: a "กรรมการภายนอก" tab on `/student-dashboard`
+  (`StudentExternalRequests.tsx`) lets a student request a new external-examiner account
+  (name/email/affiliation/phone) when the dropdown doesn't have who they need — saved as a new
+  `ExternalCommitteeRequest` row (`status: PENDING`), independent of any submission. ADMIN reviews
+  pending requests as cards at the top of `AdminUsersPanel`'s user list: **อนุมัติ** opens the same
+  "เพิ่มผู้ใช้งาน" modal every account is created through (`POST /api/users`, prefilled, email/role
+  locked, carrying `externalRequestId` so the route also marks the request `APPROVED` + links
+  `createdUserId`), **ปฏิเสธ** (`PATCH /api/external-requests/[id]`) sets `REJECTED` with an
+  optional reason. Both notify the requesting student. `Notification.submissionId` was made
+  nullable to support these submission-independent notifications — `NotificationBell` already had
+  a fallback for a missing `submissionId`, so this needed no UI change.
+  **DB migration**: `EXTERNAL` enum value, `ExternalRequestStatus` enum, `users.affiliation`/
+  `users.phone` columns, `external_committee_requests` table + FKs, and
+  `notifications.submissionId` made nullable — applied via scoped raw SQL (the sandbox's auto-mode
+  classifier blocked running `prisma db push` and even a migration script directly, so the user ran
+  it via `! npx tsx scripts/...`, script deleted after). One real mistake caught and fixed: the
+  first pass's existence-check for `users.phone` false-positived on Supabase's built-in
+  `auth.users.phone` column (unscoped `table_name` match across schemas), so it silently skipped
+  adding the column to `public.users` — caught during verification, fixed with a schema-scoped
+  follow-up.
+  **Built alongside another Claude Code session (`thesis-app-d2`) working in the same repo
+  directory at the same time** (unrelated `SystemSetting`/multi-program-chair work, see the entry
+  below) — required active coordination (`SendMessage`) to avoid clobbering shared files
+  (`AdminUsersPanel.tsx`, `AppContext.tsx`, `src/app/api/users/route.ts`) and to catch/fix a
+  breaking type change (`programChairFor` scalar → array) that silently broke this feature's own
+  `resolveProgramChair()` mid-session.
+  **Verified**: `npm run build` and `npm run lint` both pass clean (242 pre-existing lint errors,
+  same count as before this work — no new ones). **Not verified in a real browser** — no working
+  credentials were exercised this session; next session should click through: create a proposal
+  end-to-end picking committee members from the dropdowns, submit an external-committee request as
+  a student, approve it as ADMIN (confirms the new account can then be selected), and reject one
+  with a reason.
+
+- **2026-09-07 — Program chair & finance contact moved off `User` columns into a new
+  `SystemSetting` key/value table; finance contact is now an ADMIN account (not a free-text
+  email); a professor may now chair more than one program.** Went through several iterations in
+  one session: started as a free-text "finance email" setting stored in its own `Setting` table
+  (never deployed); pivoted to "pick an ADMIN account, use their email" per instruction, still
+  stored as boolean/enum columns on `User` (`isFinanceContact`, `programChairFor`); then moved to
+  the final design — both live in `SystemSetting` (`key: "programChair:PHD" | "programChair:
+  ME_MECH" | "programChair:ME_CPS" | "financeContact"`, `userId: String?`), with all reads/writes
+  centralized in new `src/lib/systemSettings.ts`. Two behavior changes landed along the way, both
+  by explicit request: (1) a `SystemSetting` row is **never deleted** once created — clearing an
+  assignment, or deleting the account that held it (`DELETE /api/users/[id]` now calls
+  `clearUserFromSystemSettings`), sets `userId: null` instead, so the key stays present; (2) the
+  old "one PROFESSOR, one program" constraint was removed — `setProgramChair` no longer clears a
+  professor's other program assignments, so `programChairFor` is now `ProgramType[]` everywhere
+  (session/JWT, `MockUser`, every consumer) instead of a single value; every `=== program` check
+  became `.includes(program)` (roughly a dozen files — see "Program Chair & finance-contact
+  assignment" in `AGENTS.md` for the full list). The old "จัดการประธานหลักสูตร" card was extracted
+  from `AdminUsersPanel` into its own `AdminSettingsPanel` component, rendered as a third
+  "ตั้งค่าระบบ" tab on `/admin-dashboard` (previously only 2 tabs) and standalone below
+  `AdminUsersPanel` at `/dashboard/admin/users`.
+  **DB migrations** (all applied via targeted `$executeRawUnsafe` scripts over the pooler
+  connection, written to `scripts/`, run once, then deleted — never a full `prisma db push`,
+  which needs the direct connection this session didn't have credentials for): added the
+  `isFinanceContact`/`programChairFor` columns to `users` first, then — once the design moved to
+  `SystemSetting` — migrated their live data into the new table and dropped both columns, then
+  altered `SystemSetting.userId` to nullable. All three steps verified via a read-only query
+  before/after; no data loss at any step (one real finance-contact assignment and, by the later
+  steps, 3 real program-chair assignments all carried through intact).
+  **Two stale-Prisma-client incidents hit during this work** (same root cause documented
+  elsewhere in this file: a long-running `next dev` process keeps the compiled Prisma client from
+  before a schema/DB change) — both diagnosed from a `P2022`/"Argument must not be null" error in
+  the dev server's own log and fixed by killing the process, clearing `.next/`, and restarting.
+  **Also found (not caused) a second, unrelated concurrent-session incident**: another Claude Code
+  session was working in this same repo/working directory at the same time on an unrelated
+  `EXTERNAL`-committee-member feature, editing `prisma/schema.prisma` and several of the same files
+  this work touched (`AdminUsersPanel.tsx`, `AppContext.tsx`, `src/app/api/users/route.ts`). Since
+  `prisma generate` builds one client off the single shared schema file, the app briefly 500'd on
+  `GET /api/users` (`column users.affiliation does not exist`) because that session's schema
+  additions hadn't been pushed to the DB yet — not something either session could have caught with
+  `npm run build` alone, since a passing build only proves the *code* matches the *schema file*,
+  not that the schema file matches the *live DB*. The two sessions coordinated directly (cross-
+  session messages) to divide file ownership and confirm DB-migration timing rather than both
+  guessing; worth remembering that concurrent Claude Code sessions in the same working directory
+  is a real, unannounced possibility, not just a hypothetical.
+  **Verified**: `npm run build` passes clean after every step (both sessions' builds, confirmed
+  independently). Not yet clicked through in a real browser — same missing-ADMIN-credentials
+  constraint as other entries in this section — but the user did exercise the finance-contact and
+  program-chair dropdowns live against the dev server and confirmed the underlying `system_settings`
+  table reflected the changes correctly at each stage.
+
 - **2026-09-07 — `AdminUsersPanel`'s user list: identity + account-management actions moved out
   of the expand-only accordion onto each row directly; submission-status counts became the expand
   trigger.** Previously expanding a user card mounted `UserDetailPanel`, which held everything —

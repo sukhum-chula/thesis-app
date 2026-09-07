@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { prisma } from "./prisma";
 import { ROLE_LABELS } from "./utils";
 import { getSignedUrl } from "./supabase";
+import { getProgramChairUser, getFinanceContactUser } from "./systemSettings";
 
 function escapeHtml(s: string | undefined | null): string {
   if (!s) return "";
@@ -137,7 +138,7 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
       const u = sub.programChairId
         ? await prisma.user.findUnique({ where: { id: sub.programChairId } })
         : sub.program
-        ? await prisma.user.findFirst({ where: { programChairFor: sub.program as any } })
+        ? await getProgramChairUser(sub.program)
         : null;
       if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
     } else {
@@ -494,9 +495,13 @@ export interface FinanceEmailData {
 }
 
 export async function sendFinanceEmail(data: FinanceEmailData): Promise<void> {
-  const financeEmail = process.env.FINANCE_EMAIL;
+  // Admin-designated via the "ตั้งค่าระบบ" card in AdminUsersPanel (POST /api/admin/finance-contact)
+  // — falls back to the FINANCE_EMAIL env var so existing deployments keep working until an
+  // admin picks a finance contact explicitly.
+  const financeContact = await getFinanceContactUser();
+  const financeEmail = financeContact?.email || process.env.FINANCE_EMAIL;
   if (!financeEmail) {
-    console.warn("[email/finance] FINANCE_EMAIL env var not set — skipping");
+    console.warn("[email/finance] no finance contact set (DB user or FINANCE_EMAIL env var) — skipping");
     return;
   }
   const {

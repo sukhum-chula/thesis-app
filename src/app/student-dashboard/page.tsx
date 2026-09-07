@@ -8,11 +8,12 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { StudentSubmissionActions } from "@/components/StudentSubmissionActions";
 import { DefenseDraftReview } from "@/components/DefenseDraftReview";
 import { ProposalForm } from "@/components/SubmissionForms";
+import { StudentExternalRequests } from "@/components/StudentExternalRequests";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
 import Link from "next/link";
 import {
   ChevronRight, FileText, Clock, CheckCircle2, AlertCircle,
-  BookOpen, GraduationCap, XCircle, TriangleAlert, Lock, Loader2,
+  BookOpen, GraduationCap, XCircle, TriangleAlert, Lock, Loader2, UserPlus,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
 
@@ -48,7 +49,7 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
     case "HEAD_EXAM_COMMITTEE": return users.find((u: any) => u.id === sub.headCommitteeId)?.name ?? null;
     case "PROGRAM_CHAIR":
       return users.find((u: any) => u.id === sub.programChairId)?.name
-          ?? (sub.program ? users.find((u: any) => u.programChairFor === sub.program)?.name : null) ?? null;
+          ?? (sub.program ? users.find((u: any) => u.programChairFor?.includes(sub.program))?.name : null) ?? null;
     case "ADMIN":               return "เจ้าหน้าที่";
     case "EXAM_COMMITTEE": {
       const memberIds: string[] = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);
@@ -62,7 +63,7 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
 export default function StudentDashboard() {
   const { user, submissions, users, getOrCreateDefenseDraft } = useApp();
   const mine = submissions.filter((s) => s.studentId === user?.id);
-  const [tab, setTab] = useState<"proposal" | "defense">("proposal");
+  const [tab, setTab] = useState<"proposal" | "defense" | "external">("proposal");
   const [showProposalForm, setShowProposalForm] = useState(false);
   const [creatingDefenseDraft, setCreatingDefenseDraft] = useState(false);
 
@@ -107,7 +108,7 @@ export default function StudentDashboard() {
     <div className="space-y-6">
       {/* Application status — two tabs (Proposal / Defense), each with its own creation entry
           point (gated by workflow rules) and its own current-progress section */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <button
           onClick={() => setTab("proposal")}
           className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition ${
@@ -125,6 +126,15 @@ export default function StudentDashboard() {
         >
           <GraduationCap className="w-4 h-4" />
           สอบวิทยานิพนธ์
+        </button>
+        <button
+          onClick={() => setTab("external")}
+          className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition ${
+            tab === "external" ? "bg-sky-600 text-white" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+          }`}
+        >
+          <UserPlus className="w-4 h-4" />
+          กรรมการภายนอก
         </button>
       </div>
 
@@ -214,6 +224,8 @@ export default function StudentDashboard() {
             )}
           </div>
         )}
+
+        {tab === "external" && <StudentExternalRequests />}
       </div>
 
       {/* Inactive / other submissions — history */}

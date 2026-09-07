@@ -47,15 +47,17 @@ src/app/api/**              all business logic — route handlers are the source
 src/app/dashboard/<role>/** thin pages per role, mostly wrapping shared components
                              (admin/pending-professors — alternate entry point into the same
                              account-creation flow now surfaced at the top of AdminUsersPanel's
-                             user list; student/[id] and student/submit are now thin wrappers
-                             around StudentSubmissionActions / SubmissionForms, see AGENTS.md)
+                             user list; admin/[id] and student/[id]/student/submit are now thin
+                             wrappers around AdminSubmissionPanel / StudentSubmissionActions /
+                             SubmissionForms, see AGENTS.md)
 src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/student redirects here)
 src/app/professor-dashboard/ PROFESSOR's real landing page (src/app/dashboard/professor redirects
                              here; submission detail stays at src/app/dashboard/professor/[id])
 src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
                              WorkflowTimeline, FileList, FileUploader, SubmissionInfoPanel,
-                             StudentSubmissionActions, SubmissionForms, DefenseDraftReview —
-                             the shared UI that every role dashboard is built from
+                             StudentSubmissionActions, SubmissionForms, DefenseDraftReview,
+                             AdminSubmissionPanel, AdminUsersPanel, AdminSettingsPanel — the
+                             shared UI that every role dashboard is built from
 src/context/AppContext.tsx  client state cache; polls the API, exposes actions
                              (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
                              getOrCreateDefenseDraft, saveDefenseDraft, requestCancelSubmission,
@@ -70,6 +72,10 @@ src/lib/
                              submission-involvement check as the rest of the API)
   committee.ts               validatePeople/resolvePeople for submission committee people —
                              account lookup only, never creates one (see AGENTS.md)
+  systemSettings.ts          getProgramChairUserId/getProgramChairsOfUser/setProgramChair,
+                             getFinanceContactUser/setFinanceContact, clearUserFromSystemSettings,
+                             attachSystemSettings — the only code that touches the SystemSetting
+                             table (see AGENTS.md, "Program Chair & finance contact assignment")
   workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
                              initial-create path and the continue_draft finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn
@@ -86,13 +92,16 @@ public link (the bucket is private). Any preview/download must go through
 `previewFile`/`downloadFile` in `src/lib/utils.ts` for the client-side pattern.
 
 **Two role systems, don't conflate them**: `User.roles: Role[]` (`SUPER_ADMIN | ADMIN | STUDENT |
-PROFESSOR`) is the literal account type in the DB/session (`src/types/index.ts`, `roleRoutes.ts`).
-A `PROFESSOR` account additionally plays *contextual* roles per submission (`ADVISOR`,
-`CO_ADVISOR`, `PROGRAM_CHAIR`, `HEAD_EXAM_COMMITTEE`, `EXAM_COMMITTEE`,
-`INVITED_EXAM_COMMITTEE`) — these are plain strings on `WorkflowStep.role` / submission fields
-(`advisorId`, `committeeIds`, etc.), not part of the `Role` enum. The workflow step sequences
-(`PROPOSAL_ROLES` / `THESIS_ROLES`) that define these contextual roles per step live in
-`src/lib/workflowSteps.ts`.
+PROFESSOR | EXTERNAL`) is the literal account type in the DB/session (`src/types/index.ts`,
+`roleRoutes.ts`). `EXTERNAL` (กรรมการภายนอก) accounts are functionally identical to `PROFESSOR` —
+same login, same ability to sign — tagged separately purely so committee-picker dropdowns can
+offer "internal faculty" vs "external examiner" as distinct lists (`FACULTY_ROLES` in
+`src/app/api/users/route.ts` includes both). A `PROFESSOR` or `EXTERNAL` account additionally
+plays *contextual* roles per submission (`ADVISOR`, `CO_ADVISOR`, `PROGRAM_CHAIR`,
+`HEAD_EXAM_COMMITTEE`, `EXAM_COMMITTEE`, `INVITED_EXAM_COMMITTEE`) — these are plain strings on
+`WorkflowStep.role` / submission fields (`advisorId`, `committeeIds`, etc.), not part of the
+`Role` enum. The workflow step sequences (`PROPOSAL_ROLES` / `THESIS_ROLES`) that define these
+contextual roles per step live in `src/lib/workflowSteps.ts`.
 
 **`docs/ARCHITECTURE.md` and `docs/RECIPES.md` are stale** — they describe a pre-database version
 of this app (all state in `AppContext` + `localStorage`, no Prisma/NextAuth/Supabase). That

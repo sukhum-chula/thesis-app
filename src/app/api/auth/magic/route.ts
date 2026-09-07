@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { encode } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
+import { getProgramChairsOfUser } from "@/lib/systemSettings";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("t");
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
       roles:         user.roles as string[],
       role:          (user.roles[0] ?? "") as string,
       studentId:     user.studentId ?? undefined,
-      programChairFor: user.programChairFor,
+      programChairFor: await getProgramChairsOfUser(user.id),
     },
     secret:  process.env.AUTH_SECRET!,
     salt:    cookieName,

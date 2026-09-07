@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { AdminUsersPanel } from "@/components/AdminUsersPanel";
+import { AdminSettingsPanel } from "@/components/AdminSettingsPanel";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -29,6 +30,7 @@ export default function AdminUsersPage() {
       </Link>
 
       <AdminUsersPanel />
+      <AdminSettingsPanel />
     </div>
   );
 }

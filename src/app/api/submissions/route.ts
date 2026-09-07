@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isValidEmail, isValidStudentId, isValidThaiPhone } from "@/lib/utils";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
 import { validatePeople, resolvePeople, type PersonInput } from "@/lib/committee";
+import { getProgramChairsOfUser } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
   return {
@@ -30,14 +31,15 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
   const userRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
-  const dbUserChair = await prisma.user.findUnique({ where: { id: userId }, select: { programChairFor: true } });
+  const chairedPrograms = await getProgramChairsOfUser(userId);
   // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
   const isAdmin = userRoles.includes("ADMIN");
 
   let where: any = {};
   if (!isAdmin) {
     // Involvement-based: show all submissions where user is directly assigned, plus every
-    // submission in the program they're the designated ประธานหลักสูตร for (if any)
+    // submission in any program they're a designated ประธานหลักสูตร for (a professor may chair
+    // more than one program)
     const or: any[] = [
       { studentId: userId },
       { advisorId: userId },
@@ -47,7 +49,7 @@ export async function GET() {
       { invitedCommitteeId: userId },
       { programChairId: userId },
     ];
-    if (dbUserChair?.programChairFor) or.push({ program: dbUserChair.programChairFor });
+    if (chairedPrograms.length) or.push({ program: { in: chairedPrograms } });
     where = { OR: or };
   }
   // ADMIN sees all (no where filter)

@@ -8,6 +8,7 @@ import { GraduationCap, Info, User, Users, Save, Send, Sparkles, XCircle, Trash2
 import {
   FormHeader, Section, Field, ReadOnlyField, ExamLogisticsSection, ConfirmCheckbox,
   CommitteePeopleEditor, buildPeopleFromSubmission, validatePeopleClient, INPUT,
+  resolveProgramChair, withProgramChair, ProgramChairAutoField,
   type Person,
 } from "@/components/SubmissionForms";
 import { PROGRAM_LABELS } from "@/lib/utils";
@@ -37,10 +38,13 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
 
   if (!sub) return null;
 
+  const chair = resolveProgramChair(users, sub?.program ?? "");
+
   function validate(): string | null {
     if (!title.trim()) return "กรุณาระบุชื่อหัวข้อ";
+    if (!chair) return "ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา";
     const ownEmails = [sub!.studentEmail?.toLowerCase()].filter((e): e is string => !!e);
-    const peopleError = validatePeopleClient(people, ownEmails);
+    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails);
     if (peopleError) return peopleError;
     if (!examDate.trim()) return "กรุณาระบุวันที่สอบ";
     if (examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
@@ -52,7 +56,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
   function draftData() {
     return {
       title: title.trim(),
-      people: people.map((p) => ({ name: p.name.trim(), email: p.email.trim(), role: p.role, phone: p.phone.trim() || undefined })),
+      people: withProgramChair(people, chair).map((p) => ({ name: p.name.trim(), email: p.email.trim(), role: p.role, phone: p.phone.trim() || undefined })),
       examDate,
       examTime,
       roomNeeded,
@@ -140,12 +144,13 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
             <ReadOnlyField label="หลักสูตร"      value={sub.program ? PROGRAM_LABELS[sub.program] : undefined} />
             <ReadOnlyField label="อีเมล"          value={sub.studentEmail} />
           </div>
+          <ProgramChairAutoField program={sub.program ?? ""} users={users} />
         </Section>
 
         <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
           <p className="text-xs text-gray-500 -mt-1">
-            นำเข้าจากคำร้องโครงร่าง — แก้ไขได้หากต้องการเปลี่ยนแปลง (ไม่มีผลย้อนกลับไปยังคำร้องโครงร่างเดิม)
-            ทุกคนต้องมีบัญชีในระบบอยู่แล้ว
+            นำเข้าจากคำร้องโครงร่าง — เลือกจากรายชื่อในระบบเท่านั้น แก้ไขได้หากต้องการเปลี่ยนแปลง
+            (ไม่มีผลย้อนกลับไปยังคำร้องโครงร่างเดิม) ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
           </p>
           <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
         </Section>

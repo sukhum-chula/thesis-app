@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  MockUser, MockSubmission, MockNotification, Role, FormType, ProgramType,
+  MockUser, MockSubmission, MockNotification, MockExternalRequest, Role, FormType, ProgramType,
 } from "@/types";
 
 export interface SubmissionFormData {
@@ -49,6 +49,7 @@ interface AppContextType {
   users: MockUser[];
   submissions: MockSubmission[];
   notifications: MockNotification[];
+  externalRequests: MockExternalRequest[];
   unreadCount: number;
   loading: boolean;
   logout: () => Promise<void>;
@@ -89,10 +90,18 @@ interface AppContextType {
   adminOverrideStep: (submissionId: string, stepOrder: number, action: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   superAdminUpdateUserRole: (userId: string, newRole: Role) => Promise<void>;
   superAdminDeleteUser: (userId: string) => Promise<void>;
-  superAdminAddUser: (userData: Omit<MockUser, "id"> & { passcode?: string }) => Promise<void>;
+  superAdminAddUser: (userData: Omit<MockUser, "id"> & {
+    passcode?: string;
+    // Set when this account creation is approving a student's ExternalCommitteeRequest —
+    // links the two records server-side and notifies the requesting student.
+    externalRequestId?: string;
+  }) => Promise<void>;
   superAdminResetPasscode: (userId: string, passcode?: string) => Promise<void>;
   adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
+  adminSetFinanceContact: (userId: string | null) => Promise<void>;
+  submitExternalRequest: (data: { name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
+  rejectExternalRequest: (id: string, reviewNote?: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -115,6 +124,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [submissions,   setSubmissions]   = useState<MockSubmission[]>([]);
   const [notifications, setNotifications] = useState<MockNotification[]>([]);
   const [users,         setUsers]         = useState<MockUser[]>([]);
+  const [externalRequests, setExternalRequests] = useState<MockExternalRequest[]>([]);
   const [loading,       setLoading]       = useState(true);
 
   const user: MockUser | null = session?.user
@@ -125,7 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         roles: ((session.user as any).roles ?? [session.user.role as string]) as Role[],
         role: (((session.user as any).roles as string[])?.[0] ?? session.user.role) as Role,
         studentId: session.user.studentId,
-        programChairFor: ((session.user as any).programChairFor ?? null) as ProgramType | null,
+        programChairFor: ((session.user as any).programChairFor ?? []) as ProgramType[],
       }
     : null;
 
@@ -133,14 +143,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function refresh() {
     if (status !== "authenticated") return;
-    const [subs, notifs, usrs] = await Promise.all([
+    const [subs, notifs, usrs, extReqs] = await Promise.all([
       api<MockSubmission[]>("/api/submissions"),
       api<MockNotification[]>("/api/notifications"),
       api<MockUser[]>("/api/users"),
+      api<MockExternalRequest[]>("/api/external-requests"),
     ]);
     setSubmissions(subs);
     setNotifications(notifs);
     setUsers(usrs);
+    setExternalRequests(extReqs);
   }
 
   useEffect(() => {
@@ -151,6 +163,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSubmissions([]);
       setNotifications([]);
       setUsers([]);
+      setExternalRequests([]);
       setLoading(false);
     }
   }, [status]);
@@ -282,7 +295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
       case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
       case "PROGRAM_CHAIR":
-        return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && user.programChairFor === sub.program);
+        return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
       case "CO_ADVISOR":
       case "EXAM_COMMITTEE": {
         if (!step.committeeMembers?.includes(user.id)) return false;
@@ -311,7 +324,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
         case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
         case "PROGRAM_CHAIR":
-          return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && user.programChairFor === sub.program);
+          return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
         case "CO_ADVISOR":
         case "EXAM_COMMITTEE": {
           if (!step.committeeMembers?.includes(user.id)) return false;
@@ -379,9 +392,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
   }
 
-  async function superAdminAddUser(userData: Omit<MockUser, "id"> & { passcode?: string }) {
+  async function superAdminAddUser(userData: Parameters<AppContextType["superAdminAddUser"]>[0]) {
     const newUser = await api<MockUser>("/api/users", "POST", userData);
     setUsers((prev) => [...prev, newUser]);
+    // Approving a request updates its status server-side — refetch so the review queue drops it.
+    if (userData.externalRequestId) {
+      const reqs = await api<MockExternalRequest[]>("/api/external-requests");
+      setExternalRequests(reqs);
+    }
   }
 
   async function superAdminResetPasscode(userId: string, passcode?: string) {
@@ -398,6 +416,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh(); // clears the previous holder + sets the new one across the user list
   }
 
+  async function adminSetFinanceContact(userId: string | null) {
+    await api("/api/admin/finance-contact", "POST", { userId });
+    await refresh(); // clears the previous holder + sets the new one across the user list
+  }
+
+  async function submitExternalRequest(data: { name: string; email: string; affiliation?: string; phone?: string }) {
+    const req = await api<MockExternalRequest>("/api/external-requests", "POST", data);
+    setExternalRequests((prev) => [req, ...prev]);
+  }
+
+  async function rejectExternalRequest(id: string, reviewNote?: string) {
+    const req = await api<MockExternalRequest>(`/api/external-requests/${id}`, "PATCH", { action: "reject", reviewNote });
+    setExternalRequests((prev) => prev.map((r) => (r.id === id ? req : r)));
+  }
+
   if (status === "loading" || (status === "authenticated" && loading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -411,7 +444,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      user, users, submissions, notifications, unreadCount, loading,
+      user, users, submissions, notifications, externalRequests, unreadCount, loading,
       logout, refresh,
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
       addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel, continueDraft,
@@ -421,7 +454,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminSetProgramChair,
+      adminUpdateUserInfo, adminSetProgramChair, adminSetFinanceContact,
+      submitExternalRequest, rejectExternalRequest,
     }}>
       {children}
     </AppContext.Provider>

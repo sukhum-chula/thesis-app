@@ -3,15 +3,25 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canGrantRole } from "@/lib/accountScope";
-import { generatePassword, isValidPasscode } from "@/lib/utils";
+import { generatePassword, isValidPasscode, isValidThaiPhone } from "@/lib/utils";
 import { sendWelcomeEmail } from "@/lib/email";
+import { attachSystemSettings } from "@/lib/systemSettings";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
-  return { id: u.id, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? null };
+  return {
+    id: u.id, name: u.name, email: u.email, roles, role: roles[0] ?? "",
+    studentId: u.studentId ?? undefined,
+    programChairFor: u.programChairFor ?? [],
+    isFinanceContact: u.isFinanceContact ?? false,
+    affiliation: u.affiliation ?? null,
+    phone: u.phone ?? null,
+  };
 }
 
-const FACULTY_ROLES = ["PROFESSOR"];
+// Accounts a committee-picker should offer: internal faculty (PROFESSOR) and external
+// examiners (EXTERNAL) — both can be named on a submission's committee.
+const FACULTY_ROLES = ["PROFESSOR", "EXTERNAL"];
 
 export async function GET() {
   const session = await auth();
@@ -48,7 +58,8 @@ export async function GET() {
   }
 
   const users = await prisma.user.findMany({ where, orderBy: { name: "asc" } });
-  return NextResponse.json(users.map(mapUser));
+  const decorated = await attachSystemSettings(users);
+  return NextResponse.json(decorated.map(mapUser));
 }
 
 export async function POST(req: NextRequest) {
@@ -57,15 +68,36 @@ export async function POST(req: NextRequest) {
   if (!session?.user || !postRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, email, role, studentId, passcode: requestedPasscode } = await req.json();
+  const {
+    name, email, role, studentId, passcode: requestedPasscode,
+    affiliation, phone, externalRequestId,
+  } = await req.json();
 
   if (!name?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อ-นามสกุล" }, { status: 400 });
   if (!email?.trim()) return NextResponse.json({ error: "กรุณากรอกอีเมล" }, { status: 400 });
   if (!role)          return NextResponse.json({ error: "กรุณาเลือกบทบาท" }, { status: 400 });
+  if (phone?.trim() && !isValidThaiPhone(phone))
+    return NextResponse.json({ error: "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)" }, { status: 400 });
   // SUPER_ADMIN may only create SUPER_ADMIN/ADMIN accounts; ADMIN may only create
   // ADMIN/PROFESSOR/STUDENT accounts — see src/lib/accountScope.ts
   if (!canGrantRole(postRoles, role))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Approving a student's ExternalCommitteeRequest reuses this exact same account-creation path
+  // (see "Account creation & passcodes" in AGENTS.md — every account goes through POST /api/users)
+  // rather than a separate endpoint. Verify it up front so a mismatched/stale request can't
+  // silently create an unrelated account.
+  let externalRequest: { id: string; email: string; requestedById: string; status: string } | null = null;
+  if (externalRequestId) {
+    if (role !== "EXTERNAL")
+      return NextResponse.json({ error: "การอนุมัติคำขอกรรมการภายนอกต้องสร้างบัญชีบทบาท EXTERNAL เท่านั้น" }, { status: 400 });
+    externalRequest = await prisma.externalCommitteeRequest.findUnique({ where: { id: externalRequestId } });
+    if (!externalRequest) return NextResponse.json({ error: "ไม่พบคำขอนี้" }, { status: 404 });
+    if (externalRequest.status !== "PENDING")
+      return NextResponse.json({ error: "คำขอนี้ถูกดำเนินการไปแล้ว" }, { status: 400 });
+    if (externalRequest.email.toLowerCase() !== email.trim().toLowerCase())
+      return NextResponse.json({ error: "อีเมลไม่ตรงกับคำขอที่เลือก" }, { status: 400 });
+  }
 
   const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (existing) return NextResponse.json({ error: "อีเมลนี้มีในระบบแล้ว" }, { status: 409 });
@@ -90,9 +122,27 @@ export async function POST(req: NextRequest) {
       email: email.trim().toLowerCase(),
       roles: role ? [role] : [],
       studentId: studentId?.trim() || null,
+      affiliation: affiliation?.trim() || null,
+      phone: phone?.trim() || null,
       passcodeHash,
     },
   });
+
+  if (externalRequest) {
+    await prisma.externalCommitteeRequest.update({
+      where: { id: externalRequest.id },
+      data: { status: "APPROVED", createdUserId: user.id },
+    });
+    await prisma.notification.create({
+      data: {
+        recipientId: externalRequest.requestedById,
+        message: `คำขอเพิ่มกรรมการภายนอก "${user.name}" ได้รับการอนุมัติแล้ว — สามารถเลือกในคำร้องได้`,
+        detail: user.email,
+        submissionId: null,
+        type: "approved",
+      },
+    });
+  }
 
   const { sent } = await sendWelcomeEmail({ userId: user.id, name: user.name, email: user.email, passcode, role });
 
@@ -125,5 +175,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ...mapUser(user), emailSent: sent }, { status: 201 });
+  // A brand-new account never already holds a program-chair/finance-contact assignment.
+  return NextResponse.json({ ...mapUser({ ...user, programChairFor: [], isFinanceContact: false }), emailSent: sent }, { status: 201 });
 }

@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canManageAccount, canGrantRole } from "@/lib/accountScope";
 import { generatePassword, isValidPasscode } from "@/lib/utils";
 import { sendPasscodeResetEmail } from "@/lib/email";
+import { attachSystemSettings, clearUserFromSystemSettings } from "@/lib/systemSettings";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
-  return { id: u.id, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? null };
+  return { id: u.id, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false };
 }
 
 function sessionRoles(session: any): string[] {
@@ -91,7 +93,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  return NextResponse.json(mapUser(user));
+  const [decorated] = await attachSystemSettings([user]);
+  return NextResponse.json(mapUser(decorated));
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -107,6 +110,27 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!canManageAccount(sRoles, target.roles))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  await prisma.user.delete({ where: { id } });
+  try {
+    await prisma.user.delete({ where: { id } });
+  } catch (err) {
+    // FK constraint (P2003): the user is still referenced by a submission (as student or
+    // advisor), an upload, a signature, or a workflow-step action — none of those relations
+    // cascade-delete, by design (deleting a user must never silently destroy thesis records).
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
+      return NextResponse.json(
+        {
+          error:
+            "ไม่สามารถลบผู้ใช้งานนี้ได้ เนื่องจากมีคำร้อง เอกสาร หรือประวัติการดำเนินการที่เกี่ยวข้องอยู่ในระบบ",
+        },
+        { status: 409 }
+      );
+    }
+    throw err;
+  }
+
+  // The deleted account may have held a program-chair/finance-contact assignment — never leave
+  // a dangling reference, and never delete the setting row itself (see systemSettings.ts).
+  await clearUserFromSystemSettings(id);
+
   return NextResponse.json({ success: true });
 }

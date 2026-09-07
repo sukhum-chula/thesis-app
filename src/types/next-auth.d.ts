@@ -10,7 +10,7 @@ declare module "next-auth" {
       role: string;
       roles: string[];
       studentId?: string;
-      programChairFor?: string | null;
+      programChairFor?: string[];
     };
   }
 
@@ -19,7 +19,7 @@ declare module "next-auth" {
     role?: string;
     roles?: string[];
     studentId?: string;
-    programChairFor?: string | null;
+    programChairFor?: string[];
   }
 }
 
@@ -29,6 +29,6 @@ declare module "next-auth/jwt" {
     role?: string;
     roles?: string[];
     studentId?: string;
-    programChairFor?: string | null;
+    programChairFor?: string[];
   }
 }

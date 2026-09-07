@@ -62,6 +62,8 @@ export function NotificationBell() {
     ADMIN:     "/dashboard/admin",
     STUDENT:   "/dashboard/student",
     PROFESSOR: "/dashboard/professor",
+    // EXTERNAL (กรรมการภายนอก) shares PROFESSOR's generic, committee-membership-driven detail route.
+    EXTERNAL:  "/dashboard/professor",
   };
 
   function handleClick(notif: MockNotification) {

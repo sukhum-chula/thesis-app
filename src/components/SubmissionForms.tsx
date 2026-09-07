@@ -2,22 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { useApp, SubmissionFormData } from "@/context/AppContext";
-import { PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidStudentId, isValidThaiPhone, formatDate } from "@/lib/utils";
+import { PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate } from "@/lib/utils";
 import { ProgramType } from "@/types";
 import { User, Users, CalendarDays, Info, X, Plus, BookOpen, GraduationCap, AlertCircle, Lock } from "lucide-react";
 import Link from "next/link";
 import type { MockSubmission } from "@/types";
 
-// ─── Committee person entry (PROPOSAL only) ────────────────────────────────────
+// ─── Committee person entry (shared by ProposalForm and DefenseForm) ───────────
 
+// PROGRAM_CHAIR is intentionally excluded here — it's never a row the student adds/edits, it's
+// auto-resolved from the selected program's designated chair (User.programChairFor) and injected
+// into the submitted people[] behind the scenes — see resolveProgramChair()/withProgramChair()
+// below and ProgramChairAutoField.
 const PERSON_ROLES = [
   "ADVISOR",
   "CO_ADVISOR",
   "HEAD_EXAM_COMMITTEE",
   "EXAM_COMMITTEE",
   "INVITED_EXAM_COMMITTEE",
-  "PROGRAM_CHAIR",
 ] as const;
+
+// Roles filled from the internal faculty (PROFESSOR) account list vs. the external-examiner
+// (EXTERNAL) account list — CommitteePeopleEditor renders a plain account picker, never free text.
+const EXTERNAL_ROLES = new Set(["INVITED_EXAM_COMMITTEE"]);
 
 export interface Person {
   name: string;
@@ -26,24 +33,58 @@ export interface Person {
   phone: string;
 }
 
-// ประธานหลักสูตรประจำแต่ละหลักสูตร — กรอกให้อัตโนมัติเมื่อนิสิตเลือกหลักสูตร (แก้ไขได้)
-const PROGRAM_CHAIR_BY_PROGRAM: Record<string, { name: string; email: string }> = {
-  PHD:     { name: "รศ.ดร.จิตติน แตงเที่ยง",       email: "qed690@yahoo.com" },
-  ME_MECH: { name: "รศ.ดร.จิตติน แตงเที่ยง",       email: "qed690@yahoo.com" },
-  ME_CPS:  { name: "ผศ.ดร.ณัฐพล ดำรงค์พลาสิทธิ์", email: "nattapol.d@chula.ac.th" },
-};
-
 const emptyPerson = (role = ""): Person => ({ name: "", email: "", role, phone: "" });
 
 const initialPeople = (): Person[] => [emptyPerson()];
 
 const ROLE_REQUIREMENTS: { role: string; label: string; min: number; max: number | null }[] = [
   { role: "ADVISOR",                label: "อาจารย์ที่ปรึกษา",   min: 1, max: 1 },
-  { role: "PROGRAM_CHAIR",          label: "ประธานหลักสูตร",     min: 1, max: 1 },
   { role: "HEAD_EXAM_COMMITTEE",    label: "ประธานกรรมการสอบ",  min: 1, max: 1 },
   { role: "EXAM_COMMITTEE",         label: "กรรมการสอบ",         min: 1, max: null },
   { role: "INVITED_EXAM_COMMITTEE", label: "กรรมการภายนอก",      min: 1, max: 1 },
 ];
+
+/** The single PROFESSOR designated as ประธานหลักสูตร for a program (User.programChairFor) —
+ *  the same fallback-chair mechanism the admin submission-edit form already resolves against
+ *  (see "Program Chair assignment" in AGENTS.md). Never student-selectable. */
+export function resolveProgramChair(
+  users: ReturnType<typeof useApp>["users"],
+  program: string | ""
+): ReturnType<typeof useApp>["users"][number] | undefined {
+  if (!program) return undefined;
+  // programChairFor is a professor's full set of chaired programs (a professor may chair more
+  // than one) — see MockUser.
+  return users.find((u) => u.programChairFor?.includes(program as never));
+}
+
+/** Appends the auto-resolved program chair as a PROGRAM_CHAIR person entry — used only right
+ *  before client validation/submission so the shared validators (which still expect exactly one
+ *  PROGRAM_CHAIR row) keep working unchanged, without the chair ever being an editable row. */
+export function withProgramChair(people: Person[], chair: ReturnType<typeof resolveProgramChair>): Person[] {
+  if (!chair) return people;
+  return [...people, { name: chair.name, email: chair.email, role: "PROGRAM_CHAIR", phone: chair.phone ?? "" }];
+}
+
+/** Read-only "ประธานหลักสูตร" display — shown next to/under the program selector so the student
+ *  sees who will be assigned without being able to change it. */
+export function ProgramChairAutoField({ program, users }: {
+  program: string | "";
+  users: ReturnType<typeof useApp>["users"];
+}) {
+  const chair = resolveProgramChair(users, program);
+  return (
+    <Field label="ประธานหลักสูตร">
+      <div className={`${INPUT} bg-gray-50 text-gray-700 flex items-center min-h-[2.75rem]`}>
+        {!program
+          ? "— กรุณาเลือกหลักสูตรก่อน —"
+          : chair
+          ? chair.name
+          : "— ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา —"}
+      </div>
+      <p className="text-xs text-gray-400 mt-1">กำหนดตามหลักสูตรโดยอัตโนมัติ — ไม่สามารถเปลี่ยนแปลงได้</p>
+    </Field>
+  );
+}
 
 // Shared shape/format/role-count validation used by both ProposalForm and DefenseForm — mirrors
 // (but is a separate copy of) the server-side check in src/lib/committee.ts's validatePeople().
@@ -70,7 +111,7 @@ export function validatePeopleClient(people: Person[], ownEmails: string[]): str
   return null;
 }
 
-// ─── PROPOSAL — unchanged manual committee-entry form ──────────────────────────
+// ─── PROPOSAL — committee selected from existing accounts only ─────────────────
 
 /** Creates a new PROPOSAL. `onCreated` decides what happens after a successful submit — the
  *  standalone `/dashboard/student/submit` page navigates to the new submission's detail page;
@@ -85,15 +126,12 @@ export function ProposalForm({
   onCreated: (sub: MockSubmission) => void;
   onCancel?: () => void;
 }) {
-  const { createSubmission, user } = useApp();
+  const { createSubmission, user, users } = useApp();
 
   const activeProposal = mine.find((s) => s.submissionType === "PROPOSAL" && s.status !== "CANCELLED");
 
   const [title,           setTitle]           = useState("");
-  const [studentFullName, setStudentFullName] = useState("");
-  const [studentCode,     setStudentCode]     = useState("");
   const [program,         setProgram]         = useState<ProgramType | "">("");
-  const [studentEmail,    setStudentEmail]    = useState("");
   const [studentPhone,    setStudentPhone]    = useState("");
   const [people,          setPeople]          = useState<Person[]>(initialPeople);
   const [examDate,        setExamDate]        = useState("");
@@ -105,44 +143,18 @@ export function ProposalForm({
   const [confirmed,       setConfirmed]       = useState(false);
   const [submitting,      setSubmitting]      = useState(false);
 
-  // Prefill student info from the logged-in account (still editable)
-  useEffect(() => {
-    if (!user) return;
-    setStudentFullName((v) => v || user.name || "");
-    setStudentCode((v) => v || user.studentId || "");
-    setStudentEmail((v) => v || user.email || "");
-  }, [user]);
-
-  function handleProgramChange(p: ProgramType | "") {
-    setProgram(p);
-    setError(null);
-    const chair = p ? PROGRAM_CHAIR_BY_PROGRAM[p] : undefined;
-    if (!chair) return;
-    setPeople((prev) => {
-      const row: Person = { name: chair.name, email: chair.email, role: "PROGRAM_CHAIR", phone: "" };
-      const chairIdx = prev.findIndex((x) => x.role === "PROGRAM_CHAIR");
-      if (chairIdx >= 0) {
-        return prev.map((x, i) => (i === chairIdx ? { ...row, phone: x.phone } : x));
-      }
-      const emptyIdx = prev.findIndex((x) => !x.name.trim() && !x.email.trim() && !x.role);
-      if (emptyIdx >= 0) return prev.map((x, i) => (i === emptyIdx ? row : x));
-      return [...prev, row];
-    });
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim())           { setError("กรุณาระบุชื่อหัวข้อ");     return; }
-    if (!studentFullName.trim()) { setError("กรุณาระบุชื่อ-นามสกุล");   return; }
-    if (!studentCode.trim())     { setError("กรุณาระบุรหัสนิสิต");      return; }
-    if (!isValidStudentId(studentCode)) { setError("รหัสนิสิตต้องเป็นตัวเลข 10 หลัก"); return; }
     if (!program)                { setError("กรุณาเลือกหลักสูตร");       return; }
-    if (!studentEmail.trim())    { setError("กรุณาระบุอีเมล");          return; }
-    if (!isValidEmail(studentEmail)) { setError("รูปแบบอีเมลของท่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง"); return; }
     if (studentPhone.trim() && !isValidThaiPhone(studentPhone)) { setError("เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)"); return; }
 
-    const ownEmails = [user?.email?.toLowerCase(), studentEmail.trim().toLowerCase()].filter(Boolean) as string[];
-    const peopleError = validatePeopleClient(people, ownEmails);
+    const chair = resolveProgramChair(users, program);
+    if (!chair) { setError("ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา"); return; }
+
+    const ownEmails = [user?.email?.toLowerCase()].filter(Boolean) as string[];
+    const fullPeople = withProgramChair(people, chair);
+    const peopleError = validatePeopleClient(fullPeople, ownEmails);
     if (peopleError) { setError(peopleError); return; }
 
     if (!examDate.trim()) { setError("กรุณาระบุวันที่สอบ"); return; }
@@ -156,12 +168,12 @@ export function ProposalForm({
       const data: SubmissionFormData = {
         title: title.trim(),
         submissionType: "PROPOSAL",
-        studentFullName: studentFullName.trim(),
-        studentCode: studentCode.trim(),
+        studentFullName: user?.name ?? "",
+        studentCode: user?.studentId ?? "",
         program: program as ProgramType,
-        studentEmail: studentEmail.trim(),
+        studentEmail: user?.email ?? "",
         studentPhone: studentPhone.trim(),
-        people: people.map((p) => ({
+        people: fullPeople.map((p) => ({
           name: p.name.trim(),
           email: p.email.trim(),
           role: p.role,
@@ -213,24 +225,18 @@ export function ProposalForm({
 
         <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="ชื่อ-นามสกุล" required>
-              <input value={studentFullName} onChange={(e) => setStudentFullName(e.target.value)} className={INPUT} placeholder="ชื่อ นามสกุล" />
-            </Field>
-            <Field label="รหัสนิสิต" required>
-              <input value={studentCode} onChange={(e) => setStudentCode(e.target.value)} className={INPUT} placeholder="เช่น 6733100421" inputMode="numeric" maxLength={10} />
-            </Field>
+            <ReadOnlyField label="ชื่อ-นามสกุล" value={user?.name} />
+            <ReadOnlyField label="รหัสนิสิต"     value={user?.studentId} />
             <Field label="หลักสูตร" required>
-              <select value={program} onChange={(e) => handleProgramChange(e.target.value as ProgramType | "")} className={INPUT + " bg-white"}>
+              <select value={program} onChange={(e) => { setProgram(e.target.value as ProgramType | ""); setError(null); }} className={INPUT + " bg-white"}>
                 <option value="">— เลือกหลักสูตร —</option>
                 {(Object.entries(PROGRAM_LABELS) as [string, string][]).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">ระบบจะกรอกประธานหลักสูตรให้อัตโนมัติตามหลักสูตรที่เลือก</p>
             </Field>
-            <Field label="อีเมล" required>
-              <input type="email" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} className={INPUT} placeholder="email@chula.ac.th" />
-            </Field>
+            <ProgramChairAutoField program={program} users={users} />
+            <ReadOnlyField label="อีเมล" value={user?.email} />
             <Field label="เบอร์โทรศัพท์">
               <input value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} className={INPUT} placeholder="0812345678" />
             </Field>
@@ -240,8 +246,8 @@ export function ProposalForm({
         <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
           <div className="text-xs text-gray-500 -mt-1">
             <p>
-              กรอกข้อมูลอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านด้วยตนเอง — ทุกคนต้องมีบัญชีในระบบอยู่แล้ว
-              หากมีผู้ที่ยังไม่มีบัญชี คำร้องจะถูกบันทึกเป็นฉบับร่างจนกว่าเจ้าหน้าที่จะสร้างบัญชีให้
+              เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านจากรายชื่อในระบบเท่านั้น — ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
+              ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
               (อาจารย์ที่ปรึกษาร่วมเพิ่มได้ตามต้องการ)
             </p>
           </div>
@@ -310,7 +316,7 @@ export function buildPeopleFromSubmission(
       phone: p.invitedProfPhone || "",
     });
   }
-  if (p.programChairId) result.push({ name: nameOf(p.programChairId), email: emailOf(p.programChairId), role: "PROGRAM_CHAIR", phone: "" });
+  // PROGRAM_CHAIR is deliberately excluded — it's never an editable row, see resolveProgramChair().
   return result.length ? result : [emptyPerson()];
 }
 
@@ -373,8 +379,12 @@ export function DefenseForm({
     if (!selected) { setError("กรุณาเลือกคำร้องขอสอบโครงร่างที่จะนำเข้าข้อมูล"); return; }
     if (!title.trim()) { setError("กรุณาระบุชื่อหัวข้อ"); return; }
 
+    const chair = resolveProgramChair(users, selected.program ?? "");
+    if (!chair) { setError("ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา"); return; }
+
     const ownEmails = [user?.email?.toLowerCase(), selected.studentEmail?.toLowerCase()].filter(Boolean) as string[];
-    const peopleError = validatePeopleClient(people, ownEmails);
+    const fullPeople = withProgramChair(people, chair);
+    const peopleError = validatePeopleClient(fullPeople, ownEmails);
     if (peopleError) { setError(peopleError); return; }
 
     if (!examDate.trim()) { setError("กรุณาระบุวันที่สอบ"); return; }
@@ -389,7 +399,7 @@ export function DefenseForm({
         title: title.trim(),
         submissionType: "THESIS_DEFENSE",
         sourceProposalId: selected.id,
-        people: people.map((p) => ({
+        people: fullPeople.map((p) => ({
           name: p.name.trim(),
           email: p.email.trim(),
           role: p.role,
@@ -461,12 +471,14 @@ export function DefenseForm({
                 <ReadOnlyField label="หลักสูตร"      value={selected.program ? PROGRAM_LABELS[selected.program] : undefined} />
                 <ReadOnlyField label="อีเมล"          value={selected.studentEmail} />
               </div>
+              <ProgramChairAutoField program={selected.program ?? ""} users={users} />
             </Section>
 
             <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
               <p className="text-xs text-gray-500 -mt-1">
-                นำเข้าจากคำร้องโครงร่างที่เลือก — แก้ไขได้หากต้องการเปลี่ยนแปลง (ไม่มีผลย้อนกลับไปยังคำร้องโครงร่างเดิม)
-                ทุกคนต้องมีบัญชีในระบบอยู่แล้ว มิฉะนั้นคำร้องนี้จะถูกบันทึกเป็นฉบับร่างจนกว่าเจ้าหน้าที่จะสร้างบัญชีให้
+                นำเข้าจากคำร้องโครงร่างที่เลือก — เลือกจากรายชื่อในระบบเท่านั้น แก้ไขได้หากต้องการเปลี่ยนแปลง
+                (ไม่มีผลย้อนกลับไปยังคำร้องโครงร่างเดิม) ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
+                ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
               </p>
               <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
             </Section>
@@ -648,16 +660,33 @@ export function ReadOnlyField({ label, value }: { label: string; value?: string 
 
 // Shared committee people editor — used by both ProposalForm (starts empty) and DefenseForm
 // (starts prefilled from the source proposal, still fully editable).
+// Shared committee people editor — used by both ProposalForm (starts empty) and DefenseForm
+// (starts prefilled from the source proposal, still fully editable). Every row picks an existing
+// account from a dropdown (PROFESSOR for internal roles, EXTERNAL for กรรมการภายนอก) — there is
+// no free-text name/email entry, so every submitted committee member is guaranteed to already
+// have an account. PROGRAM_CHAIR is never offered here — see ProgramChairAutoField.
 export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   people: Person[];
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
   clearError: () => void;
 }) {
-  const chairCount = people.filter((p) => p.role === "PROGRAM_CHAIR").length;
+  const { users } = useApp();
+  const professors = users.filter((u) => u.roles.includes("PROFESSOR"));
+  const externals  = users.filter((u) => u.roles.includes("EXTERNAL"));
+
+  function accountsFor(role: string) {
+    return EXTERNAL_ROLES.has(role) ? externals : professors;
+  }
 
   function updatePerson(index: number, patch: Partial<Person>) {
     setPeople((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
     clearError();
+  }
+  function selectAccount(index: number, userId: string) {
+    const account = users.find((u) => u.id === userId);
+    updatePerson(index, account
+      ? { name: account.name, email: account.email, phone: account.phone ?? "" }
+      : { name: "", email: "", phone: "" });
   }
   function addPerson() {
     setPeople((prev) => [...prev, emptyPerson()]);
@@ -691,76 +720,75 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
       </div>
 
       <div className="space-y-3">
-        {people.map((p, i) => (
-          <div key={i} className="border border-gray-200 rounded-xl p-3.5 bg-gray-50 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 flex items-center gap-2 flex-wrap">
-                บุคคลที่ {i + 1}
-                {p.role === "PROGRAM_CHAIR" && Object.values(PROGRAM_CHAIR_BY_PROGRAM).some((c) => c.email === p.email.trim()) && (
-                  <span className="font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">
-                    กรอกอัตโนมัติตามหลักสูตร
-                  </span>
+        {people.map((p, i) => {
+          const isExternalRole = EXTERNAL_ROLES.has(p.role);
+          const accounts = accountsFor(p.role);
+          // Match the selected account by email (state stores name/email/phone, not the id).
+          const selectedAccount = accounts.find((a) => a.email.toLowerCase() === p.email.trim().toLowerCase());
+          return (
+            <div key={i} className="border border-gray-200 rounded-xl p-3.5 bg-gray-50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-500">บุคคลที่ {i + 1}</span>
+                {people.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePerson(i)}
+                    className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+                    aria-label="ลบบุคคลนี้"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 )}
-              </span>
-              {people.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removePerson(i)}
-                  className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
-                  aria-label="ลบบุคคลนี้"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="บทบาท" required>
+                  <select
+                    value={p.role}
+                    onChange={(e) => updatePerson(i, { role: e.target.value, name: "", email: "", phone: "" })}
+                    className={INPUT + " bg-white"}
+                  >
+                    <option value="">— เลือกบทบาท —</option>
+                    {PERSON_ROLES.map((r) => (
+                      <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={isExternalRole ? "กรรมการภายนอก" : "อาจารย์"} required>
+                  <select
+                    value={selectedAccount?.id ?? ""}
+                    onChange={(e) => selectAccount(i, e.target.value)}
+                    disabled={!p.role}
+                    className={INPUT + " bg-white disabled:opacity-50"}
+                  >
+                    <option value="">— เลือกจากรายชื่อ —</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              {isExternalRole && (
+                <p className="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
+                  ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
+                  แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกได้ที่นี่
+                </p>
+              )}
+              {selectedAccount && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <ReadOnlyField label="อีเมล" value={selectedAccount.email} />
+                  <Field label="เบอร์โทรศัพท์">
+                    <input
+                      value={p.phone}
+                      onChange={(e) => updatePerson(i, { phone: e.target.value })}
+                      className={INPUT}
+                      placeholder="0812345678"
+                    />
+                  </Field>
+                </div>
               )}
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Field label="ชื่อ-นามสกุล (พร้อมตำแหน่ง)" required>
-                <input
-                  value={p.name}
-                  onChange={(e) => updatePerson(i, { name: e.target.value })}
-                  className={INPUT}
-                  placeholder="เช่น รศ.ดร.สมชาย ใจดี"
-                />
-              </Field>
-              <Field label="อีเมล" required>
-                <input
-                  type="email"
-                  value={p.email}
-                  onChange={(e) => updatePerson(i, { email: e.target.value })}
-                  className={INPUT}
-                  placeholder="email@chula.ac.th"
-                />
-              </Field>
-              <Field label="บทบาท" required>
-                <select
-                  value={p.role}
-                  onChange={(e) => updatePerson(i, { role: e.target.value })}
-                  className={INPUT + " bg-white"}
-                >
-                  <option value="">— เลือกบทบาท —</option>
-                  {PERSON_ROLES.map((r) => (
-                    <option
-                      key={r}
-                      value={r}
-                      disabled={r === "PROGRAM_CHAIR" && chairCount >= 1 && p.role !== "PROGRAM_CHAIR"}
-                    >
-                      {ROLE_LABELS[r] ?? r}
-                      {r === "PROGRAM_CHAIR" ? " (ได้ 1 คน)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="เบอร์โทรศัพท์">
-                <input
-                  value={p.phone}
-                  onChange={(e) => updatePerson(i, { phone: e.target.value })}
-                  className={INPUT}
-                  placeholder="0812345678"
-                />
-              </Field>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <button

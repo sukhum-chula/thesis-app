@@ -7,6 +7,41 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-07
 
+- **Program chair & finance contact moved from `User` columns into a new `SystemSetting`
+  key/value table; finance contact is now an admin-designated ADMIN account; a professor may
+  now chair more than one program.** New `src/lib/systemSettings.ts` centralizes all reads/writes
+  (`getProgramChairUserId`/`getProgramChairsOfUser`/`setProgramChair`,
+  `getFinanceContactUser`/`setFinanceContact`, `clearUserFromSystemSettings`,
+  `attachSystemSettings`). Rows are never deleted — clearing an assignment, or deleting the
+  account that held it, sets `userId: null` instead so the key stays present. The old "one
+  PROFESSOR, one program" rule was removed, so `programChairFor` is now `ProgramType[]`
+  everywhere it appears (session/JWT, `MockUser`, ~a dozen consumer files) instead of a single
+  value. The old "จัดการประธานหลักสูตร" card was extracted from `AdminUsersPanel` into a new
+  `AdminSettingsPanel` component (`src/components/AdminSettingsPanel.tsx`), now its own
+  "ตั้งค่าระบบ" tab on `/admin-dashboard` (3 tabs total) and standalone at `/dashboard/admin/users`.
+  `sendFinanceEmail()` now prefers the designated contact's email over the `FINANCE_EMAIL` env
+  var, which is now only a fallback. See "Program Chair & finance-contact assignment" in
+  `AGENTS.md`.
+- **Admin submissions tab: rows expand in place instead of linking to a detail page.**
+  `/admin-dashboard`'s จัดการคำร้อง list no longer has a "จัดการ"/"ดำเนินการ" link or a per-row
+  delete button — the whole card is clickable (toggling a chevron), and clicking one renders the
+  full admin action surface directly under that row, one open at a time. That surface — header,
+  edit form, cancellation accept/decline, step-by-step controls, timeline, upload panels, file
+  list, and the typed-"ลบ" delete confirm — was extracted from what used to be all of
+  `/dashboard/admin/[id]/page.tsx` into new `src/components/AdminSubmissionPanel.tsx`
+  (`{ submissionId, onDeleted? }`), the same "extract the page body into a component" pattern
+  already used for `StudentSubmissionActions`. `/dashboard/admin/[id]` is now a thin
+  guard+back-link wrapper around it, kept because emails, the task box, and student-profile pages
+  still deep-link there directly. Expanding a card — including switching straight from one open
+  card to another — smoothly scrolls it to the top of the list's scrolling frame. Also fixed that
+  page's delete handler, which previously had no error handling at all (a failed delete just
+  silently did nothing); it now shows a success/error toast like the rest of the app.
+- **Fixed `DELETE /api/users/[id]` crashing with a bare 500 instead of a real error.** Deleting a
+  STUDENT/PROFESSOR who has ever submitted, uploaded a file, signed something, or acted on a
+  workflow step threw an unhandled Prisma foreign-key error (`P2003`) — none of those relations
+  cascade-delete, by design, since deleting an account must never silently destroy thesis records.
+  The route now catches that and returns a `409` with a clear Thai message instead. No schema or
+  behavior change, just surfacing the existing constraint as a real error.
 - **Removed `EMAIL_OVERRIDE_TO` entirely.** This env var used to redirect every outgoing email to
   one testing address so Preview/Development deployments and local dev could never accidentally
   email real students/faculty. Removed the override branch from `sendMail()`

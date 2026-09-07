@@ -5,4 +5,6 @@ export const ROLE_ROUTES: Record<Role, string> = {
   ADMIN:       "/admin-dashboard",
   STUDENT:     "/student-dashboard",
   PROFESSOR:   "/professor-dashboard",
+  // EXTERNAL (กรรมการภายนอก) is functionally identical to PROFESSOR — same landing page.
+  EXTERNAL:    "/professor-dashboard",
 };
