@@ -1,9 +1,29 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { FormType, StepStatus, SubmissionStatus } from "@/types";
+import { FormType, MockSubmission, Role, StepStatus, SubmissionStatus } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+// Submissions a given user is involved in — ADMIN sees everything (submission workflow is
+// ADMIN's exclusive responsibility), everyone else only what names them somewhere in the
+// committee. Shared by UserProfileHeader (quick stats) and UserDetailPanel (submissions list).
+export function getRelatedSubmissions(
+  submissions: MockSubmission[],
+  userId: string,
+  roles: Role[]
+): MockSubmission[] {
+  if (roles.includes("ADMIN")) return submissions;
+  return submissions.filter((s) =>
+    s.studentId === userId ||
+    (s as any).advisorId === userId ||
+    ((s.coAdvisorIds ?? []) as string[]).includes(userId) ||
+    ((s.committeeIds ?? []) as string[]).includes(userId) ||
+    (s as any).headCommitteeId === userId ||
+    (s as any).invitedCommitteeId === userId ||
+    (s as any).programChairId === userId
+  );
 }
 
 export const FORM_LABELS: Record<FormType, string> = {

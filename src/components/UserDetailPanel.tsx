@@ -1,20 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { useToast } from "@/context/ToastContext";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, getStepName, generatePassword, isValidPasscode } from "@/lib/utils";
-import { canManageAccount } from "@/lib/accountScope";
-import { PasscodeField } from "@/components/PasscodeField";
-import { MockSubmission, Role } from "@/types";
+import { getStepName, getRelatedSubmissions } from "@/lib/utils";
 import {
-  ChevronRight, FileText, Clock,
-  CheckCircle2, XCircle, AlertCircle, Pencil, X, Loader2, Trash2, KeyRound,
+  ChevronRight, FileText, AlertCircle,
 } from "lucide-react";
-
-const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
 function daysSince(dateStr: string): string {
   const days = Math.floor(
@@ -27,105 +19,19 @@ function daysSince(dateStr: string): string {
   return `${Math.floor(days / 365)} ปีที่แล้ว`;
 }
 
-function getRelatedSubmissions(
-  submissions: MockSubmission[],
-  userId: string,
-  roles: Role[]
-): MockSubmission[] {
-  if (roles.includes("ADMIN")) return submissions; // submission workflow is ADMIN's exclusive responsibility
-  return submissions.filter((s) =>
-    s.studentId === userId ||
-    (s as any).advisorId === userId ||
-    ((s.coAdvisorIds ?? []) as string[]).includes(userId) ||
-    ((s.committeeIds ?? []) as string[]).includes(userId) ||
-    (s as any).headCommitteeId === userId ||
-    (s as any).invitedCommitteeId === userId ||
-    (s as any).programChairId === userId
-  );
-}
-
-export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: () => void }) {
-  const { user: viewer, submissions, users, adminUpdateUserInfo, superAdminDeleteUser, superAdminResetPasscode } = useApp();
-  const { showToast } = useToast();
-  const [editOpen, setEditOpen] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editStudentId, setEditStudentId] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [pwOpen, setPwOpen] = useState(false);
-  const [pwSaving, setPwSaving] = useState(false);
-  const [pwPasscode, setPwPasscode] = useState(generatePassword());
+// Related-submissions list for one user. The identity/account-management header (name/email/
+// role badge, edit/reset-passcode/delete, quick stats) lives in UserProfileHeader — rendered
+// directly on each row of AdminUsersPanel's list, not gated behind expanding this panel.
+export function UserDetailPanel({ uid }: { uid: string }) {
+  const { user: viewer, submissions, users } = useApp();
 
   const user = users.find((u) => u.id === uid);
-
-  // See src/lib/accountScope.ts for the SUPER_ADMIN/ADMIN account-management tiers
-  const canManageTarget = !!viewer && !!user && canManageAccount(viewer.roles, user.roles);
 
   if (!viewer || !user) {
     return <p className="text-center py-10 text-gray-400">ไม่พบผู้ใช้งาน</p>;
   }
 
-  function openEdit() {
-    setEditName(user?.name ?? "");
-    setEditStudentId(user?.studentId ?? "");
-    setEditOpen(true);
-  }
-
-  async function handleSaveInfo(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const updates: { name?: string; studentId?: string } = {};
-      if (editName.trim() !== user?.name) updates.name = editName.trim();
-      if (editStudentId.trim() !== (user?.studentId ?? "")) updates.studentId = editStudentId.trim();
-      if (Object.keys(updates).length === 0) { setEditOpen(false); return; }
-      await adminUpdateUserInfo(uid, updates);
-      showToast("แก้ไขข้อมูลสำเร็จ", "success");
-      setEditOpen(false);
-    } catch (err: any) {
-      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    try {
-      await superAdminDeleteUser(uid);
-      showToast("ลบผู้ใช้งานสำเร็จ", "success");
-      onDeleted?.();
-    } catch (err: any) {
-      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
-      setConfirmDelete(false);
-    }
-  }
-
-  function openResetPasscode() {
-    setPwPasscode(generatePassword());
-    setPwOpen(true);
-  }
-
-  async function handleResetPasscode() {
-    if (!isValidPasscode(pwPasscode)) {
-      showToast("รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง", "error");
-      return;
-    }
-    setPwSaving(true);
-    try {
-      await superAdminResetPasscode(uid, pwPasscode.trim());
-      showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว", "success");
-      setPwOpen(false);
-    } catch (err: any) {
-      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
-    } finally {
-      setPwSaving(false);
-    }
-  }
-
-  const related   = getRelatedSubmissions(submissions, uid, user.roles);
-  const inProg    = related.filter((s) => s.status === "IN_PROGRESS").length;
-  const completed = related.filter((s) => s.status === "COMPLETED").length;
-  const rejected  = related.filter((s) => s.status === "REJECTED").length;
+  const related = getRelatedSubmissions(submissions, uid, user.roles);
 
   // Sort: in-progress first, then by date desc
   const sorted = [...related].sort((a, b) => {
@@ -136,89 +42,6 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
 
   return (
     <div className="space-y-6">
-      {/* Profile card */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-        <div className="flex items-start gap-4">
-          {/* Avatar initial */}
-          <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0">
-            <span className="text-2xl font-bold text-blue-600">
-              {user.name.charAt(0)}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 leading-snug">{user.name}</h1>
-            <p className="text-gray-500 mt-0.5">{user.email}</p>
-            {user.studentId && (
-              <p className="text-sm text-gray-400 mt-0.5">รหัสนักศึกษา: {user.studentId}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            {canManageTarget && (
-              <>
-                <button
-                  onClick={openEdit}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-                  title="แก้ไขชื่อ / รหัสนิสิต"
-                >
-                  <Pencil className="w-4 h-4" />
-                  แก้ไข
-                </button>
-                <button
-                  onClick={openResetPasscode}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-                  title="รีเซ็ตรหัสเข้าใช้งาน"
-                >
-                  <KeyRound className="w-4 h-4" />
-                  รหัสเข้าใช้งาน
-                </button>
-                {viewer.id !== user.id && (
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
-                    title="ลบผู้ใช้งาน"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    ลบ
-                  </button>
-                )}
-              </>
-            )}
-            <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full">
-              {user.roles.map((r) => ROLE_LABELS[r]).join(" / ")}
-            </span>
-          </div>
-        </div>
-
-        {confirmDelete && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
-            <p className="text-sm text-red-700 font-medium">ยืนยันการลบผู้ใช้งานนี้? การกระทำนี้ไม่สามารถย้อนกลับได้</p>
-            <div className="flex gap-2">
-              <button
-                onClick={handleDelete}
-                className="flex-1 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition"
-              >
-                ยืนยันลบ
-              </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition"
-              >
-                ยกเลิก
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Quick stats */}
-        {related.length > 0 && (
-          <div className="grid grid-cols-3 gap-3 pt-2 border-t border-gray-100">
-            <StatBox icon={<Clock className="w-5 h-5 text-blue-500" />}        value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
-            <StatBox icon={<CheckCircle2 className="w-5 h-5 text-green-500" />} value={completed} label="เสร็จสิ้น"       color="text-green-700" />
-            <StatBox icon={<XCircle className="w-5 h-5 text-red-400" />}        value={rejected}  label="ถูกปฏิเสธ"      color="text-red-600" />
-          </div>
-        )}
-      </div>
-
       {/* Submissions */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
@@ -336,134 +159,6 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
           </div>
         )}
       </div>
-
-      {/* Edit name / studentId modal */}
-      {editOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setEditOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">แก้ไขข้อมูลผู้ใช้</h2>
-              <button onClick={() => setEditOpen(false)} className="text-gray-400 hover:text-gray-600 transition">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveInfo} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">ชื่อ-นามสกุล *</label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className={INPUT_CLS}
-                />
-              </div>
-
-              {canManageTarget && user.roles.includes("STUDENT") && (
-                <div>
-                  <label className="text-xs text-gray-500 mb-1.5 block">รหัสนิสิต (10 หลัก)</label>
-                  <input
-                    type="text"
-                    value={editStudentId}
-                    onChange={(e) => setEditStudentId(e.target.value)}
-                    placeholder="เว้นว่างเพื่อลบรหัส"
-                    maxLength={10}
-                    className={INPUT_CLS}
-                  />
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setEditOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
-                >
-                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {saving ? "กำลังบันทึก..." : "บันทึก"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Reset passcode confirm modal */}
-      {pwOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setPwOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-800">รีเซ็ตรหัสเข้าใช้งาน</h2>
-              <button onClick={() => setPwOpen(false)} className="text-gray-400 hover:text-gray-600 transition">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-sm text-gray-600">
-              กำหนดรหัสเข้าใช้งานใหม่ให้ <strong>{user.email}</strong> เอง หรือกดสุ่มรหัส — ระบบจะส่งอีเมลแจ้งรหัสนี้
-              โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
-            </p>
-
-            <PasscodeField value={pwPasscode} onChange={setPwPasscode} />
-
-            <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => setPwOpen(false)}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={handleResetPasscode}
-                disabled={pwSaving}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
-              >
-                {pwSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {pwSaving ? "กำลังดำเนินการ..." : "ยืนยันรีเซ็ต"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatBox({
-  icon, value, label, color,
-}: {
-  icon: React.ReactNode;
-  value: number;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-1 py-3">
-      {icon}
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
     </div>
   );
 }

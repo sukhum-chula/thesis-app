@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
+import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { ArrowLeft } from "lucide-react";
 
 export default function AdminUserProfilePage() {
@@ -32,7 +33,8 @@ export default function AdminUserProfilePage() {
         ย้อนกลับรายชื่อผู้ใช้
       </Link>
 
-      <UserDetailPanel uid={uid} onDeleted={() => router.replace("/dashboard/admin/users")} />
+      <UserProfileHeader uid={uid} onDeleted={() => router.replace("/dashboard/admin/users")} />
+      <UserDetailPanel uid={uid} />
     </div>
   );
 }

@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, ROLE_DESC, PROGRAM_LABELS, sortUsersByRole, generatePassword, isValidPasscode } from "@/lib/utils";
+import { ROLE_LABELS, PROGRAM_LABELS, sortUsersByRole, generatePassword, isValidPasscode } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
+import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Role, ProgramType } from "@/types";
 import type { MockSubmission } from "@/types";
 import {
-  Users, GraduationCap, BookOpen, ShieldCheck, ChevronDown, RotateCcw, Crown,
+  Users, RotateCcw,
   UserPlus, X, Loader2, Landmark, Mail,
 } from "lucide-react";
 
@@ -25,18 +26,13 @@ interface PendingProfessorRequest {
 
 const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
 
-const ROLE_ICON: Record<Role, React.ReactNode> = {
-  SUPER_ADMIN: <Crown         className="w-5 h-5 text-amber-500" />,
-  ADMIN:       <ShieldCheck   className="w-5 h-5 text-orange-500" />,
-  STUDENT:     <GraduationCap className="w-5 h-5 text-blue-500" />,
-  PROFESSOR:   <BookOpen      className="w-5 h-5 text-purple-500" />,
-};
-
-const ROLE_COLOR: Record<Role, string> = {
-  SUPER_ADMIN: "bg-amber-50 border-amber-100 hover:border-amber-300",
-  ADMIN:       "bg-orange-50 border-orange-100 hover:border-orange-300",
-  STUDENT:     "bg-blue-50 border-blue-100 hover:border-blue-300",
-  PROFESSOR:   "bg-purple-50 border-purple-100 hover:border-purple-300",
+// Left accent border on each user's card — role at a glance without a second, redundant card
+// wrapper around UserProfileHeader's own white card.
+const ROLE_ACCENT: Record<Role, string> = {
+  SUPER_ADMIN: "border-l-4 border-l-amber-400",
+  ADMIN:       "border-l-4 border-l-orange-400",
+  STUDENT:     "border-l-4 border-l-blue-400",
+  PROFESSOR:   "border-l-4 border-l-purple-400",
 };
 
 const DB_ROLES: Role[] = ["STUDENT", "PROFESSOR", "ADMIN", "SUPER_ADMIN"];
@@ -139,25 +135,6 @@ export function AdminUsersPanel() {
     }
   }
 
-  function getStats(userId: string, role: Role) {
-    if (role === "STUDENT") {
-      const mine = submissions.filter((s) => s.studentId === userId);
-      const done = mine.filter((s) => s.status === "COMPLETED").length;
-      return `${mine.length} คำร้อง · เสร็จสิ้น ${done}`;
-    }
-    if (role === "PROFESSOR") {
-      const advised = submissions.filter((s) => (s as any).advisorId === userId).length;
-      const acted = submissions.filter((s) =>
-        s.workflowSteps.some((st) => st.actedById === userId && (st.status === "APPROVED" || st.status === "REJECTED"))
-      ).length;
-      if (advised > 0) return `ที่ปรึกษา ${advised} · ดำเนินการแล้ว ${acted}`;
-      if (acted > 0) return `ดำเนินการแล้ว ${acted} คำร้อง`;
-      return "ยังไม่มีการดำเนินการ";
-    }
-    if (role === "ADMIN" || role === "SUPER_ADMIN") return "เข้าถึงได้ทุกรายการ";
-    return "";
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -210,48 +187,18 @@ export function AdminUsersPanel() {
         {sortUsersByRole(allUsers).map((u) => {
           const isExpanded = expandedId === u.id;
           return (
-            <div key={u.id} className={`rounded-2xl border transition ${ROLE_COLOR[u.role]}`}>
-              <button
-                type="button"
-                onClick={() => setExpandedId(isExpanded ? null : u.id)}
-                className="w-full flex items-center gap-4 p-5 text-left"
-              >
-                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
-                  {ROLE_ICON[u.role]}
-                </div>
+            <div key={u.id} className="space-y-2">
+              {/* Identity + edit/reset-passcode/delete — always visible; clicking the 3 quick
+                  stats toggles the related-submissions panel below */}
+              <UserProfileHeader
+                uid={u.id}
+                onDeleted={() => setExpandedId(null)}
+                expanded={isExpanded}
+                onToggleExpand={() => setExpandedId(isExpanded ? null : u.id)}
+                accent={ROLE_ACCENT[u.role]}
+              />
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-lg">{u.name}</p>
-                    {u.studentId && (
-                      <span className="text-sm text-gray-500 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
-                        รหัส {u.studentId}
-                      </span>
-                    )}
-                    <span className="sm:hidden text-xs font-semibold text-gray-700 bg-white px-2 py-0.5 rounded-full border border-gray-200">
-                      {ROLE_LABELS[u.role]}
-                    </span>
-                  </div>
-                  <p className="text-gray-500 text-sm mt-0.5 truncate">{u.email}</p>
-                  <p className="text-gray-400 text-xs mt-1">{ROLE_DESC[u.role]}</p>
-                  <p className="sm:hidden text-xs text-gray-500 mt-1">{getStats(u.id, u.role)}</p>
-                </div>
-
-                <div className="hidden sm:flex text-right shrink-0 space-y-1.5 flex-col items-end">
-                  <span className="text-sm font-semibold text-gray-700 bg-white px-3 py-1 rounded-full border border-gray-200">
-                    {ROLE_LABELS[u.role]}
-                  </span>
-                  <p className="text-xs text-gray-500">{getStats(u.id, u.role)}</p>
-                </div>
-
-                <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-              </button>
-
-              {isExpanded && (
-                <div className="px-5 pb-5">
-                  <UserDetailPanel uid={u.id} onDeleted={() => setExpandedId(null)} />
-                </div>
-              )}
+              {isExpanded && <UserDetailPanel uid={u.id} />}
             </div>
           );
         })}

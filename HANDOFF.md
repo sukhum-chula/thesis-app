@@ -185,6 +185,78 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-07 — `AdminUsersPanel`'s user list: identity + account-management actions moved out
+  of the expand-only accordion onto each row directly; submission-status counts became the expand
+  trigger.** Previously expanding a user card mounted `UserDetailPanel`, which held everything —
+  name/email/role badge, edit/reset-passcode/delete, quick stats, and the related-submissions
+  list — behind one click. New `src/components/UserProfileHeader.tsx` extracts the identity +
+  account-management piece (name/email/studentId/role badge, แก้ไข/รหัสเข้าใช้งาน/ลบ + their
+  modals, and the 3 submission-status counts) so it renders on every row unconditionally; only the
+  related-submissions list stays behind expand in the now much-smaller `UserDetailPanel`. The old
+  standalone "ดูคำร้องที่เกี่ยวข้อง" toggle button was removed — clicking the 3 status counts
+  themselves (always shown, `0`s included, always clickable) now expands/collapses the panel via
+  new `expanded`/`onToggleExpand` props on `UserProfileHeader` (both optional, so the standalone
+  `/dashboard/admin/users/[uid]` deep-link page — which renders `UserProfileHeader` +
+  `UserDetailPanel` together, always expanded, no toggle — is unaffected). `getRelatedSubmissions`
+  was deduplicated into `src/lib/utils.ts` since both components need it.
+  Layout, after a few rounds of adjustment: the header is a single `flex items-stretch` row —
+  identity block (`flex-1`), then the status-counts box, then the account-management button stack
+  (`flex-col`, fixed `w-40` per button so the stack doesn't look jagged). `items-stretch` makes the
+  status-counts box automatically match the 3-button stack's height (button heights + their gaps)
+  with no manual height math. The delete button always renders (even on your own account, where
+  it's functionally a no-op) as `invisible`+`disabled` rather than being omitted, specifically so
+  every row's button stack — and the stretched status box next to it — stays the same height;
+  omitting it entirely made the viewing admin's own row shorter than every other row. Each user's
+  role now shows as a badge right next to their name (previously off on the far right next to the
+  buttons); `AdminUsersPanel`'s old per-role tinted card wrapper (`bg-*-50 border-*-100`, which
+  doubled up with `UserProfileHeader`'s own white card into a "card-in-a-card" look) was replaced
+  with a single 4px role-colored left-accent border (`border-l-4 border-l-{color}`) directly on
+  that white card.
+  **Verified**: `npm run build` passes clean after every step. **Not verified in a real browser**
+  — same constraint as the entry below: the one ADMIN account listed at `/demo-users`
+  (`sukhum.s+suphap@cp.eng.chula.ac.th`) did not accept the shared `A00a00` passcode this file
+  documents elsewhere, and probing the DB further to find working credentials was correctly
+  blocked by the sandbox as production-credential access. Next session with a working ADMIN login
+  should click through the user list: confirm row heights are visually even across users with and
+  without a delete button, confirm clicking the status counts expands/collapses correctly
+  (including a user with zero related submissions), and spot-check the standalone
+  `/dashboard/admin/users/[uid]` page still renders correctly.
+
+- **2026-09-07 — `/admin-dashboard`'s submissions tab: rows now expand in place; fixed
+  `DELETE /api/users/[id]` crashing with a bare 500.** Two related pieces of work, prompted by a
+  user report that "student cannot be deleted — API error 500":
+  1. `DELETE /api/users/[id]` called `prisma.user.delete()` with no error handling.
+     `Submission.studentId`/`advisorId`, `FormUpload.uploadedById`, `Signature.userId`, and
+     `WorkflowStep.actedById` all reference `User` with no `onDelete: Cascade` (deliberately — an
+     account delete must never silently wipe thesis records), so deleting a student/professor who
+     has any submission history threw an unhandled Prisma `P2003` FK error, which Next.js turned
+     into a bare 500 with no `error` field — the client's fallback message is literally
+     `API error ${status}`, which is what the user saw. Now catches `P2003` and returns a `409`
+     with a clear Thai explanation instead. This is a deliberate block, not a new cascade-delete —
+     a student with real submissions still can't be deleted, just with a real error now.
+  2. Follow-up UI change: `/admin-dashboard`'s จัดการคำร้อง list had a redundant per-row delete
+     button (a second, less-safe path to the same destructive action already gated behind a
+     typed-"ลบ" confirm on the detail page) and a "จัดการ"/"ดำเนินการ" link to
+     `/dashboard/admin/[id]`. Both are gone — the whole card is now clickable (chevron toggle,
+     one open at a time) and expands the full admin action surface inline under that row, scrolling
+     it to the top of the list frame when opened (including switching directly from one open card
+     to another). The full surface was extracted from `/dashboard/admin/[id]/page.tsx` into new
+     `src/components/AdminSubmissionPanel.tsx` (`{ submissionId, onDeleted? }`); the old detail
+     route is now a thin wrapper around it, kept for email/task-box/profile deep links. Also fixed
+     that page's delete handler, which previously had zero error handling (a failed delete just
+     silently did nothing) — it now shows a toast either way, matching the rest of the app.
+     See "Admin dashboard" in `AGENTS.md`.
+  **Verified**: `npm run build` and `npm run lint` both pass clean (no new lint issues; the two
+  pre-existing `AdminSubmissionPanel.tsx` lint items — an unescaped quote and an `as any` cast —
+  are carried over unchanged from the original detail page, not new). **Not verified in a real
+  browser** — found a dev server already running against the live DB, but the one ADMIN account
+  listed at `/demo-users` (`sukhum.s+suphap@cp.eng.chula.ac.th`) did not accept the shared `A00a00`
+  passcode this file documents elsewhere, and probing the DB further to find working credentials
+  was correctly blocked by the sandbox as production-credential access. Next session with a working
+  ADMIN login should click through: expand/collapse a row, expand-then-expand-another (scroll
+  behavior), and an in-panel delete, plus actually attempt deleting a student with real submission
+  history to see the new 409 message end-to-end.
+
 - **2026-09-07 — Admin can now type a passcode by hand, not just accept a generated one, when
   creating an account or resetting one.** Previously `POST /api/users` and `PATCH /api/users/[id]`
   (`resetPasscode: true`) always called `generatePassword()` server-side with no client input
