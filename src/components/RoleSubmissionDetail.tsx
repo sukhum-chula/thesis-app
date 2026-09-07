@@ -36,7 +36,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   // Ownership guard — involvement-based: any role the user plays in this submission.
   // Submission workflow is ADMIN's exclusive responsibility, so only ADMIN gets a blanket bypass here.
   const authorized = !user ? false
-    : user.roles.includes("ADMIN") || (user as any).isProgramChair === true ? true
+    : user.roles.includes("ADMIN") || (!!sub.program && user.programChairFor === sub.program) ? true
     : sub.studentId === user.id
     || (sub as any).advisorId === user.id
     || ((sub.coAdvisorIds ?? []) as string[]).includes(user.id)
@@ -70,7 +70,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       case "CO_ADVISOR":            return ((sub.coAdvisorIds ?? []) as string[]).includes(user.id);
       case "EXAM_COMMITTEE":        return ((sub.committeeIds ?? []) as string[]).includes(user.id);
       case "PROGRAM_CHAIR":
-        return (sub as any).programChairId ? (sub as any).programChairId === user.id : (user as any).isProgramChair === true;
+        return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && user.programChairFor === sub.program);
       default:                      return user.roles.includes(currentStep.role as any);
     }
   })();

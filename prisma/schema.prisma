@@ -62,9 +62,13 @@ model User {
   email        String   @unique
   passcodeHash String
   name         String
-  roles          Role[]
-  studentId      String?  @unique
-  isProgramChair Boolean  @default(false)
+  roles           Role[]
+  studentId       String?      @unique
+  // At most one PROFESSOR per ProgramType — admin-assigned via /api/admin/program-chairs,
+  // used as the fallback PROGRAM_CHAIR recipient/authorizer when a submission's own
+  // programChairId isn't set. Postgres allows unlimited NULLs under a unique constraint, so
+  // any number of non-chair users can share `null` here.
+  programChairFor ProgramType? @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

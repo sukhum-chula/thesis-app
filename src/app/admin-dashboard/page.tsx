@@ -40,7 +40,7 @@ function resolvePendingName(
     case "HEAD_EXAM_COMMITTEE": return users.find((u) => u.id === sub.headCommitteeId)?.name ?? ROLE_LABELS[step.role];
     case "PROGRAM_CHAIR":
       return users.find((u) => u.id === (sub as any).programChairId)?.name
-        ?? users.find((u) => (u as any).isProgramChair === true)?.name
+        ?? (sub.program ? users.find((u) => (u as any).programChairFor === sub.program)?.name : undefined)
         ?? ROLE_LABELS[step.role];
     case "EXAM_COMMITTEE": {
       const memberIds = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);

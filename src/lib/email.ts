@@ -96,6 +96,7 @@ interface StepEmailOptions {
     committeeIds?: string[];
     invitedCommitteeId?: string | null;
     programChairId?: string | null;
+    program?: string | null;
   };
   stepName: string;
   /** For EXAM_COMMITTEE chain-sign: send email to only this specific member instead of all */
@@ -139,10 +140,12 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
       const u = await prisma.user.findUnique({ where: { id: sub.invitedCommitteeId } });
       if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
     } else if (role === "PROGRAM_CHAIR") {
-      // Per-submission chair (assigned by the student) with legacy global-flag fallback
-      const u = (sub as any).programChairId
-        ? await prisma.user.findUnique({ where: { id: (sub as any).programChairId } })
-        : await prisma.user.findFirst({ where: { isProgramChair: true } });
+      // Per-submission chair (assigned by the student) with per-program admin-designated fallback
+      const u = sub.programChairId
+        ? await prisma.user.findUnique({ where: { id: sub.programChairId } })
+        : sub.program
+        ? await prisma.user.findFirst({ where: { programChairFor: sub.program as any } })
+        : null;
       if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
     } else {
       const u = await prisma.user.findFirst({ where: { roles: { has: role as any } } });

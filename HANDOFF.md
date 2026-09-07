@@ -14,6 +14,14 @@ active right now — check it for what's mid-flight.
 
 **The app is live with real users.** Treat data and email as production.
 
+**⚠️ SECURITY: every account's passcode is currently the shared value `A00a00` (set 2026-09-07).**
+All 15 users in the live DB — including real STUDENT/PROFESSOR/ADMIN/SUPER_ADMIN accounts, not just
+test ones — were bulk-reset to this one known passcode for local testing convenience (see §8 for
+why). Anyone who knows this string can log in as **any** user right now. This is a genuinely
+insecure state for a live app with real users — reset real users back to individually-random
+passcodes (an ADMIN's per-user "รีเซ็ตรหัสเข้าใช้งาน" reset button already does this, one at a time)
+before leaving this unattended for long, and remove this warning once that's done.
+
 ---
 
 ## 1. Where the code lives now
@@ -90,6 +98,13 @@ removed on 2026-09-04 once the transfer was fully verified.
   `db.<ref>.supabase.co`) for `db push`; use the pooler for the app's runtime `DATABASE_URL`.
 - `prisma/migrate-roles.sql` is a one-off historical script (single-role → `Role[]`), already
   applied. Not part of setup.
+- **After renaming/changing a Prisma schema field, restart the `next dev` process, not just
+  `npx prisma generate`.** Found 2026-09-07 renaming `User.passwordHash` → `passcodeHash`: the
+  schema and DB were both correctly updated and the client was regenerated on disk, but the
+  already-running Turbopack dev server kept its old compiled Prisma client in memory and threw
+  `PrismaClientKnownRequestError: The column users.passwordHash does not exist` on every request
+  touching `prisma.user`. Regenerating the client does not hot-reload into a running dev server —
+  kill the process (and clear `.next/` if the error persists) and restart `npm run dev`.
 - `DATABASE_URL` must be the **transaction-mode pooler on port 6543**. Session mode (`:5432`) has a
   15-client cap and caused `EMAXCONNSESSION` under real traffic — this is a real incident, not a
   preference.
@@ -166,6 +181,45 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-07 — Program Chair assignment redesigned: admin-managed, one PROFESSOR per program.**
+  `User.isProgramChair` (a single global boolean, "grants see-all") replaced with
+  `User.programChairFor: ProgramType?` (nullable, `@unique` — at most one PROFESSOR per `PHD` /
+  `ME_MECH` / `ME_CPS`). This is still only the **fallback** for PROGRAM_CHAIR steps — the primary
+  source stays `sub.programChairId`, set per-submission from the student's own committee list; the
+  new field is just scoped correctly now (per-program instead of a blanket global flag). New
+  ADMIN-only endpoint `POST /api/admin/program-chairs` (`{ program, userId }`) atomically clears
+  whoever currently holds a program then assigns the new PROFESSOR (or just clears it if `userId`
+  is null). New **"จัดการประธานหลักสูตร"** card in `AdminUsersPanel.tsx`, rendered directly below
+  the user list on both `/admin-dashboard`'s users tab and standalone `/dashboard/admin/users` — 3
+  dropdowns (one per program), each defaulting to the current holder or "— ไม่มี —"; picking a
+  professor already chairing a different program moves them (shown inline in the dropdown option
+  text) since the field is single-valued. Every other `isProgramChair === true` check across the
+  codebase (~15 files: `email.ts`, `submissions[/id]/route.ts`'s notify/approve/list-scoping logic,
+  the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`,
+  `WorkflowTimeline`, admin/student dashboard display-name lookups, `auth.ts`/`magic/route.ts`
+  session minting) now checks `programChairFor === sub.program` instead — see "Program Chair
+  assignment" in `AGENTS.md` for the full list. Removed the isProgramChair checkbox from
+  `AdminUsersPanel`'s and `/super-dashboard`'s add-user forms entirely; chair assignment now only
+  happens via the new card, after the account already exists.
+  **DB migration**: since Boolean → nullable-enum isn't a losslessly-convertible rename (unlike the
+  passcode column), this was applied as `ALTER TABLE users DROP COLUMN "isProgramChair"` + `ADD
+  COLUMN "programChairFor" "ProgramType"` + `ADD CONSTRAINT ... UNIQUE ("programChairFor")` directly
+  against production — confirmed via a read-only query beforehand that **zero users** currently had
+  `isProgramChair = true`, so nothing of substance was lost. Applied, then `prisma db push` confirmed
+  the schema back in sync.
+  **Found and fixed a regression along the way**: right after applying the schema change, the admin
+  dashboard showed zero submissions and zero users — caused by the same "regenerated Prisma client,
+  but the running `next dev` process still has the old one cached" gotcha as the passcode rename
+  below (see the §3 bullet about restarting `next dev` after a schema change). Fixed by killing the
+  dev server, clearing `.next/`, and restarting.
+  **Verified** via real browser walkthrough as an ADMIN test account (`outanagon2549+suphap@gmail.com`,
+  logged in with the shared `A00a00` passcode — see the security warning above): submissions and
+  users both list correctly again after the fix; assigned a PROFESSOR to the PHD program via the new
+  card, reloaded the page, and confirmed the assignment persisted (ME_MECH/ME_CPS still correctly
+  showed "— ไม่มี —", unaffected). **Not yet verified**: the deployed Vercel URL — the schema change
+  is live on the production DB but this code hasn't been pushed/deployed yet, so the currently-live
+  deployment has no working PROGRAM_CHAIR fallback at all until it is.
+
 - **2026-09-07 — Admin-only account creation; password renamed to passcode.** Self-registration
   (`/register` form, `POST /api/auth/register`) and self-service forgot-password
   (`/forgot-password`, `POST /api/auth/forgot-password`) are both removed entirely — the only way
@@ -196,6 +250,21 @@ dated), this section is meant to be edited in place.
   create-account or reset-passcode walkthrough in a real browser (no working ADMIN credentials
   available this session — same constraint noted on the 2026-09-06 admin-dashboard entry below),
   and the deployed Vercel URL hasn't been re-checked since the push.
+
+- **2026-09-07 — All 15 users' passcodes bulk-reset to the shared value `A00a00`.** Done at the
+  owner's explicit request/confirmation (after being warned this affects every real account, not
+  just test ones) to make `/demo-users` immediately useful for local login testing without needing
+  per-account email access. Applied directly against the live production DB via a one-off script
+  using the app's own Prisma client + `bcrypt.hash(..., 12)` (same hashing the app itself uses) —
+  no new endpoint or UI was added for this, it was a manual data mutation, not a feature. Verified
+  before (0/15 users had it) and after (15/15 users have it) via a read-only `bcrypt.compare`
+  check. **See the security warning near the top of this file — every account is currently
+  accessible with this one known passcode.** One upside: this also unblocks the "no working ADMIN
+  credentials" verification gaps noted in several entries in this section — any seeded/real ADMIN
+  email + `A00a00` now logs in, so the still-unverified admin-dashboard/admin-driven-reset
+  walkthroughs above can finally be done. Separately, fixed a stale-dev-server bug hit while
+  diagnosing a `/demo-users` error report — see the new bullet in §3 about restarting `next dev`
+  after a Prisma schema field rename.
 
 - **2026-09-06 — SUPER_ADMIN/ADMIN responsibility split.** SUPER_ADMIN is now account/user
   management only (SUPER_ADMIN + ADMIN accounts, via new landing page `/super-dashboard`) with

@@ -108,7 +108,6 @@ export default function SuperDashboardPage() {
       email: newEmail.trim().toLowerCase(),
       role:  newRole,
       roles: [newRole],
-      isProgramChair: false,
     };
     superAdminAddUser(userData);
     setNewName(""); setNewEmail(""); setNewRole("ADMIN");

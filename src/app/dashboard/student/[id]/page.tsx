@@ -176,7 +176,7 @@ export default function StudentSubmissionDetail() {
       case "HEAD_EXAM_COMMITTEE": return allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? ROLE_LABELS[currentStep.role];
       case "PROGRAM_CHAIR":
         return allUsers.find((u) => u.id === (sub as any).programChairId)?.name
-          ?? allUsers.find((u) => (u as any).isProgramChair === true)?.name
+          ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor === sub.program)?.name : undefined)
           ?? ROLE_LABELS[currentStep.role];
       case "EXAM_COMMITTEE": {
         const memberIds = (currentStep.committeeMembers?.length ? currentStep.committeeMembers : (sub.committeeIds ?? [])) as string[];

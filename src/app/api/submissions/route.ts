@@ -30,26 +30,27 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
   const userRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
-  const dbUserChair = await prisma.user.findUnique({ where: { id: userId }, select: { isProgramChair: true } });
+  const dbUserChair = await prisma.user.findUnique({ where: { id: userId }, select: { programChairFor: true } });
   // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
-  const isPrivileged = userRoles.includes("ADMIN") || dbUserChair?.isProgramChair === true;
+  const isAdmin = userRoles.includes("ADMIN");
 
   let where: any = {};
-  if (!isPrivileged) {
-    // Involvement-based: show all submissions where user is directly assigned
-    where = {
-      OR: [
-        { studentId: userId },
-        { advisorId: userId },
-        { coAdvisorIds: { hasSome: [userId] } },
-        { committeeIds: { hasSome: [userId] } },
-        { headCommitteeId: userId },
-        { invitedCommitteeId: userId },
-        { programChairId: userId },
-      ],
-    };
+  if (!isAdmin) {
+    // Involvement-based: show all submissions where user is directly assigned, plus every
+    // submission in the program they're the designated ประธานหลักสูตร for (if any)
+    const or: any[] = [
+      { studentId: userId },
+      { advisorId: userId },
+      { coAdvisorIds: { hasSome: [userId] } },
+      { committeeIds: { hasSome: [userId] } },
+      { headCommitteeId: userId },
+      { invitedCommitteeId: userId },
+      { programChairId: userId },
+    ];
+    if (dbUserChair?.programChairFor) or.push({ program: dbUserChair.programChairFor });
+    where = { OR: or };
   }
-  // ADMIN, PROGRAM_CHAIR see all (no where filter)
+  // ADMIN sees all (no where filter)
 
   const submissions = await prisma.submission.findMany({
     where,

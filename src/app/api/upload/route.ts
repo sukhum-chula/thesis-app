@@ -39,14 +39,14 @@ export async function POST(req: NextRequest) {
   // Verify the caller is involved in this submission (or is an admin/program_chair) —
   // submission workflow is ADMIN's exclusive responsibility, SUPER_ADMIN doesn't get a bypass
   const sessionRoles: string[] = (session.user as any).roles ?? [session.user.role as string];
-  const sessionIsProgramChair = (session.user as any).isProgramChair === true;
-  const isAdminRole = sessionRoles.includes("ADMIN") || sessionIsProgramChair;
+  const sessionProgramChairFor = (session.user as any).programChairFor as string | null | undefined;
   const subCheck = await prisma.submission.findUnique({ where: { id: submissionId } });
   if (!subCheck) return NextResponse.json({ error: "Submission not found" }, { status: 404 });
   if (subCheck.status === "CANCELLED")
     return NextResponse.json({ error: "คำร้องนี้ถูกยกเลิกแล้ว" }, { status: 400 });
   if ((subCheck as any).cancelRequested)
     return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ" }, { status: 400 });
+  const isAdminRole = sessionRoles.includes("ADMIN") || (!!subCheck.program && sessionProgramChairFor === subCheck.program);
   if (!isAdminRole) {
     const uid = session.user.id;
     const involved =

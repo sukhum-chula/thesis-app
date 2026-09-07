@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  MockUser, MockSubmission, MockNotification, Role, FormType,
+  MockUser, MockSubmission, MockNotification, Role, FormType, ProgramType,
 } from "@/types";
 
 export interface SubmissionFormData {
@@ -79,6 +79,7 @@ interface AppContextType {
   superAdminResetPasscode: (userId: string) => Promise<void>;
   adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
   adminCreatePendingProfessor: (name: string, email: string, phone?: string) => Promise<void>;
+  adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -111,7 +112,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         roles: ((session.user as any).roles ?? [session.user.role as string]) as Role[],
         role: (((session.user as any).roles as string[])?.[0] ?? session.user.role) as Role,
         studentId: session.user.studentId,
-        isProgramChair: (session.user as any).isProgramChair ?? false,
+        programChairFor: ((session.user as any).programChairFor ?? null) as ProgramType | null,
       }
     : null;
 
@@ -248,7 +249,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
       case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
       case "PROGRAM_CHAIR":
-        return (sub as any).programChairId ? (sub as any).programChairId === user.id : user.isProgramChair === true;
+        return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && user.programChairFor === sub.program);
       case "CO_ADVISOR":
       case "EXAM_COMMITTEE": {
         if (!step.committeeMembers?.includes(user.id)) return false;
@@ -277,7 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
         case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
         case "PROGRAM_CHAIR":
-          return (sub as any).programChairId ? (sub as any).programChairId === user.id : user.isProgramChair === true;
+          return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && user.programChairFor === sub.program);
         case "CO_ADVISOR":
         case "EXAM_COMMITTEE": {
           if (!step.committeeMembers?.includes(user.id)) return false;
@@ -364,6 +365,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
   }
 
+  async function adminSetProgramChair(program: ProgramType, userId: string | null) {
+    await api("/api/admin/program-chairs", "POST", { program, userId });
+    await refresh(); // clears the previous holder + sets the new one across the user list
+  }
+
   if (status === "loading" || (status === "authenticated" && loading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -386,7 +392,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminCreatePendingProfessor,
+      adminUpdateUserInfo, adminCreatePendingProfessor, adminSetProgramChair,
     }}>
       {children}
     </AppContext.Provider>

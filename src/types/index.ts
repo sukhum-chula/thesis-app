@@ -13,7 +13,7 @@ export interface MockUser {
   roles: Role[];
   role: Role; // primary role = roles[0]
   studentId?: string;
-  isProgramChair?: boolean;
+  programChairFor?: ProgramType | null;
 }
 
 export interface MockUpload {

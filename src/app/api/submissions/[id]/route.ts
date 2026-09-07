@@ -63,11 +63,11 @@ async function notifyRole(role: string, sub: any, message: string, type: string)
     }
     return;
   } else if (role === "PROGRAM_CHAIR") {
-    // Per-submission chair (assigned by the student) with legacy global-flag fallback
+    // Per-submission chair (assigned by the student) with per-program admin-designated fallback
     if ((sub as any).programChairId) {
       recipientId = (sub as any).programChairId;
-    } else {
-      const chair = await prisma.user.findFirst({ where: { isProgramChair: true } });
+    } else if ((sub as any).program) {
+      const chair = await prisma.user.findFirst({ where: { programChairFor: (sub as any).program } });
       recipientId = chair?.id ?? null;
     }
   } else {
@@ -89,9 +89,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const { id: userId, role } = session.user;
-  const getUser = await prisma.user.findUnique({ where: { id: userId }, select: { isProgramChair: true } });
+  const getUser = await prisma.user.findUnique({ where: { id: userId }, select: { programChairFor: true } });
   // Submission workflow is ADMIN's exclusive responsibility — SUPER_ADMIN is account/user management only
-  const isPrivileged = role === "ADMIN" || getUser?.isProgramChair === true;
+  const isPrivileged = role === "ADMIN" || (!!sub.program && getUser?.programChairFor === sub.program);
   const isInvolved =
     sub.studentId === userId ||
     sub.advisorId === userId ||
@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: userId, name: userName } = session.user;
 
   // Always look up roles from DB — JWT role can be stale after a role change
-  const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true, isProgramChair: true } });
+  const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true, programChairFor: true } });
   const userRoles: string[] = dbUser?.roles as string[] ?? (session.user as any).roles ?? [session.user.role as string];
   const role: string = userRoles[0] ?? "";
 
@@ -151,7 +151,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (step.role === "HEAD_EXAM_COMMITTEE")   return sub.headCommitteeId === userId;
       if (step.role === "INVITED_EXAM_COMMITTEE")return sub.invitedCommitteeId === userId;
       if (step.role === "PROGRAM_CHAIR")
-        return (sub as any).programChairId ? (sub as any).programChairId === userId : dbUser?.isProgramChair === true;
+        return (sub as any).programChairId
+          ? (sub as any).programChairId === userId
+          : !!sub.program && dbUser?.programChairFor === sub.program;
       return userRoles.includes(step.role); // ADMIN, EXAM_COMMITTEE
     })();
     if (!canApprove) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

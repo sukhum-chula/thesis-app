@@ -923,7 +923,7 @@ export default function AdminSubmissionDetail() {
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => allUsers.find((u) => u.id === uid)?.name ?? uid).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") assignedName = allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? null;
                 else if (step.role === "INVITED_EXAM_COMMITTEE") assignedName = allUsers.find((u) => u.id === sub.invitedCommitteeId)?.name ?? (sub.invitedProfName ?? null);
-                else if (step.role === "PROGRAM_CHAIR") assignedName = allUsers.find((u) => u.id === (sub as any).programChairId)?.name ?? allUsers.find((u) => (u as any).isProgramChair === true)?.name ?? null;
+                else if (step.role === "PROGRAM_CHAIR") assignedName = allUsers.find((u) => u.id === (sub as any).programChairId)?.name ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor === sub.program)?.name : null) ?? null;
 
                 // Committee sign breakdown
                 const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR")

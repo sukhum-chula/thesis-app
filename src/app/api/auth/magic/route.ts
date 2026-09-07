@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       roles:         user.roles as string[],
       role:          (user.roles[0] ?? "") as string,
       studentId:     user.studentId ?? undefined,
-      isProgramChair: user.isProgramChair,
+      programChairFor: user.programChairFor,
     },
     secret:  process.env.AUTH_SECRET!,
     salt:    cookieName,

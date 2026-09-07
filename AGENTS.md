@@ -99,6 +99,27 @@ always admin-initiated rather than user-requested). `AppContext`'s `superAdminAd
 password argument and `superAdminResetPasscode(userId)` takes no new-passcode argument — the server
 is always the one generating it.
 
+### Program Chair assignment — admin-designated, one PROFESSOR per program (2026-09-07)
+`User.programChairFor: ProgramType?` (nullable, `@unique`) replaces the old global `isProgramChair`
+boolean flag — a PROFESSOR now holds this for at most one of the 3 `ProgramType` values (`PHD` /
+`ME_MECH` / `ME_CPS`) at a time; the DB's unique constraint enforces "at most one holder per
+program" (Postgres allows unlimited `NULL`s under a unique index, so any number of non-chair users
+share `null`). This is purely a **fallback** — the primary source of PROGRAM_CHAIR truth is always
+`sub.programChairId`, set per-submission from the student's `people[]` committee list; the
+`programChairFor` holder for that submission's `program` is only consulted when `programChairId`
+is unset.
+
+ADMIN manages this via a dedicated **"จัดการประธานหลักสูตร"** card in `AdminUsersPanel`
+(`src/components/AdminUsersPanel.tsx`), rendered directly below the user list on both
+`/admin-dashboard`'s "จัดการผู้ใช้งาน" tab and the standalone `/dashboard/admin/users` — 3 rows (one
+per `ProgramType`), each a `<select>` of every PROFESSOR defaulting to whoever currently holds that
+program (or "— ไม่มี —"). Changing a row calls `POST /api/admin/program-chairs`
+(`{ program, userId }`, ADMIN-only) which, in one transaction, clears whoever currently holds that
+program then (if `userId` given) assigns it to the selected PROFESSOR — reassigning a professor who
+already chairs a different program silently moves them (a user can hold only one `programChairFor`
+value; there's no separate "clear the old one first" step needed since the field is single-valued).
+`AppContext.adminSetProgramChair(program, userId | null)` wraps this and refreshes the user list.
+
 ### Committee accounts must pre-exist — DRAFT + admin approval
 Every person named in `people[]` (both PROPOSAL creation and defense committee edits) must already
 have an account — the API no longer auto-creates one. Validation/resolution lives in
@@ -199,10 +220,12 @@ the outer page, which used to shift the whole layout when the browser's own scro
      progress bar, created date, delete button (with confirm prompt), "จัดการ"/"ดำเนินการ" link
 2. **จัดการผู้ใช้งาน (users)** — renders `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
    extracted 2026-09-06): the full STUDENT/PROFESSOR/ADMIN account list (expand a row for
-   `UserDetailPanel`), the add-user modal, and demo reset tools. The same component is reused
-   standalone at `/dashboard/admin/users` (now a thin guard+back-link wrapper around it) and its
-   `[uid]` detail route, since student names in the submission list still deep-link there directly
-   — the old "ผู้ใช้งานในระบบ" link-out card on this page was removed in favor of this tab.
+   `UserDetailPanel`), the add-user modal, a **"จัดการประธานหลักสูตร"** card right below the user
+   list (3 per-program PROFESSOR assignment dropdowns — see "Program Chair assignment" above), and
+   demo reset tools. The same component is reused standalone at `/dashboard/admin/users` (now a
+   thin guard+back-link wrapper around it) and its `[uid]` detail route, since student names in the
+   submission list still deep-link there directly — the old "ผู้ใช้งานในระบบ" link-out card on this
+   page was removed in favor of this tab.
 
 ### admin_override_step status priority
 When admin overrides individual steps via `action: "admin_override_step"`, submission status is computed as: **`hasPending → IN_PROGRESS`** (takes priority), then `hasRejected → REJECTED`, then `COMPLETED`. This ensures overriding a step to REJECTED does not lock the submission if later steps are still PENDING.
@@ -254,7 +277,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE) |
-| Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); legacy global `isProgramChair` flag is a fallback and still grants see-all |
+| Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`users.programChairFor`, one PROFESSOR per `ProgramType`, see "Program Chair assignment" below) |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student |
 | Invited Exam Committee | กรรมการภายนอก | External examiner — assigned per submission by Student; **must already have an account** (submission is saved as DRAFT pending admin approval otherwise — see "Committee accounts must pre-exist" above) |
@@ -359,7 +382,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Sequential only** — no parallel signing
 - **EXAM_COMMITTEE and CO_ADVISOR** steps: all assigned members must approve (tracked via `committeeActions` JSON on `WorkflowStep`). CO_ADVISOR uses `coAdvisorIds` (DB field `String[]`) the same way EXAM_COMMITTEE uses `committeeIds`. INVITED_EXAM_COMMITTEE steps carry `[invitedCommitteeId]` in `committeeMembers` for self-containment.
 - **CO_ADVISOR auto-skip**: when `coAdvisorIds` is empty at submission creation, all CO_ADVISOR steps are created with `status: "SKIPPED"` so they are transparently bypassed.
-- **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to the global `isProgramChair` flag. Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, the sign route, exam-reminder cron, upload involvement check, `AppContext`, `RoleSubmissionDetail`, professor dashboard, and display-name lookups.
+- **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR holds `programChairFor === sub.program` (see "Program Chair assignment" below — `null`/no match means no fallback recipient). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
 - **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = `FINANCE_EMAIL` env var (skips if unset).
 - **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
 - **SUPER_ADMIN has zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission (no detail-page views either — `src/app/dashboard/admin/[id]` stays ADMIN-only). That responsibility belongs exclusively to ADMIN. It does have read-only oversight: a full user directory (incl. STUDENT/PROFESSOR) via `GET /api/super-admin/users`, and a full submission list via `GET /api/super-admin/submissions` (both SUPER_ADMIN-only, view-only; the older counts-only `GET /api/super-admin/stats` was removed once these shipped) — but account *management* of STUDENT/PROFESSOR/ADMIN stays exclusively ADMIN's (SUPER_ADMIN can only create/edit/delete SUPER_ADMIN/ADMIN accounts, per `src/lib/accountScope.ts`).

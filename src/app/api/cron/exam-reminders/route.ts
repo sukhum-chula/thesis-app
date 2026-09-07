@@ -108,9 +108,9 @@ export async function GET(req: NextRequest) {
           if (role === "PROGRAM_CHAIR") {
             if ((sub as any).programChairId) {
               recipIds.add((sub as any).programChairId);
-            } else {
+            } else if (sub.program) {
               const chair = await prisma.user.findFirst({
-                where: { isProgramChair: true },
+                where: { programChairFor: sub.program },
                 select: { id: true },
               });
               if (chair) recipIds.add(chair.id);

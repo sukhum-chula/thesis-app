@@ -222,8 +222,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } else if (nextRole === "PROGRAM_CHAIR") {
           if ((sub as any).programChairId) {
             recipientId = (sub as any).programChairId;
-          } else {
-            const chair = await prisma.user.findFirst({ where: { isProgramChair: true } });
+          } else if ((sub as any).program) {
+            const chair = await prisma.user.findFirst({ where: { programChairFor: (sub as any).program } });
             recipientId = chair?.id ?? null;
           }
         } else if (nextRole === "CO_ADVISOR") {

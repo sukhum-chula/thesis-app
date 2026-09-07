@@ -40,7 +40,7 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
     case "HEAD_EXAM_COMMITTEE": return users.find((u: any) => u.id === sub.headCommitteeId)?.name ?? null;
     case "PROGRAM_CHAIR":
       return users.find((u: any) => u.id === sub.programChairId)?.name
-          ?? users.find((u: any) => u.isProgramChair)?.name ?? null;
+          ?? (sub.program ? users.find((u: any) => u.programChairFor === sub.program)?.name : null) ?? null;
     case "ADMIN":               return "เจ้าหน้าที่";
     case "EXAM_COMMITTEE": {
       const memberIds: string[] = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);

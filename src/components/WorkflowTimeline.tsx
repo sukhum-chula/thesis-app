@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 type SubInfo = Pick<MockSubmission,
   "studentId" | "studentFullName" | "advisorId" | "headCommitteeId" | "coAdvisorIds" |
-  "committeeIds" | "invitedCommitteeId" | "invitedProfName"
+  "committeeIds" | "invitedCommitteeId" | "invitedProfName" | "program"
 > & { uploads?: MockUpload[]; status?: string };
 
 /** Resolve the list of people assigned to a step: [{ id, name }] */
@@ -42,7 +42,9 @@ function resolveAssignees(
     case "PROGRAM_CHAIR": {
       const u = (sub as any).programChairId
         ? find((sub as any).programChairId)
-        : users.find((u) => (u as any).isProgramChair === true);
+        : sub.program
+        ? users.find((u) => (u as any).programChairFor === sub.program)
+        : undefined;
       return u ? [{ id: u.id, name: u.name }] : [];
     }
     case "ADMIN": {

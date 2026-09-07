@@ -13,8 +13,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ upl
 
   const sub = upload.submission;
   const { id: userId, role } = session.user;
-  const getUser = await prisma.user.findUnique({ where: { id: userId }, select: { isProgramChair: true } });
-  const isPrivileged = role === "ADMIN" || getUser?.isProgramChair === true;
+  const getUser = await prisma.user.findUnique({ where: { id: userId }, select: { programChairFor: true } });
+  const isPrivileged = role === "ADMIN" || (!!sub.program && getUser?.programChairFor === sub.program);
   const isInvolved =
     sub.studentId === userId ||
     sub.advisorId === userId ||

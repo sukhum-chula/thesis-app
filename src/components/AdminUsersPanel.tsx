@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, ROLE_DESC, sortUsersByRole } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_DESC, PROGRAM_LABELS, sortUsersByRole } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
-import { Role } from "@/types";
+import { Role, ProgramType } from "@/types";
 import {
   Users, GraduationCap, BookOpen, ShieldCheck, ChevronDown, RotateCcw, Crown,
-  UserPlus, X, Loader2,
+  UserPlus, X, Loader2, Landmark,
 } from "lucide-react";
+
+const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
 
 const ROLE_ICON: Record<Role, React.ReactNode> = {
   SUPER_ADMIN: <Crown         className="w-5 h-5 text-amber-500" />,
@@ -35,19 +37,21 @@ const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm 
 // names in the submission list deep-link to /dashboard/admin/users/[uid]). Callers are
 // responsible for their own ADMIN-role guard before rendering this.
 export function AdminUsersPanel() {
-  const { submissions, users: allUsers, superAdminAddUser } = useApp();
+  const { submissions, users: allUsers, superAdminAddUser, adminSetProgramChair } = useApp();
   const { showToast } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", isProgramChair: false });
+  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "" });
   const [saving, setSaving] = useState(false);
+  const [savingProgram, setSavingProgram] = useState<ProgramType | null>(null);
 
   const creatableRoles = DB_ROLES.filter((r) => r !== "SUPER_ADMIN");
+  const professors = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
 
   function closeModal() {
     setShowModal(false);
-    setForm({ name: "", email: "", role: "STUDENT", studentId: "", isProgramChair: false });
+    setForm({ name: "", email: "", role: "STUDENT", studentId: "" });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -60,7 +64,6 @@ export function AdminUsersPanel() {
         role: form.role,
         roles: [form.role],
         studentId: form.role === "STUDENT" && form.studentId.trim() ? form.studentId.trim() : undefined,
-        isProgramChair: form.role === "PROFESSOR" ? form.isProgramChair : false,
       });
       showToast("เพิ่มผู้ใช้สำเร็จ — ระบบส่งรหัสเข้าใช้งานไปยังอีเมลของผู้ใช้แล้ว", "success");
       closeModal();
@@ -68,6 +71,18 @@ export function AdminUsersPanel() {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSetProgramChair(program: ProgramType, userId: string) {
+    setSavingProgram(program);
+    try {
+      await adminSetProgramChair(program, userId || null);
+      showToast("บันทึกประธานหลักสูตรสำเร็จ", "success");
+    } catch (err: any) {
+      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+    } finally {
+      setSavingProgram(null);
     }
   }
 
@@ -158,6 +173,45 @@ export function AdminUsersPanel() {
         })}
       </div>
 
+      {/* Program Chair assignment — one PROFESSOR per program (3 slots) */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Landmark className="w-5 h-5 text-indigo-500" />
+          <h2 className="font-semibold text-gray-800">จัดการประธานหลักสูตร</h2>
+        </div>
+        <p className="text-sm text-gray-400">
+          กำหนดอาจารย์ผู้เป็นประธานหลักสูตรของแต่ละหลักสูตร — ใช้เป็นผู้รับผิดชอบสำรองเมื่อคำร้องไม่ได้ระบุประธานหลักสูตรไว้โดยตรง
+          แต่ละหลักสูตรมีประธานได้เพียงคนเดียว
+        </p>
+        <div className="space-y-3">
+          {PROGRAMS.map((program) => {
+            const current = professors.find((u) => u.programChairFor === program);
+            return (
+              <div key={program} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+                <p className="text-sm font-medium text-gray-700 sm:w-64 shrink-0">{PROGRAM_LABELS[program]}</p>
+                <select
+                  value={current?.id ?? ""}
+                  onChange={(e) => handleSetProgramChair(program, e.target.value)}
+                  disabled={savingProgram === program}
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
+                >
+                  <option value="">— ไม่มี —</option>
+                  {professors.map((p) => {
+                    const heldElsewhere = p.programChairFor && p.programChairFor !== program
+                      ? ` (ปัจจุบันเป็นประธานหลักสูตร ${p.programChairFor})`
+                      : "";
+                    return (
+                      <option key={p.id} value={p.id}>{p.name}{heldElsewhere}</option>
+                    );
+                  })}
+                </select>
+                {savingProgram === program && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Demo tools */}
       {DEMO_MODE && (
         <div className="bg-white rounded-2xl border border-amber-200 p-5 space-y-3">
@@ -241,7 +295,7 @@ export function AdminUsersPanel() {
               <FormField label="บทบาท *">
                 <select
                   value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value as Role, studentId: "", isProgramChair: false })}
+                  onChange={(e) => setForm({ ...form, role: e.target.value as Role, studentId: "" })}
                   className={INPUT_CLS}
                 >
                   {creatableRoles.map((r) => (
@@ -249,18 +303,6 @@ export function AdminUsersPanel() {
                   ))}
                 </select>
               </FormField>
-
-              {form.role === "PROFESSOR" && (
-                <label className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-                  <input
-                    type="checkbox"
-                    checked={form.isProgramChair}
-                    onChange={(e) => setForm({ ...form, isProgramChair: e.target.checked })}
-                    className="w-4 h-4 accent-indigo-600"
-                  />
-                  <span className="text-sm text-gray-700">กำหนดเป็น <strong>ประธานหลักสูตร</strong> (มีได้เพียงคนเดียว)</span>
-                </label>
-              )}
 
               {form.role === "STUDENT" && (
                 <FormField label="รหัสนิสิต">
