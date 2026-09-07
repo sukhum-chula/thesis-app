@@ -14,8 +14,9 @@ active right now — check it for what's mid-flight.
 
 **The app is live with real users.** Treat data and email as production.
 
-**⚠️ SECURITY: every account's passcode is currently the shared value `A00a00` (set 2026-09-07).**
-All 15 users in the live DB — including real STUDENT/PROFESSOR/ADMIN/SUPER_ADMIN accounts, not just
+**⚠️ SECURITY: every account's passcode is currently the shared value `A00a00` (set 2026-09-07,
+re-applied to all 20 accounts on 2026-09-07 after 5 new accounts joined the DB).**
+All 20 users in the live DB — including real STUDENT/PROFESSOR/ADMIN/SUPER_ADMIN accounts, not just
 test ones — were bulk-reset to this one known passcode for local testing convenience (see §8 for
 why). Anyone who knows this string can log in as **any** user right now. This is a genuinely
 insecure state for a live app with real users — reset real users back to individually-random
@@ -367,6 +368,12 @@ dated), this section is meant to be edited in place.
   walkthroughs above can finally be done. Separately, fixed a stale-dev-server bug hit while
   diagnosing a `/demo-users` error report — see the new bullet in §3 about restarting `next dev`
   after a Prisma schema field rename.
+- **2026-09-07 — Re-ran the bulk passcode reset, now 20/20 users.** Same one-off script pattern
+  (app's Prisma client + `PrismaPg` adapter over `DATABASE_URL` + `bcrypt.hash(..., 12)`), rerun at
+  the owner's explicit request since 5 more accounts had been created since the first pass and
+  weren't on the shared passcode. Verified before/after via a read-only `bcrypt.compare` check
+  (20/20 match afterward). Script was written to `scripts/`, run once, then deleted — not committed,
+  same as the first pass.
 
 - **2026-09-06 — SUPER_ADMIN/ADMIN responsibility split.** SUPER_ADMIN is now account/user
   management only (SUPER_ADMIN + ADMIN accounts, via new landing page `/super-dashboard`) with
