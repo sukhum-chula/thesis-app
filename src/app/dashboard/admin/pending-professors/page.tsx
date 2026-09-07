@@ -23,7 +23,7 @@ interface PendingRequest {
 }
 
 export default function PendingProfessorsPage() {
-  const { user, submissions, users, adminCreatePendingProfessor } = useApp();
+  const { user, submissions, users, superAdminAddUser } = useApp();
   const { showToast } = useToast();
   const router = useRouter();
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
@@ -72,7 +72,14 @@ export default function PendingProfessorsPage() {
     if (!form.name.trim()) { showToast("กรุณากรอกชื่อ-นามสกุล", "error"); return; }
     setSaving(true);
     try {
-      await adminCreatePendingProfessor(form.name.trim(), req.email, form.phone.trim() || undefined);
+      // Same route as the regular "เพิ่มผู้ใช้" flow — the server notifies any student whose
+      // draft this email was blocking, regardless of which screen created the account.
+      await superAdminAddUser({
+        name: form.name.trim(),
+        email: req.email,
+        role: "PROFESSOR",
+        roles: ["PROFESSOR"],
+      });
       showToast(`สร้างบัญชีให้ ${form.name.trim()} แล้ว`, "success");
       setOpenEmail(null);
     } catch (err) {

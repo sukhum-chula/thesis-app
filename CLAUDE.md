@@ -38,20 +38,27 @@ things live.
 src/app/api/**              all business logic — route handlers are the source of truth
   submissions/route.ts        POST create (proposal-first gate, DRAFT/pendingPeople branching)
   submissions/[id]/route.ts   PATCH actions — approve/reject/resubmit/return_to_prev/continue_draft/
-                               request_cancel/accept_cancel/decline_cancel/admin_*
-  admin/pending-professors/   POST — ADMIN-only, creates a professor account and unblocks any
-                               DRAFT submissions waiting on that email
+                               request_cancel/accept_cancel/decline_cancel/save_defense_draft/admin_*
+  submissions/auto-draft-defense/ POST — STUDENT-only, get-or-creates the DRAFT THESIS_DEFENSE
+                               imported from a completed proposal (see AGENTS.md)
+  users/route.ts               POST — the one route every account is created through, including
+                               resolving a DRAFT submission's missing committee person (no separate
+                               "pending professor" endpoint anymore — see AGENTS.md)
 src/app/dashboard/<role>/** thin pages per role, mostly wrapping shared components
-                             (admin/pending-professors — queue of unresolved committee emails)
+                             (admin/pending-professors — alternate entry point into the same
+                             account-creation flow now surfaced at the top of AdminUsersPanel's
+                             user list; student/[id] and student/submit are now thin wrappers
+                             around StudentSubmissionActions / SubmissionForms, see AGENTS.md)
 src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/student redirects here)
 src/app/professor-dashboard/ PROFESSOR's real landing page (src/app/dashboard/professor redirects
                              here; submission detail stays at src/app/dashboard/professor/[id])
 src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
-                             WorkflowTimeline, FileList, FileUploader, SubmissionInfoPanel —
+                             WorkflowTimeline, FileList, FileUploader, SubmissionInfoPanel,
+                             StudentSubmissionActions, SubmissionForms, DefenseDraftReview —
                              the shared UI that every role dashboard is built from
 src/context/AppContext.tsx  client state cache; polls the API, exposes actions
                              (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
-                             adminCreatePendingProfessor, requestCancelSubmission,
+                             getOrCreateDefenseDraft, saveDefenseDraft, requestCancelSubmission,
                              adminAcceptCancel, adminDeclineCancel, ...)
 src/lib/
   prisma.ts                 Prisma singleton (globalThis-cached — see AGENTS.md, do not "fix")

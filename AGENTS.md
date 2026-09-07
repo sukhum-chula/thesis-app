@@ -79,15 +79,16 @@ reference to the proposal's row, so editing them **never writes back to the prop
 info (name/code/program/email/phone) is still copied verbatim from the proposal and isn't editable
 at defense creation.
 
-### Account creation & passcodes — admin-only, system-generated (2026-09-07)
+### Account creation & passcodes — admin-only, system-generated (2026-09-07, unified onto one route 2026-09-07)
 There is **no self-registration** — `/register` is a static "contact the department" page, and
-`POST /api/auth/register` / `POST /api/auth/forgot-password` no longer exist. The only ways an
-account gets created are: an ADMIN/SUPER_ADMIN via `POST /api/users` (`AdminUsersPanel`,
-super-dashboard), or an ADMIN approving a committee person named on a DRAFT submission via
-`POST /api/admin/pending-professors` (see below). Both always call `generatePassword()`
-(`src/lib/utils.ts` — 6 chars, pattern `A00a00`: 1 capital, 4 digits, 1 lowercase, excluding
-visually-ambiguous characters) server-side and email the result via `sendWelcomeEmail` — there is
-no path where a client-supplied password is accepted or stored.
+`POST /api/auth/register` / `POST /api/auth/forgot-password` no longer exist. **Every** account —
+including one created to resolve a DRAFT submission's missing committee person — goes through the
+same `POST /api/users` route (`AppContext.superAdminAddUser`); the earlier dedicated
+`POST /api/admin/pending-professors` endpoint was deleted once `AdminUsersPanel` started calling
+`superAdminAddUser` directly (see "Committee accounts must pre-exist" below). It always calls
+`generatePassword()` (`src/lib/utils.ts` — 6 chars, pattern `A00a00`: 1 capital, 4 digits, 1
+lowercase, excluding visually-ambiguous characters) server-side and emails the result via
+`sendWelcomeEmail` — there is no path where a client-supplied password is accepted or stored.
 
 The credential is called a **passcode** (รหัสเข้าใช้งาน) everywhere user-facing, not a password —
 users cannot set or change their own; `User.passcodeHash` (renamed from `passwordHash`) is the only
@@ -120,7 +121,15 @@ already chairs a different program silently moves them (a user can hold only one
 value; there's no separate "clear the old one first" step needed since the field is single-valued).
 `AppContext.adminSetProgramChair(program, userId | null)` wraps this and refreshes the user list.
 
-### Committee accounts must pre-exist — DRAFT + admin approval
+On the admin submission-edit form (`src/app/dashboard/admin/[id]/page.tsx`, edit mode), "ประธาน
+หลักสูตร" is **not** a free `<select>` — it's a read-only value auto-resolved from whichever
+`programChairFor` holder matches the edit draft's currently-selected "หลักสูตร" field, recomputed
+live as that field changes. An admin can no longer set an arbitrary professor as one submission's
+program chair from this form; to change it they go reassign the program-level chair via the
+"จัดการประธานหลักสูตร" card instead. Saving the edit writes that resolved id (or `null` if the
+program has no chair assigned) as `programChairId`.
+
+### Committee accounts must pre-exist — DRAFT + admin approval (unified creation route 2026-09-07)
 Every person named in `people[]` (both PROPOSAL creation and defense committee edits) must already
 have an account — the API no longer auto-creates one. Validation/resolution lives in
 `src/lib/committee.ts` (`validatePeople` for shape/role-count checks, `resolvePeople` for the
@@ -128,13 +137,26 @@ account lookup — it never creates a user). If any email doesn't resolve, `POST
 saves the submission as `status: "DRAFT"` with the raw entries in `pendingPeople` (JSON) and
 **no workflow steps** — nothing is created until it's resolved. All admins are notified.
 
-An ADMIN reviews unresolved emails on `/dashboard/admin/pending-professors` (also surfaced as a
-count card on `/admin-dashboard`) and creates the missing account(s) there
-(`POST /api/admin/pending-professors`) — same welcome-email flow as before, just admin-triggered.
-Once every person on a draft has an account, the endpoint notifies that draft's student, who must
-return and call `action: "continue_draft"` (their own explicit action — nothing auto-finalizes) to
-resolve the committee fields, build the workflow steps (`src/lib/workflowSteps.ts`), and flip the
-submission to `IN_PROGRESS`.
+An ADMIN resolves these directly from `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
+both `/admin-dashboard`'s "จัดการผู้ใช้งาน" tab and the standalone `/dashboard/admin/users`): every
+unresolved committee email — grouped by email across all DRAFT submissions, since the same person
+may be named on several — renders as an amber card **at the top of the user list itself** (not a
+separate page), each with one "เพิ่มผู้ใช้" button. Clicking it opens the exact same "เพิ่มผู้ใช้งาน"
+modal used to create any account, pre-filled with that person's name/email and role defaulted to
+PROFESSOR — creation goes through the same `POST /api/users` route as any other new user (see
+"Account creation & passcodes" above), so the "notify any student whose draft this was blocking"
+check now lives server-side in that one route rather than a dedicated endpoint. The standalone
+`/dashboard/admin/pending-professors` page (still linked from the `/admin-dashboard` submissions
+tab's amber task card, and from the always-visible "รอสร้างบัญชีให้อาจารย์/กรรมการ" list) still
+works as an alternate entry point, calling the same `superAdminAddUser`/`POST /api/users` path.
+Once every person on a draft has an account, the resolved student is notified, and must return and
+call `action: "continue_draft"` (their own explicit action — nothing auto-finalizes) to resolve the
+committee fields, build the workflow steps (`src/lib/workflowSteps.ts`), and flip the submission to
+`IN_PROGRESS`. **`continue_draft` only fills in fields still unset on the row** — it never
+overwrites a committee field an ADMIN already set directly via the submission edit form while the
+row sat in DRAFT (see `src/app/api/submissions/[id]/route.ts`'s `continue_draft` handler); the
+distinguishing signal is `pendingPeople` being empty/null vs. carrying entries, not the row's other
+committee-field values.
 
 ### Cancellation — student requests, ADMIN accepts or declines
 `action: "request_cancel"` (student-only) no longer cancels immediately — it sets
@@ -208,8 +230,6 @@ the outer page, which used to shift the whole layout when the browser's own scro
      each card links directly to the submission
    - **"รอสร้างบัญชีให้อาจารย์/กรรมการ"** amber count card — only shown when any DRAFT submission
      has an unresolved `pendingPeople` email; links to `/dashboard/admin/pending-professors`
-   - **Step distribution** (`StepDistributionDashboard`) — in-progress submissions grouped by
-     pending step, PROPOSAL/THESIS_DEFENSE separately, each step row expandable to a per-student list
    - **Type filter pills** (ทุกประเภท/โครงร่าง/สอบวิทยานิพนธ์), **search bar**, **status filter
      tabs** (All/DRAFT/IN_PROGRESS/COMPLETED/REJECTED/CANCELLED, each with a count badge — these
      badges are what replaced the old header's stat pills, so nothing was lost when the header was
@@ -219,13 +239,14 @@ the outer page, which used to shift the whole layout when the browser's own scro
      `cancelRequested`, a "ค้างมา X วัน" badge past 7 days, who it's waiting on + step number,
      progress bar, created date, delete button (with confirm prompt), "จัดการ"/"ดำเนินการ" link
 2. **จัดการผู้ใช้งาน (users)** — renders `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
-   extracted 2026-09-06): the full STUDENT/PROFESSOR/ADMIN account list (expand a row for
-   `UserDetailPanel`), the add-user modal, a **"จัดการประธานหลักสูตร"** card right below the user
-   list (3 per-program PROFESSOR assignment dropdowns — see "Program Chair assignment" above), and
-   demo reset tools. The same component is reused standalone at `/dashboard/admin/users` (now a
-   thin guard+back-link wrapper around it) and its `[uid]` detail route, since student names in the
-   submission list still deep-link there directly — the old "ผู้ใช้งานในระบบ" link-out card on this
-   page was removed in favor of this tab.
+   extracted 2026-09-06): pending committee-account requests **at the top of the user list** (see
+   "Committee accounts must pre-exist" above), the full STUDENT/PROFESSOR/ADMIN account list
+   (expand a row for `UserDetailPanel`), the add-user modal, a **"จัดการประธานหลักสูตร"** card right
+   below the user list (3 per-program PROFESSOR assignment dropdowns — see "Program Chair
+   assignment" above), and demo reset tools. The same component is reused standalone at
+   `/dashboard/admin/users` (now a thin guard+back-link wrapper around it) and its `[uid]` detail
+   route, since student names in the submission list still deep-link there directly — the old
+   "ผู้ใช้งานในระบบ" link-out card on this page was removed in favor of this tab.
 
 ### admin_override_step status priority
 When admin overrides individual steps via `action: "admin_override_step"`, submission status is computed as: **`hasPending → IN_PROGRESS`** (takes priority), then `hasRejected → REJECTED`, then `COMPLETED`. This ensures overriding a step to REJECTED does not lock the submission if later steps are still PENDING.
@@ -391,7 +412,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
 - **One active proposal per student, defense created from a completed one** — a new PROPOSAL is blocked while an existing one is anything other than `CANCELLED`; a THESIS_DEFENSE requires a `COMPLETED`, non-cancelled source proposal (`sourceProposalId`) and imports (editable, independent copy) its committee. See "Proposal-first" above.
-- **Every committee person must already have an account** — `POST /api/submissions` never auto-creates one; an email that doesn't resolve saves the submission as `DRAFT` (`pendingPeople` JSON, no workflow steps) until an ADMIN creates the account via `/dashboard/admin/pending-professors` and the student calls `continue_draft`. See "Committee accounts must pre-exist" above.
+- **Every committee person must already have an account** — `POST /api/submissions` never auto-creates one; an email that doesn't resolve saves the submission as `DRAFT` (`pendingPeople` JSON, no workflow steps) until an ADMIN creates the account (one click from the top of `AdminUsersPanel`'s user list, or via `/dashboard/admin/pending-professors`) and the student calls `continue_draft`. See "Committee accounts must pre-exist" above.
 - **Cancellation is a two-step admin-gated request**, not an immediate student action — `request_cancel` only sets `cancelRequested` and freezes all other actions on that submission; only ADMIN's `accept_cancel`/`decline_cancel` actually resolves it. See "Cancellation — student requests, ADMIN accepts or declines" above.
 
 ## UI conventions (recent)
@@ -467,41 +488,78 @@ pending/history list). STUDENT never had `DashboardHeader` grow this baggage —
 `DashboardHeader` was removed outright once name/date/email moved into its own top bar, since the
 one stat it showed (in-progress count) wasn't worth a whole hero card on its own.
 
-**Student dashboard** (`src/app/student-dashboard/page.tsx`, redesigned 2026-09-06 into a 2-tab
-layout — the original single-card design described in older history is gone):
+**Student dashboard** (`src/app/student-dashboard/page.tsx`, 2-tab layout since 2026-09-06; the
+student can now fully act on their submission — upload, continue a DRAFT, resubmit, cancel,
+create a new proposal, review/confirm an auto-imported defense draft — **without ever leaving this
+page** as of 2026-09-07; there is no more read-only "click through to a detail page" step):
 1. **Tab bar** — two full-width buttons, `สอบโครงร่าง` / `สอบวิทยานิพนธ์` (`grid grid-cols-2 gap-2`,
    same tab-bar pattern as `/admin-dashboard`), switching a `useState<"proposal" | "defense">`.
    Below it, one shared frame (`bg-white rounded-2xl border border-gray-200 p-4 sm:p-6
    max-h-[75vh] overflow-y-auto` — same "scrollbar stays inside the frame" convention as
    `/admin-dashboard`) renders whichever tab is active.
-2. **Each tab** has its own creation entry point (gated by the proposal-first rules above — the
-   proposal tab's card is only rendered while there's **no** active proposal; the defense tab's is
-   the active blue/indigo card when `eligibleProposals.length > 0`, else a locked gray card), then
-   its own **"ความคืบหน้าปัจจุบัน (x/y)"** section for that submission type only:
-   - If a current (most-recent non-cancelled) submission of that type exists: title (plain text,
-     not a link — clicking it does nothing) + `SubmissionStatusBadge`, then `SubmissionInfoPanel`
-     (see below), then the "ความคืบหน้าปัจจุบัน (doneCount/totalSteps)" label, then the full
-     `WorkflowTimeline` (every step, not a one-line bar). The proposal tab additionally shows a
-     "ขอยกเลิกคำร้องนี้" button (hidden once `cancelRequested` or already `CANCELLED`) that opens a
-     confirm modal and calls `requestCancelSubmission` — the same student-initiated cancel flow as
-     the detail page, including the linked-defense cascade warning.
-   - If no submission of that type exists yet: an empty "No proposal"/"No defense" placeholder
-     (no create button here — that lives only in the entry-point card above), then the same label
-     showing **"ความคืบหน้าปัจจุบัน (0/y)"**, then a **preview** `WorkflowTimeline` built from
-     `buildWorkflowSteps()` with no committee (`PREVIEW_PROPOSAL_STEPS` / `PREVIEW_DEFENSE_STEPS`,
-     module-level constants) and the `preview` prop set — see below.
-3. **"รายการอื่นๆ"** — every submission that isn't the current proposal or the current defense
+2. **Proposal tab**: when there's **no** active proposal, the entry card is a `<button>` (not a
+   `Link`) toggling local `showProposalForm` state — clicking it swaps the card for `ProposalForm`
+   (`src/components/SubmissionForms.tsx`) rendered **inline in the tab**, pre-filled from the
+   logged-in account. Submitting calls `onCreated` → just closes the form; the tab's own
+   `!activeProposal` guard then hides that block on the next render and the current-submission
+   section below picks up the new proposal automatically (`createSubmission` updates context state
+   synchronously, no page nav involved). Once a current (most-recent non-cancelled) proposal
+   exists, the whole block below is just `<StudentSubmissionActions submissionId={...} />` (see
+   below) — no separate read-only summary anymore.
+3. **Defense tab**: no manual "create" entry point — the moment the tab is opened with an eligible
+   `COMPLETED` proposal (and no existing non-cancelled defense), a `useEffect` fires
+   `getOrCreateDefenseDraft()` (`POST /api/submissions/auto-draft-defense`, get-or-create,
+   idempotent) which creates a `THESIS_DEFENSE` row directly in `DRAFT` status with every
+   committee/student field **imported straight onto the row** from the proposal (never through
+   `pendingPeople` — it's already resolved, so this is a different DRAFT flavor from the
+   missing-accounts one; see "Committee accounts must pre-exist" above for how the two are told
+   apart). While loading, a spinner card shows "กำลังเตรียมคำร้องขอสอบวิทยานิพนธ์...". Once created,
+   `isAutoDraftDefense(sub)` (`status === "DRAFT" && no pendingPeople entries`) routes to
+   `DefenseDraftReview` (`src/components/DefenseDraftReview.tsx`) instead of
+   `StudentSubmissionActions` — editable title/committee-people-editor/exam-logistics (all
+   pre-filled, all still editable — the imported committee never writes back to the source
+   proposal), with two actions both hitting `PATCH .../[id]` action `"save_defense_draft"`
+   (`{ ...fields, confirm }`, re-validated/re-resolved through the same `validatePeople`/
+   `resolvePeople` pipeline as any submission): **"บันทึกฉบับร่าง"** (`confirm: false`, persists
+   edits, stays `DRAFT` — safe to navigate away and come back to) and **"ยืนยัน — ขอสอบวิทยานิพนธ์"**
+   (`confirm: true` — flips to `IN_PROGRESS`, builds the 22 workflow steps, notifies admins). After
+   confirming, the same `StudentSubmissionActions` view takes over. If there's no eligible
+   completed proposal at all yet, a locked gray card explains that, followed by the "No defense"
+   preview timeline (unchanged from before).
+4. **"รายการอื่นๆ"** — every submission that isn't the current proposal or the current defense
    (cancelled ones, or an older one superseded by a newer current one of the same type), each in
    the original per-item row style (accent bar, status icon, mini progress bar, links to its detail
-   page). Only rendered when non-empty.
+   page). Only rendered when non-empty. These still route through the standalone
+   `/dashboard/student/[id]` page (see below) since they're history, not the active submission.
+
+**`StudentSubmissionActions`** (`src/components/StudentSubmissionActions.tsx`, extracted 2026-09-07
+from what used to be the whole body of `/dashboard/student/[id]/page.tsx`) — takes just
+`{ submissionId }` and is the student's complete action surface for one submission: status banner
+(DRAFT continue-draft checklist, CANCELLED, COMPLETED, REJECTED resubmit-with-reupload, "waiting
+for admin finance upload", "ถึงคิวของท่านแล้ว"), linked proposal/defense cross-links, admin note,
+`SubmissionInfoPanel`, progress bar + full `WorkflowTimeline`, file uploads via `FileUploader`, and
+the cancel-request modal — every bit of it self-contained (its own local state), so multiple
+instances can render side by side without interfering. `/dashboard/student/[id]/page.tsx` is now
+just a thin wrapper (back-link + this component); `/student-dashboard`'s proposal/defense tabs
+render it directly inline for the current submission of that type, with no wrapper page at all.
 
 **`WorkflowTimeline`'s `preview` prop**: when true, no step is ever computed as "current" (no blue
 ring/`Clock` icon/"กำลังดำเนินการ" badge on any step) even though every step's `status` is
-`"PENDING"` — used only for the before-any-submission-exists step list above, so nothing is shown
-as falsely in-progress.
+`"PENDING"` — used only for the before-any-submission-exists step list (both tabs' true-empty
+state), so nothing is shown as falsely in-progress.
 
 **`SubmissionInfoPanel`** (`src/components/SubmissionInfoPanel.tsx`) — the read-only ข้อมูลนิสิต /
-คณะกรรมการ / กำหนดการสอบ block, extracted from `src/app/dashboard/student/[id]/page.tsx` so both
-the detail page and the student-dashboard tabs render the exact same info without duplicating the
-~80 lines of field logic. Takes `{ submission, users }`; renders nothing if the submission has no
-student/committee/exam info at all.
+คณะกรรมการ / กำหนดการสอบ block, shared by `StudentSubmissionActions`, `DefenseDraftReview`'s
+read-only student-info section, and the admin/faculty detail views, so every surface renders the
+exact same info without duplicating the field logic. Takes `{ submission, users }`; renders nothing
+if the submission has no student/committee/exam info at all.
+
+**`SubmissionForms.tsx`** (`src/components/SubmissionForms.tsx`, extracted 2026-09-07 from what
+used to be all of `/dashboard/student/submit/page.tsx`) — exports `ProposalForm` and `DefenseForm`
+plus their shared building blocks (`Section`, `Field`, `CommitteePeopleEditor`,
+`ExamLogisticsSection`, `ConfirmCheckbox`, `buildPeopleFromSubmission`, `validatePeopleClient`,
+etc.). Both forms take `onCreated(sub)` instead of doing their own `router.push`, so the same
+component works both inline (dashboard tab, closes the form on success) and on the standalone
+`/dashboard/student/submit` page (still live — thin wrapper, navigates to the new submission's
+detail page on success; `type=defense` still only reachable there, `type=proposal` is redundant
+with the inline tab flow but not removed).

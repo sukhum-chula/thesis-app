@@ -431,7 +431,7 @@ export default function AdminSubmissionDetail() {
     title: "", advisorId: "", studentFullName: "", studentCode: "", program: "",
     studentEmail: "", studentPhone: "",
     coAdvisorIds: ["", "", ""] as string[],
-    programChairId: "", headCommitteeId: "",
+    headCommitteeId: "",
     committeeIds: ["", "", ""] as string[],
     invitedCommitteeId: "", invitedProfName: "", invitedProfEmail: "",
     invitedProfAffiliation: "", invitedProfPhone: "",
@@ -474,6 +474,11 @@ export default function AdminSubmissionDetail() {
     : null;
   const doneCount  = visibleSteps.filter((s) => s.status === "APPROVED").length;
   const totalSteps = visibleSteps.length;
+  // ประธานหลักสูตร is admin-designated per program (see "จัดการประธานหลักสูตร"), not freely
+  // selectable per submission — it always follows whichever หลักสูตร is picked in the edit form.
+  const resolvedProgramChair = editDraft.program
+    ? advisors.find((a) => a.programChairFor === editDraft.program) ?? null
+    : null;
 
   async function handleAcceptCancel() {
     setCancelActionBusy(true);
@@ -511,7 +516,6 @@ export default function AdminSubmissionDetail() {
       studentEmail:        sub.studentEmail         ?? "",
       studentPhone:        sub.studentPhone         ?? "",
       coAdvisorIds:        [...(sub.coAdvisorIds    ?? []), "", "", ""].slice(0, 3),
-      programChairId:      (sub as any).programChairId ?? "",
       headCommitteeId:     sub.headCommitteeId      ?? "",
       committeeIds:        [...(sub.committeeIds    ?? []), "", "", ""].slice(0, 3),
       invitedCommitteeId:  sub.invitedCommitteeId   ?? "",
@@ -539,7 +543,7 @@ export default function AdminSubmissionDetail() {
       studentEmail:        editDraft.studentEmail         || null,
       studentPhone:        editDraft.studentPhone         || null,
       coAdvisorIds:        editDraft.coAdvisorIds.filter(Boolean),
-      programChairId:      editDraft.programChairId       || null,
+      programChairId:      resolvedProgramChair?.id        || null,
       headCommitteeId:     editDraft.headCommitteeId      || null,
       committeeIds:        editDraft.committeeIds.filter(Boolean),
       invitedCommitteeId:  editDraft.invitedCommitteeId   || null,
@@ -790,10 +794,16 @@ export default function AdminSubmissionDetail() {
                   </EField>
                 ))}
                 <EField label="ประธานหลักสูตร">
-                  <select value={editDraft.programChairId} onChange={(e) => upd("programChairId", e.target.value)} className={EDIT_INPUT_CLS}>
-                    <option value="">— ไม่ระบุ —</option>
-                    {advisors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
+                  <div className={`${EDIT_INPUT_CLS} bg-gray-50 text-gray-700`}>
+                    {resolvedProgramChair
+                      ? resolvedProgramChair.name
+                      : editDraft.program
+                        ? "— ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ —"
+                        : "— กรุณาเลือกหลักสูตรก่อน —"}
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    กำหนดตามหลักสูตรโดยอัตโนมัติ — แก้ไขได้ที่การ์ด &ldquo;จัดการประธานหลักสูตร&rdquo; ในแท็บจัดการผู้ใช้งาน
+                  </p>
                 </EField>
                 <EField label="ประธานกรรมการสอบ">
                   <select value={editDraft.headCommitteeId} onChange={(e) => upd("headCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>

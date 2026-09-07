@@ -86,5 +86,34 @@ export async function POST(req: NextRequest) {
 
   const { sent } = await sendWelcomeEmail({ userId: user.id, name: user.name, email: user.email, passcode, role });
 
+  // If this email was blocking any DRAFT submission's committee (see "Committee accounts must
+  // pre-exist" in AGENTS.md), notify the student(s) whose draft is now fully resolved — the same
+  // check regardless of whether the account was created via the normal "เพิ่มผู้ใช้" flow or from
+  // a pending-committee entry, since both now go through this one route.
+  const drafts = await prisma.submission.findMany({
+    where: { status: "DRAFT" },
+    select: { id: true, title: true, studentId: true, pendingPeople: true },
+  });
+  for (const draft of drafts) {
+    const people = (draft.pendingPeople as unknown as { email?: string }[] | null) ?? [];
+    if (people.length === 0) continue;
+    const emails = people.map((p) => p.email?.trim().toLowerCase()).filter(Boolean) as string[];
+    if (!emails.includes(user.email)) continue;
+
+    const stillMissing = await prisma.user.findMany({ where: { email: { in: emails } } });
+    const resolvedEmails = new Set(stillMissing.map((u) => u.email.toLowerCase()));
+    if (emails.every((e) => resolvedEmails.has(e))) {
+      await prisma.notification.create({
+        data: {
+          recipientId: draft.studentId,
+          message: "คำร้องของท่านพร้อมดำเนินการต่อ — กรุณาเข้าสู่ระบบเพื่อยืนยันการส่ง",
+          detail: draft.title,
+          submissionId: draft.id,
+          type: "info",
+        },
+      });
+    }
+  }
+
   return NextResponse.json({ ...mapUser(user), emailSent: sent }, { status: 201 });
 }

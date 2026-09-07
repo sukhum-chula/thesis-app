@@ -7,10 +7,20 @@ import { ROLE_LABELS, ROLE_DESC, PROGRAM_LABELS, sortUsersByRole } from "@/lib/u
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { Role, ProgramType } from "@/types";
+import type { MockSubmission } from "@/types";
 import {
   Users, GraduationCap, BookOpen, ShieldCheck, ChevronDown, RotateCcw, Crown,
-  UserPlus, X, Loader2, Landmark,
+  UserPlus, X, Loader2, Landmark, Mail,
 } from "lucide-react";
+
+type PendingPerson = { name?: string; email?: string; role?: string };
+
+interface PendingProfessorRequest {
+  email: string;
+  name: string;
+  roles: Set<string>;
+  submissions: MockSubmission[];
+}
 
 const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
 
@@ -49,9 +59,46 @@ export function AdminUsersPanel() {
   const creatableRoles = DB_ROLES.filter((r) => r !== "SUPER_ADMIN");
   const professors = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
 
+  // People named as committee on a DRAFT submission who don't have an account yet — grouped by
+  // email (the same person may be named on multiple drafts, or in multiple roles). Shown as
+  // cards at the top of the user list below, each a one-click shortcut into the same "เพิ่มผู้ใช้"
+  // flow as any other new account, just prefilled — see openAddUserModal().
+  const pendingRequestsByEmail = new Map<string, PendingProfessorRequest>();
+  for (const s of submissions) {
+    if (s.status !== "DRAFT" || !s.pendingPeople) continue;
+    for (const p of s.pendingPeople as PendingPerson[]) {
+      const email = p.email?.trim().toLowerCase();
+      if (!email || allUsers.some((u) => u.email.toLowerCase() === email)) continue; // already resolved
+      const existing = pendingRequestsByEmail.get(email);
+      if (existing) {
+        if (p.role) existing.roles.add(p.role);
+        if (!existing.submissions.some((sub) => sub.id === s.id)) existing.submissions.push(s);
+      } else {
+        pendingRequestsByEmail.set(email, {
+          email,
+          name: p.name?.trim() ?? "",
+          roles: new Set(p.role ? [p.role] : []),
+          submissions: [s],
+        });
+      }
+    }
+  }
+  const pendingRequests = [...pendingRequestsByEmail.values()].sort((a, b) => a.name.localeCompare(b.name));
+
   function closeModal() {
     setShowModal(false);
     setForm({ name: "", email: "", role: "STUDENT", studentId: "" });
+  }
+
+  // Opens the same "เพิ่มผู้ใช้" modal used for any new account, prefilled from a pending
+  // committee request — role defaults to PROFESSOR since every committee person is one.
+  function openAddUserModal(prefill?: { name: string; email: string }) {
+    setForm(
+      prefill
+        ? { name: prefill.name, email: prefill.email, role: "PROFESSOR", studentId: "" }
+        : { name: "", email: "", role: "STUDENT", studentId: "" }
+    );
+    setShowModal(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -114,7 +161,7 @@ export function AdminUsersPanel() {
           <p className="text-gray-500 mt-0.5">คลิกที่ผู้ใช้เพื่อดูรายละเอียดและคำร้องที่เกี่ยวข้อง</p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => openAddUserModal()}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition shrink-0"
         >
           <UserPlus className="w-4 h-4" />
@@ -123,6 +170,37 @@ export function AdminUsersPanel() {
       </div>
 
       <div className="space-y-3">
+        {/* Committee people named on a DRAFT submission with no account yet — one click each,
+            straight into the same "เพิ่มผู้ใช้" flow as any other new account, prefilled. */}
+        {pendingRequests.map((req) => (
+          <div key={req.email} className="flex items-center gap-4 p-5 rounded-2xl border-2 border-amber-300 bg-amber-50">
+            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+              <UserPlus className="w-5 h-5 text-amber-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-amber-900 text-lg">{req.name || "(ไม่ระบุชื่อ)"}</p>
+                <span className="text-xs font-semibold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-200">
+                  ยังไม่มีบัญชี
+                </span>
+              </div>
+              <p className="text-amber-700 text-sm mt-0.5 flex items-center gap-1.5 truncate">
+                <Mail className="w-3.5 h-3.5 shrink-0" />{req.email}
+              </p>
+              <p className="text-amber-600 text-xs mt-1">
+                {[...req.roles].map((r) => ROLE_LABELS[r] ?? r).join(", ")} — {req.submissions.length} คำร้องรออยู่
+              </p>
+            </div>
+            <button
+              onClick={() => openAddUserModal({ name: req.name, email: req.email })}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-xl hover:bg-amber-600 transition shrink-0"
+            >
+              <UserPlus className="w-4 h-4" />
+              เพิ่มผู้ใช้
+            </button>
+          </div>
+        ))}
+
         {sortUsersByRole(allUsers).map((u) => {
           const isExpanded = expandedId === u.id;
           return (

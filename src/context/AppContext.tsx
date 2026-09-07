@@ -64,6 +64,20 @@ interface AppContextType {
   adminAcceptCancel: (submissionId: string) => Promise<void>;
   adminDeclineCancel: (submissionId: string) => Promise<void>;
   continueDraft: (submissionId: string) => Promise<void>;
+  getOrCreateDefenseDraft: () => Promise<MockSubmission>;
+  saveDefenseDraft: (
+    submissionId: string,
+    data: {
+      title: string;
+      people: { name: string; email: string; role: string; phone?: string }[];
+      examDate: string;
+      examTime: string;
+      roomNeeded: boolean;
+      parkingNeeded: boolean;
+      carPlate?: string;
+    },
+    confirm: boolean
+  ) => Promise<MockSubmission>;
   committeeSign: (submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   needsMyAction: (sub: MockSubmission) => boolean;
   markNotificationRead: (id: string) => Promise<void>;
@@ -78,7 +92,6 @@ interface AppContextType {
   superAdminAddUser: (userData: Omit<MockUser, "id">) => Promise<void>;
   superAdminResetPasscode: (userId: string) => Promise<void>;
   adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
-  adminCreatePendingProfessor: (name: string, email: string, phone?: string) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
 }
 
@@ -233,6 +246,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
   }
 
+  async function getOrCreateDefenseDraft(): Promise<MockSubmission> {
+    const sub = await api<MockSubmission>("/api/submissions/auto-draft-defense", "POST");
+    setSubmissions((prev) => (prev.some((s) => s.id === sub.id) ? prev.map((s) => (s.id === sub.id ? sub : s)) : [sub, ...prev]));
+    return sub;
+  }
+
+  async function saveDefenseDraft(
+    submissionId: string,
+    data: Parameters<AppContextType["saveDefenseDraft"]>[1],
+    confirm: boolean
+  ): Promise<MockSubmission> {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", {
+      action: "save_defense_draft",
+      ...data,
+      confirm,
+    });
+    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
+    return sub;
+  }
+
   async function committeeSign(submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) {
     const sub = await api<MockSubmission>(`/api/submissions/${submissionId}/sign`, "POST", { decision, notes });
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
@@ -351,11 +384,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => [...prev, newUser]);
   }
 
-  async function adminCreatePendingProfessor(name: string, email: string, phone?: string) {
-    await api("/api/admin/pending-professors", "POST", { name, email, phone });
-    await refresh(); // picks up the new PROFESSOR account and any resolved-draft notifications
-  }
-
   async function superAdminResetPasscode(userId: string) {
     await api(`/api/users/${userId}`, "PATCH", { resetPasscode: true });
   }
@@ -387,12 +415,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logout, refresh,
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
       addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel, continueDraft,
+      getOrCreateDefenseDraft, saveDefenseDraft,
       committeeSign, needsMyAction,
       markNotificationRead, markAllNotificationsRead,
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminCreatePendingProfessor, adminSetProgramChair,
+      adminUpdateUserInfo, adminSetProgramChair,
     }}>
       {children}
     </AppContext.Provider>
