@@ -1,6 +1,6 @@
 # Handoff — ownership transfer to sukhum.s@cp.eng.chula.ac.th
 
-Written 2026-08-17, updated 2026-09-04, updated 2026-09-06. Read this **after** `AGENTS.md`.
+Written 2026-08-17, updated 2026-09-04, updated 2026-09-06, updated 2026-09-07. Read this **after** `AGENTS.md`.
 `AGENTS.md` describes the app (workflow rules, roles, conventions) and is still accurate about
 behaviour; this file covers what changed when the project moved off the ex-intern's accounts
 (§1–§7), plus — since 2026-09-06 — an ongoing tracker of active/in-progress development (§8). For
@@ -165,6 +165,37 @@ add an entry when you start something that spans multiple sessions, and remove/m
 dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
+
+- **2026-09-07 — Admin-only account creation; password renamed to passcode.** Self-registration
+  (`/register` form, `POST /api/auth/register`) and self-service forgot-password
+  (`/forgot-password`, `POST /api/auth/forgot-password`) are both removed entirely — the only way
+  an account is created is an ADMIN/SUPER_ADMIN via `POST /api/users` or an ADMIN approving a
+  committee person's account via `POST /api/admin/pending-professors`. Also deleted an orphaned,
+  unlinked duplicate login page at `/signin` found during the audit (would have silently broken
+  once the NextAuth credentials field was renamed, since it called `signIn` with the old field
+  name). The login credential is renamed from "password" to **passcode** (รหัสเข้าใช้งาน)
+  everywhere user-facing — users can no longer set or view their own; `User.passwordHash` →
+  `passcodeHash`. Every passcode (on creation and on reset) is generated server-side via
+  `generatePassword()` (`src/lib/utils.ts` — 6 chars, pattern `A00a00`) and emailed; no UI anywhere
+  accepts a client-supplied password/passcode value any more (`AdminUsersPanel`'s add-user modal
+  and `/super-dashboard`'s add-admin form both had their password input fields removed).
+  `PATCH /api/users/[id]` now takes `{ resetPasscode: true }` instead of `{ password }`; ADMIN
+  resets one via `UserDetailPanel`'s and `/super-dashboard`'s reset-confirm buttons.
+  See "Account creation & passcodes" in `AGENTS.md`.
+  **DB migration**: `User.passwordHash` was renamed to `passcodeHash` directly on the **live
+  production Supabase DB** via `ALTER TABLE "public"."users" RENAME COLUMN "passwordHash" TO
+  "passcodeHash"` over the direct connection (port 5432) — a lossless rename, not a destructive
+  `prisma db push` (which would have dropped+recreated the column and lost every existing
+  passcode hash). Verified all 15 existing users' rows were intact afterward and that
+  `prisma db push` reported the schema back in sync. Code was committed and pushed to
+  `origin/main` (`317ac39`) immediately after the DB rename to close the window where the live
+  Vercel deployment's old code (still expecting `passwordHash`) would be talking to the renamed
+  column. **Verified** via local dev server (same live DB) that `/login` renders with the new
+  "รหัสเข้าใช้งาน" label and the removed register/forgot-password links, and that `/register`
+  shows the new "contact the department" message. **Not yet verified**: an actual admin-driven
+  create-account or reset-passcode walkthrough in a real browser (no working ADMIN credentials
+  available this session — same constraint noted on the 2026-09-06 admin-dashboard entry below),
+  and the deployed Vercel URL hasn't been re-checked since the push.
 
 - **2026-09-06 — SUPER_ADMIN/ADMIN responsibility split.** SUPER_ADMIN is now account/user
   management only (SUPER_ADMIN + ADMIN accounts, via new landing page `/super-dashboard`) with

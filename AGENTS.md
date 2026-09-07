@@ -10,8 +10,8 @@ A role-based thesis approval workflow app. **Fully live** — Next.js 16 App Rou
 
 ## Stack & deployment
 - **DB**: Prisma + `@prisma/adapter-pg` → Supabase PostgreSQL. Client in `src/lib/prisma.ts` (singleton always cached on `globalThis` — both dev and Vercel production).
-- **Auth**: NextAuth v5, credentials (email + password, bcrypt) plus one-time magic links in emails. `src/lib/auth.ts`. Login email is trimmed + lowercased before lookup.
-- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a **per-user magic-link URL** (`/api/auth/magic?t=<token>`, `src/lib/email.ts:171-184`) rendered as plain link text (no styled button) that auto-logs them in and deep-links to their specific submission page; the token is not consumed on use (SafeLinks prefetch safety) and expires after 48h. Falls back to a plain `/login` link if token creation fails. The email body also mentions signing in with email+password as an alternative, which still works regardless.
+- **Auth**: NextAuth v5, credentials (email + passcode, bcrypt against `User.passcodeHash`) plus one-time magic links in emails. `src/lib/auth.ts`. Login email is trimmed + lowercased before lookup. There is no self-registration and no self-service password reset — see "Account creation & passcodes" below.
+- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a **per-user magic-link URL** (`/api/auth/magic?t=<token>`, `src/lib/email.ts:171-184`) rendered as plain link text (no styled button) that auto-logs them in and deep-links to their specific submission page; the token is not consumed on use (SafeLinks prefetch safety) and expires after 48h. Falls back to a plain `/login` link if token creation fails. The email body also mentions signing in with email+passcode as an alternative, which still works regardless.
 - **Storage**: Supabase Storage bucket `thesis-files` — **private**, not publicly readable. `POST /api/upload` stores the object's storage path (not a public URL) on `FormUpload.fileUrl`; previews/downloads resolve a 1h signed URL on demand via `GET /api/upload/[uploadId]/signed-url` (gated by the same submission-involvement check used elsewhere in the API). See `src/lib/supabase.ts`. Do not store or serve a public URL directly — the bucket was briefly public before 2026-09-04 and every uploaded document was reachable by anyone with the link; that was a bug, not the design.
 - **Deploy**: Vercel (`thesis-app` project, account `sukhums-4319`), auto-deploys on push to `main` (GitHub: `sukhum-chula/thesis-app`).
 
@@ -78,6 +78,26 @@ before submitting. The defense's committee fields are its own independent column
 reference to the proposal's row, so editing them **never writes back to the proposal**. Student
 info (name/code/program/email/phone) is still copied verbatim from the proposal and isn't editable
 at defense creation.
+
+### Account creation & passcodes — admin-only, system-generated (2026-09-07)
+There is **no self-registration** — `/register` is a static "contact the department" page, and
+`POST /api/auth/register` / `POST /api/auth/forgot-password` no longer exist. The only ways an
+account gets created are: an ADMIN/SUPER_ADMIN via `POST /api/users` (`AdminUsersPanel`,
+super-dashboard), or an ADMIN approving a committee person named on a DRAFT submission via
+`POST /api/admin/pending-professors` (see below). Both always call `generatePassword()`
+(`src/lib/utils.ts` — 6 chars, pattern `A00a00`: 1 capital, 4 digits, 1 lowercase, excluding
+visually-ambiguous characters) server-side and email the result via `sendWelcomeEmail` — there is
+no path where a client-supplied password is accepted or stored.
+
+The credential is called a **passcode** (รหัสเข้าใช้งาน) everywhere user-facing, not a password —
+users cannot set or change their own; `User.passcodeHash` (renamed from `passwordHash`) is the only
+field. Only ADMIN/SUPER_ADMIN can reset one, via `PATCH /api/users/[id]` with `{ resetPasscode:
+true }` (see `UserDetailPanel`'s and `/super-dashboard`'s reset-confirm buttons) — this ignores any
+other body field for the password itself, generates a fresh passcode, hashes it, and emails it via
+`sendPasscodeResetEmail` (renamed from `sendForgotPasswordEmail`, reworded since the reset is now
+always admin-initiated rather than user-requested). `AppContext`'s `superAdminAddUser` takes no
+password argument and `superAdminResetPasscode(userId)` takes no new-passcode argument — the server
+is always the one generating it.
 
 ### Committee accounts must pre-exist — DRAFT + admin approval
 Every person named in `people[]` (both PROPOSAL creation and defense committee edits) must already
@@ -229,7 +249,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 ### In-system roles (have accounts and login)
 | Role | Thai | Key Actions |
 |---|---|---|
-| Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passwords. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission. As of 2026-09-06 it CAN view (read-only oversight, not act on) a full directory of every account including STUDENT/PROFESSOR via `GET /api/super-admin/users`, and a full list of every submission via `GET /api/super-admin/submissions` (no detail-page link, no actions); the older counts-only `GET /api/super-admin/stats` was removed as redundant once these two list endpoints shipped |
+| Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passcodes. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission. As of 2026-09-06 it CAN view (read-only oversight, not act on) a full directory of every account including STUDENT/PROFESSOR via `GET /api/super-admin/users`, and a full list of every submission via `GET /api/super-admin/submissions` (no detail-page link, no actions); the older counts-only `GET /api/super-admin/stats` was removed as redundant once these two list endpoints shipped |
 | Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student, create the missing accounts for a committee person named on a DRAFT submission (`/dashboard/admin/pending-professors`), accept/decline student cancellation requests. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students |
@@ -250,13 +270,13 @@ stepUploads={isFutureStep ? [] : stepUploads}
 
 ## Submission fields — student enters everything manually
 
-**Registration:** students must provide รหัสนิสิต (unique, stored on `users.studentId`); professors don't. Email format is validated via `isValidEmail()` (`lib/utils.ts`) in both form and API; duplicate email/studentId → 409 (incl. the concurrent-create race via P2002 catch). The register API returns `emailSent` — when the welcome email fails, the register page shows an amber warning pointing to forgot-password instead of claiming the email was sent. Submit form prefills ชื่อ/รหัสนิสิต/อีเมล from the account.
+**Account creation:** there is no self-registration (see "Account creation & passcodes" above) — an ADMIN creates the STUDENT account via `POST /api/users`, providing รหัสนิสิต (unique, stored on `users.studentId`; professors don't have one). Email format is validated via `isValidEmail()` (`lib/utils.ts`); duplicate email/studentId → 409 (incl. the concurrent-create race via P2002 catch). The endpoint returns `emailSent` from the welcome email send. Submit form prefills ชื่อ/รหัสนิสิต/อีเมล from the account.
 
 **Student info:** ชื่อ-นามสกุล, รหัสนิสิต, หลักสูตร (PHD=วิศวกรรมศาสตรดุษฎีบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_MECH=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_CPS=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาระบบกายภาพที่เชื่อมประสานด้วยเครือข่ายไซเบอร์), อีเมล์, เบอร์โทร
 
 **Committee people (`data.people[]`):** the student manually enters every person responsible for their thesis as `{ name, email, role, phone? }` rows — there are NO professor dropdowns. For a THESIS_DEFENSE this list is prefilled from the source proposal's committee but remains fully editable (see "Proposal-first" above). **Every email must already belong to an account** — the API (`src/lib/committee.ts`'s `resolvePeople`) only looks up existing users, it never creates one; if any email doesn't resolve, the submission is saved as `DRAFT` with the raw rows in `pendingPeople` instead of being mapped to `advisorId` / `coAdvisorIds` / `headCommitteeId` / `committeeIds` / `invitedCommitteeId` / `programChairId` (see "Committee accounts must pre-exist" above). Once resolved, the same email may hold multiple roles (one account); committee id arrays are deduped — duplicates would break sequential signing.
 
-**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (role option disabled in other rows once taken) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose password email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role. วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
+**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (role option disabled in other rows once taken) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role. วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
 
 **Exam logistics:** วันที่สอบ + เวลา, ห้องประชุม (yes/no), ที่จอดรถ (yes/no), เลขทะเบียนรถ
 
