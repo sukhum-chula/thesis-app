@@ -1,6 +1,7 @@
 # Handoff — ownership transfer to sukhum.s@cp.eng.chula.ac.th
 
-Written 2026-08-17, updated 2026-09-04, updated 2026-09-06, updated 2026-09-07. Read this **after** `AGENTS.md`.
+Written 2026-08-17, updated 2026-09-04, updated 2026-09-06, updated 2026-09-07 (twice). Read this
+**after** `AGENTS.md`.
 `AGENTS.md` describes the app (workflow rules, roles, conventions) and is still accurate about
 behaviour; this file covers what changed when the project moved off the ex-intern's accounts
 (§1–§7), plus — since 2026-09-06 — an ongoing tracker of active/in-progress development (§8). For
@@ -22,6 +23,12 @@ why). Anyone who knows this string can log in as **any** user right now. This is
 insecure state for a live app with real users — reset real users back to individually-random
 passcodes (an ADMIN's per-user "รีเซ็ตรหัสเข้าใช้งาน" reset button already does this, one at a time)
 before leaving this unattended for long, and remove this warning once that's done.
+
+**⚠️ `EMAIL_OVERRIDE_TO` was removed entirely on 2026-09-07** (code, `.env.local`, and the Vercel
+Preview/Development env vars). There is now no safety net redirecting outgoing mail — local dev,
+Preview, and Development deployments send real emails to whatever address is on the account, same
+as Production. Be careful triggering step approvals/rejections/passcode resets/etc. against real
+accounts on non-Production environments.
 
 ---
 
@@ -124,9 +131,6 @@ removed on 2026-09-04 once the transfer was fully verified.
   `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Currently configured via the Gmail path — a Chula mailbox with
   "Authenticated SMTP" enabled would be the more durable long-term fix, since the Gmail App Password
   is tied to one person's personal account and its 2-Step Verification phone number.
-- `EMAIL_OVERRIDE_TO` routes every nodemailer message to one address, with the intended recipient
-  appended to the subject. Set on Preview and Development (not Production) so test/preview
-  deployments can never email real students or faculty.
 
 ## 5. `AGENTS.md` staleness — fixed 2026-09-04
 
@@ -152,7 +156,6 @@ SUPABASE_SERVICE_ROLE_KEY               # NEW project, server-side only
 FINANCE_EMAIL                           # hare081987@gmail.com — confirmed real recipient
 CRON_SECRET
 GMAIL_USER / GMAIL_APP_PASSWORD
-EMAIL_OVERRIDE_TO                       # Preview + Development only
 ```
 
 Leave unset in production: `DEMO_MODE`, `NEXT_PUBLIC_DEMO_MODE` (they expose `/demo` and the
@@ -181,6 +184,38 @@ add an entry when you start something that spans multiple sessions, and remove/m
 dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
+
+- **2026-09-07 — Admin can now type a passcode by hand, not just accept a generated one, when
+  creating an account or resetting one.** Previously `POST /api/users` and `PATCH /api/users/[id]`
+  (`resetPasscode: true`) always called `generatePassword()` server-side with no client input
+  accepted at all. Both routes now accept an optional `passcode` field — validated server-side via
+  new `isValidPasscode()` (`src/lib/utils.ts`, 6-72 chars, no whitespace) — and fall back to
+  `generatePassword()` only when it's omitted/empty, so any caller that doesn't send the field
+  (there are none left) still gets the old always-generated behavior. New shared
+  `src/components/PasscodeField.tsx` (a text input pre-filled with a freshly generated passcode +
+  a "สุ่มรหัส" regenerate button, editable either way) is wired into all 4 admin-facing entry
+  points: `AdminUsersPanel`'s "เพิ่มผู้ใช้งาน" modal, `UserDetailPanel`'s reset-passcode dialog,
+  `/super-dashboard`'s add-admin form and inline reset-passcode panel, and
+  `/dashboard/admin/pending-professors`'s quick-create form. `AppContext.superAdminAddUser` and
+  `superAdminResetPasscode` both gained an optional `passcode` parameter. See "Account creation &
+  passcodes" in `AGENTS.md`. **Verified**: `npm run build` passes (incl. a TS narrowing fix in
+  `PATCH /api/users/[id]` — assigning from a `body.passcode` typed `any` was silently widening
+  back to the declared `string | null` type instead of narrowing to `string`; fixed with an
+  explicit `String(...)` cast). **Not yet clicked through in a real browser** — no working ADMIN/
+  SUPER_ADMIN credentials were exercised this session; next session should confirm both the
+  generate-button and hand-typed paths actually create/reset a working login in the live DB.
+
+- **2026-09-07 — `EMAIL_OVERRIDE_TO` removed entirely, at the owner's explicit request.** Previously
+  this env var (see §4) redirected every outgoing email to one testing address so Preview/Development
+  deployments and local dev could never accidentally email real students/faculty. Removed the override
+  branch from `sendMail()` in `src/lib/email.ts` (now always sends to the real `opts.to`), deleted the
+  var from `.env.local`, and removed it from Vercel's Preview and Development environments via
+  `vercel env rm`. Updated every doc reference (`AGENTS.md`, `HANDOFF.md` §4/§6, `docs/SUPABASE-MIGRATION.md`)
+  — left `SESSION-REPORT-2026-09-04.md` alone since it's a dated historical record, not current
+  guidance. **Consequence**: no environment has a safety net anymore — see the warning near the top
+  of this file. **Verified**: `npm run build` passes; confirmed `vercel env ls` no longer lists the
+  var in any environment; restarted the local dev server and confirmed it starts cleanly with the
+  var gone from `.env.local`.
 
 - **2026-09-07 — Committee-account creation unified onto `POST /api/users`; surfaced at the top of
   the user list instead of a separate page.** `AdminUsersPanel` now renders each unresolved

@@ -253,6 +253,17 @@ export function generatePassword(): string {
   return `${pick(UPPER)}${pick(DIGITS)}${pick(DIGITS)}${pick(LOWER)}${pick(DIGITS)}${pick(DIGITS)}`;
 }
 
+/**
+ * A passcode an admin types in by hand: 6-72 chars (bcrypt ignores bytes past 72), no
+ * leading/trailing/interior whitespace-only garbage. Used both when creating an account and
+ * when resetting one — an admin may either type a passcode themselves or use
+ * generatePassword() to fill the field, then submit either way.
+ */
+export function isValidPasscode(passcode: string): boolean {
+  const trimmed = passcode.trim();
+  return trimmed.length >= 6 && trimmed.length <= 72 && !/\s/.test(trimmed);
+}
+
 /** Show server error text only when it is a Thai user-facing message; otherwise use a generic fallback. */
 export function toUserErrorMessage(err: unknown, fallback = "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง"): string {
   const msg = err instanceof Error ? err.message : "";

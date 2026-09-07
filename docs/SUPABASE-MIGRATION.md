@@ -107,7 +107,6 @@ In the Vercel project → **Settings → Environment Variables**, replace the sa
     `SMTP_USER`/`SMTP_PASS` (Office 365, default host `smtp.office365.com:587`) or
     `GMAIL_USER`/`GMAIL_APP_PASSWORD`. **None of these are in `.env.local`** — with no credentials
     `sendMail()` logs `[email] … skipping` and returns success, so the app silently sends nothing.
-  - `EMAIL_OVERRIDE_TO=<your address>` funnels every nodemailer message to you during testing.
 - `DEMO_MODE` / `NEXT_PUBLIC_DEMO_MODE` — leave unset in production; they expose the one-click
   role-login endpoint (`/api/auth/demo`) and the `/demo` pages.
 

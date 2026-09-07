@@ -5,6 +5,15 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-09-07
+
+- **Removed `EMAIL_OVERRIDE_TO` entirely.** This env var used to redirect every outgoing email to
+  one testing address so Preview/Development deployments and local dev could never accidentally
+  email real students/faculty. Removed the override branch from `sendMail()`
+  (`src/lib/email.ts`), deleted the var from `.env.local` and from Vercel's Preview/Development
+  environments, and updated `AGENTS.md`/`HANDOFF.md`/`docs/SUPABASE-MIGRATION.md`. No environment
+  has a safety net anymore — see the warning near the top of `HANDOFF.md`.
+
 ## 2026-09-06
 
 - **Split SUPER_ADMIN and ADMIN responsibilities into dedicated dashboards.**

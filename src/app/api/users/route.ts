@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canGrantRole } from "@/lib/accountScope";
-import { generatePassword } from "@/lib/utils";
+import { generatePassword, isValidPasscode } from "@/lib/utils";
 import { sendWelcomeEmail } from "@/lib/email";
 
 function mapUser(u: any) {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user || !postRoles.some((r) => ["ADMIN", "SUPER_ADMIN"].includes(r)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, email, role, studentId } = await req.json();
+  const { name, email, role, studentId, passcode: requestedPasscode } = await req.json();
 
   if (!name?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อ-นามสกุล" }, { status: 400 });
   if (!email?.trim()) return NextResponse.json({ error: "กรุณากรอกอีเมล" }, { status: 400 });
@@ -70,8 +70,18 @@ export async function POST(req: NextRequest) {
   const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
   if (existing) return NextResponse.json({ error: "อีเมลนี้มีในระบบแล้ว" }, { status: 409 });
 
-  // Passcodes are always system-generated and emailed — the admin never sets one by hand.
-  const passcode = generatePassword();
+  // The admin may type a passcode by hand or click "สุ่มรหัส" to fill the field with
+  // generatePassword() client-side — either way it arrives here as `passcode` and is validated
+  // the same way. Omitting it entirely falls back to a server-generated one (e.g. the
+  // pending-professors quick-create form, which doesn't surface this field).
+  let passcode: string;
+  if (requestedPasscode !== undefined && requestedPasscode !== null && requestedPasscode !== "") {
+    if (typeof requestedPasscode !== "string" || !isValidPasscode(requestedPasscode))
+      return NextResponse.json({ error: "รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง" }, { status: 400 });
+    passcode = requestedPasscode.trim();
+  } else {
+    passcode = generatePassword();
+  }
   const passcodeHash = await bcrypt.hash(passcode, 12);
 
   const user = await prisma.user.create({

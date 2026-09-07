@@ -38,9 +38,6 @@ CRON_SECRET           # guards /api/cron/exam-reminders; unset makes the endpoin
                       # automatically when this is set in the project.
 DEMO_MODE             # "true" enables /api/auth/demo passwordless login; unset in production
 NEXT_PUBLIC_DEMO_MODE # "true" enables the /demo page; unset in production
-EMAIL_OVERRIDE_TO     # testing: when set, ALL emails go to this address instead of real recipients
-                      # (subject gets "[ถึง: <intended>]" suffix). Set on Preview/Development, unset on
-                      # Production, so test/preview deploys can never email real students or faculty.
 ```
 
 ---
@@ -79,26 +76,38 @@ reference to the proposal's row, so editing them **never writes back to the prop
 info (name/code/program/email/phone) is still copied verbatim from the proposal and isn't editable
 at defense creation.
 
-### Account creation & passcodes — admin-only, system-generated (2026-09-07, unified onto one route 2026-09-07)
+### Account creation & passcodes — admin-only, admin-chosen or generated (2026-09-07, unified onto one route 2026-09-07; hand-entry added 2026-09-07)
 There is **no self-registration** — `/register` is a static "contact the department" page, and
 `POST /api/auth/register` / `POST /api/auth/forgot-password` no longer exist. **Every** account —
 including one created to resolve a DRAFT submission's missing committee person — goes through the
 same `POST /api/users` route (`AppContext.superAdminAddUser`); the earlier dedicated
 `POST /api/admin/pending-professors` endpoint was deleted once `AdminUsersPanel` started calling
-`superAdminAddUser` directly (see "Committee accounts must pre-exist" below). It always calls
-`generatePassword()` (`src/lib/utils.ts` — 6 chars, pattern `A00a00`: 1 capital, 4 digits, 1
-lowercase, excluding visually-ambiguous characters) server-side and emails the result via
-`sendWelcomeEmail` — there is no path where a client-supplied password is accepted or stored.
+`superAdminAddUser` directly (see "Committee accounts must pre-exist" below).
 
 The credential is called a **passcode** (รหัสเข้าใช้งาน) everywhere user-facing, not a password —
-users cannot set or change their own; `User.passcodeHash` (renamed from `passwordHash`) is the only
-field. Only ADMIN/SUPER_ADMIN can reset one, via `PATCH /api/users/[id]` with `{ resetPasscode:
-true }` (see `UserDetailPanel`'s and `/super-dashboard`'s reset-confirm buttons) — this ignores any
-other body field for the password itself, generates a fresh passcode, hashes it, and emails it via
+end users still cannot set or change their own; `User.passcodeHash` (renamed from `passwordHash`)
+is the only field. But an ADMIN/SUPER_ADMIN setting one on someone's behalf (creating an account,
+or resetting one) may either **type a passcode by hand or click "สุ่มรหัส" to fill the field with
+a generated one** (still `generatePassword()`, `src/lib/utils.ts` — 6 chars, pattern `A00a00`) and
+then edit it before submitting — the shared `PasscodeField` component (`src/components/
+PasscodeField.tsx`) renders this input + generate-button pair and is reused by `AdminUsersPanel`'s
+add-user modal, `UserDetailPanel`'s and `/super-dashboard`'s reset-passcode dialogs, and the
+`/dashboard/admin/pending-professors` quick-create form. The field is pre-filled with a freshly
+generated value each time a modal opens, so "just click submit" still reproduces the old
+always-generated behavior — typing over it is what's new.
+
+`POST /api/users` accepts an optional `passcode` field; `PATCH /api/users/[id]`'s `{
+resetPasscode: true }` accepts an optional `passcode` alongside it. Server-side validation
+(`isValidPasscode()`, `src/lib/utils.ts` — 6-72 chars, no whitespace) applies to a client-supplied
+value; omitting the field (or sending `""`/`null`) still falls back to server-generated via
+`generatePassword()` — used by any caller that doesn't surface the field (there is none left, but
+the fallback is intentionally kept as defense-in-depth for future callers of these two routes).
+Either way the resulting passcode is hashed with bcrypt and emailed via `sendWelcomeEmail` /
 `sendPasscodeResetEmail` (renamed from `sendForgotPasswordEmail`, reworded since the reset is now
-always admin-initiated rather than user-requested). `AppContext`'s `superAdminAddUser` takes no
-password argument and `superAdminResetPasscode(userId)` takes no new-passcode argument — the server
-is always the one generating it.
+always admin-initiated rather than user-requested) exactly as before — the admin seeing/choosing
+the value doesn't change that it's still emailed to the account owner. `AppContext`'s
+`superAdminAddUser(userData)` takes an optional `passcode` field on `userData`, and
+`superAdminResetPasscode(userId, passcode?)` takes an optional second argument.
 
 ### Program Chair assignment — admin-designated, one PROFESSOR per program (2026-09-07)
 `User.programChairFor: ProgramType?` (nullable, `@unique`) replaces the old global `isProgramChair`

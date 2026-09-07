@@ -5,8 +5,9 @@ import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, getStepName } from "@/lib/utils";
+import { ROLE_LABELS, getStepName, generatePassword, isValidPasscode } from "@/lib/utils";
 import { canManageAccount } from "@/lib/accountScope";
+import { PasscodeField } from "@/components/PasscodeField";
 import { MockSubmission, Role } from "@/types";
 import {
   ChevronRight, FileText, Clock,
@@ -53,6 +54,7 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+  const [pwPasscode, setPwPasscode] = useState(generatePassword());
 
   const user = users.find((u) => u.id === uid);
 
@@ -98,10 +100,19 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
     }
   }
 
+  function openResetPasscode() {
+    setPwPasscode(generatePassword());
+    setPwOpen(true);
+  }
+
   async function handleResetPasscode() {
+    if (!isValidPasscode(pwPasscode)) {
+      showToast("รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง", "error");
+      return;
+    }
     setPwSaving(true);
     try {
-      await superAdminResetPasscode(uid);
+      await superAdminResetPasscode(uid, pwPasscode.trim());
       showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว", "success");
       setPwOpen(false);
     } catch (err: any) {
@@ -153,7 +164,7 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
                   แก้ไข
                 </button>
                 <button
-                  onClick={() => setPwOpen(true)}
+                  onClick={openResetPasscode}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
                   title="รีเซ็ตรหัสเข้าใช้งาน"
                 >
@@ -409,9 +420,11 @@ export function UserDetailPanel({ uid, onDeleted }: { uid: string; onDeleted?: (
             </div>
 
             <p className="text-sm text-gray-600">
-              ระบบจะสร้างรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้ง <strong>{user.email}</strong> โดยอัตโนมัติ
-              รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
+              กำหนดรหัสเข้าใช้งานใหม่ให้ <strong>{user.email}</strong> เอง หรือกดสุ่มรหัส — ระบบจะส่งอีเมลแจ้งรหัสนี้
+              โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
             </p>
+
+            <PasscodeField value={pwPasscode} onChange={setPwPasscode} />
 
             <div className="flex gap-3 pt-1">
               <button

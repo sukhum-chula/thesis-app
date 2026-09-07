@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
-import { ROLE_LABELS, toUserErrorMessage, formatDate } from "@/lib/utils";
+import { ROLE_LABELS, toUserErrorMessage, formatDate, generatePassword, isValidPasscode } from "@/lib/utils";
+import { PasscodeField } from "@/components/PasscodeField";
 import { ArrowLeft, UserPlus, Mail, Phone, ChevronRight, CheckCircle2 } from "lucide-react";
 import type { MockSubmission } from "@/types";
 
@@ -29,7 +30,7 @@ export default function PendingProfessorsPage() {
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
 
   const [openEmail, setOpenEmail] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState({ name: "", phone: "", passcode: generatePassword() });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -65,11 +66,15 @@ export default function PendingProfessorsPage() {
 
   function openForm(req: PendingRequest) {
     setOpenEmail(req.email);
-    setForm({ name: req.name, phone: req.phone });
+    setForm({ name: req.name, phone: req.phone, passcode: generatePassword() });
   }
 
   async function handleCreate(req: PendingRequest) {
     if (!form.name.trim()) { showToast("กรุณากรอกชื่อ-นามสกุล", "error"); return; }
+    if (!isValidPasscode(form.passcode)) {
+      showToast("รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง", "error");
+      return;
+    }
     setSaving(true);
     try {
       // Same route as the regular "เพิ่มผู้ใช้" flow — the server notifies any student whose
@@ -79,6 +84,7 @@ export default function PendingProfessorsPage() {
         email: req.email,
         role: "PROFESSOR",
         roles: ["PROFESSOR"],
+        passcode: form.passcode.trim(),
       });
       showToast(`สร้างบัญชีให้ ${form.name.trim()} แล้ว`, "success");
       setOpenEmail(null);
@@ -171,6 +177,7 @@ export default function PendingProfessorsPage() {
                         <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={INPUT_CLS} />
                       </div>
                     </div>
+                    <PasscodeField value={form.passcode} onChange={(passcode) => setForm((f) => ({ ...f, passcode }))} />
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleCreate(req)}

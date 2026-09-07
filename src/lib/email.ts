@@ -50,21 +50,14 @@ async function sendMail(opts: {
     console.log("[email] GMAIL_USER / GMAIL_APP_PASSWORD not set — skipping");
     return { error: null };
   }
-  // Testing override: when EMAIL_OVERRIDE_TO is set, ALL emails go there instead
-  // of the real recipient (so testing never disturbs real users). Remove the env
-  // var in Vercel to go back to real delivery.
-  const override = process.env.EMAIL_OVERRIDE_TO;
-  const to = override || opts.to;
-  const subject = override ? `${opts.subject} [ถึง: ${opts.to}]` : opts.subject;
   try {
     await transport.sendMail({
       from: getFromAddress(),
-      to,
-      subject,
+      to: opts.to,
+      subject: opts.subject,
       html: opts.html,
       attachments: opts.attachments,
     });
-    if (override) console.log(`[email] OVERRIDE active — sent to ${override} (intended: ${opts.to})`);
     return { error: null };
   } catch (e) {
     return { error: e instanceof Error ? e : new Error(String(e)) };

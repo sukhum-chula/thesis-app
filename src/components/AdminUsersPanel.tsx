@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, ROLE_DESC, PROGRAM_LABELS, sortUsersByRole } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_DESC, PROGRAM_LABELS, sortUsersByRole, generatePassword, isValidPasscode } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
+import { PasscodeField } from "@/components/PasscodeField";
 import { Role, ProgramType } from "@/types";
 import type { MockSubmission } from "@/types";
 import {
@@ -52,7 +53,7 @@ export function AdminUsersPanel() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "" });
+  const [form, setForm] = useState({ name: "", email: "", role: "STUDENT" as Role, studentId: "", passcode: generatePassword() });
   const [saving, setSaving] = useState(false);
   const [savingProgram, setSavingProgram] = useState<ProgramType | null>(null);
 
@@ -87,7 +88,7 @@ export function AdminUsersPanel() {
 
   function closeModal() {
     setShowModal(false);
-    setForm({ name: "", email: "", role: "STUDENT", studentId: "" });
+    setForm({ name: "", email: "", role: "STUDENT", studentId: "", passcode: generatePassword() });
   }
 
   // Opens the same "เพิ่มผู้ใช้" modal used for any new account, prefilled from a pending
@@ -95,14 +96,18 @@ export function AdminUsersPanel() {
   function openAddUserModal(prefill?: { name: string; email: string }) {
     setForm(
       prefill
-        ? { name: prefill.name, email: prefill.email, role: "PROFESSOR", studentId: "" }
-        : { name: "", email: "", role: "STUDENT", studentId: "" }
+        ? { name: prefill.name, email: prefill.email, role: "PROFESSOR", studentId: "", passcode: generatePassword() }
+        : { name: "", email: "", role: "STUDENT", studentId: "", passcode: generatePassword() }
     );
     setShowModal(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isValidPasscode(form.passcode)) {
+      showToast("รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง", "error");
+      return;
+    }
     setSaving(true);
     try {
       await superAdminAddUser({
@@ -111,6 +116,7 @@ export function AdminUsersPanel() {
         role: form.role,
         roles: [form.role],
         studentId: form.role === "STUDENT" && form.studentId.trim() ? form.studentId.trim() : undefined,
+        passcode: form.passcode.trim(),
       });
       showToast("เพิ่มผู้ใช้สำเร็จ — ระบบส่งรหัสเข้าใช้งานไปยังอีเมลของผู้ใช้แล้ว", "success");
       closeModal();
@@ -394,7 +400,12 @@ export function AdminUsersPanel() {
                 </FormField>
               )}
 
-              <p className="text-xs text-gray-400">ระบบจะสร้างรหัสเข้าใช้งานและส่งอีเมลแจ้งผู้ใช้งานโดยอัตโนมัติ</p>
+              <PasscodeField
+                value={form.passcode}
+                onChange={(passcode) => setForm({ ...form, passcode })}
+              />
+
+              <p className="text-xs text-gray-400">ระบบจะส่งรหัสเข้าใช้งานนี้ไปยังอีเมลของผู้ใช้โดยอัตโนมัติ</p>
 
               <div className="flex gap-3 pt-1">
                 <button

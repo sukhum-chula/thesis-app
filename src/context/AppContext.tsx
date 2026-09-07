@@ -89,8 +89,8 @@ interface AppContextType {
   adminOverrideStep: (submissionId: string, stepOrder: number, action: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   superAdminUpdateUserRole: (userId: string, newRole: Role) => Promise<void>;
   superAdminDeleteUser: (userId: string) => Promise<void>;
-  superAdminAddUser: (userData: Omit<MockUser, "id">) => Promise<void>;
-  superAdminResetPasscode: (userId: string) => Promise<void>;
+  superAdminAddUser: (userData: Omit<MockUser, "id"> & { passcode?: string }) => Promise<void>;
+  superAdminResetPasscode: (userId: string, passcode?: string) => Promise<void>;
   adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
 }
@@ -379,13 +379,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
   }
 
-  async function superAdminAddUser(userData: Omit<MockUser, "id">) {
+  async function superAdminAddUser(userData: Omit<MockUser, "id"> & { passcode?: string }) {
     const newUser = await api<MockUser>("/api/users", "POST", userData);
     setUsers((prev) => [...prev, newUser]);
   }
 
-  async function superAdminResetPasscode(userId: string) {
-    await api(`/api/users/${userId}`, "PATCH", { resetPasscode: true });
+  async function superAdminResetPasscode(userId: string, passcode?: string) {
+    await api(`/api/users/${userId}`, "PATCH", { resetPasscode: true, passcode });
   }
 
   async function adminUpdateUserInfo(userId: string, updates: { name?: string; studentId?: string }) {

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canManageAccount, canGrantRole } from "@/lib/accountScope";
-import { generatePassword } from "@/lib/utils";
+import { generatePassword, isValidPasscode } from "@/lib/utils";
 import { sendPasscodeResetEmail } from "@/lib/email";
 
 function mapUser(u: any) {
@@ -66,9 +66,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   let newPasscode: string | null = null;
   if (body.resetPasscode === true) {
-    // The admin never types a passcode by hand — the system always generates a fresh one
-    // and emails it to the user, since users can't set/change their own passcode.
-    newPasscode = generatePassword();
+    // The admin may type the new passcode by hand or click "สุ่มรหัส" to fill it with
+    // generatePassword() client-side; either way it arrives here as `passcode`. Omitting it
+    // falls back to a server-generated one.
+    if (body.passcode !== undefined && body.passcode !== null && body.passcode !== "") {
+      if (typeof body.passcode !== "string" || !isValidPasscode(body.passcode))
+        return NextResponse.json({ error: "รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง" }, { status: 400 });
+      newPasscode = String(body.passcode).trim();
+    } else {
+      newPasscode = generatePassword();
+    }
     data.passcodeHash = await bcrypt.hash(newPasscode, 12);
   }
 

@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC, formatDate } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC, formatDate, generatePassword, isValidPasscode } from "@/lib/utils";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
+import { PasscodeField } from "@/components/PasscodeField";
 import { useToast } from "@/context/ToastContext";
 import { Role, MockUser } from "@/types";
 import {
@@ -76,19 +77,26 @@ export default function SuperDashboardPage() {
   const [newName,          setNewName]           = useState("");
   const [newEmail,         setNewEmail]          = useState("");
   const [newRole,          setNewRole]           = useState<Role>("ADMIN");
+  const [newPasscode,      setNewPasscode]       = useState(generatePassword());
   const [pwUserId,         setPwUserId]          = useState<string | null>(null);
+  const [pwPasscode,       setPwPasscode]        = useState(generatePassword());
   const [pwLoading,        setPwLoading]         = useState(false);
 
   function openPasswordForm(uid: string) {
+    setPwPasscode(generatePassword());
     setPwUserId(uid);
   }
   function closePasswordForm() {
     setPwUserId(null);
   }
   async function handleResetPasscode() {
+    if (!isValidPasscode(pwPasscode)) {
+      showToast("รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง", "error");
+      return;
+    }
     setPwLoading(true);
     try {
-      await superAdminResetPasscode(pwUserId!);
+      await superAdminResetPasscode(pwUserId!, pwPasscode.trim());
       showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว ✓");
       closePasswordForm();
     } catch {
@@ -103,14 +111,19 @@ export default function SuperDashboardPage() {
   function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim()) return;
-    const userData: Omit<MockUser, "id"> = {
+    if (!isValidPasscode(newPasscode)) {
+      showToast("รหัสเข้าใช้งานต้องมีความยาว 6-72 ตัวอักษร และไม่มีช่องว่าง", "error");
+      return;
+    }
+    const userData: Omit<MockUser, "id"> & { passcode?: string } = {
       name:  newName.trim(),
       email: newEmail.trim().toLowerCase(),
       role:  newRole,
       roles: [newRole],
+      passcode: newPasscode.trim(),
     };
     superAdminAddUser(userData);
-    setNewName(""); setNewEmail(""); setNewRole("ADMIN");
+    setNewName(""); setNewEmail(""); setNewRole("ADMIN"); setNewPasscode(generatePassword());
     setShowAddForm(false);
   }
 
@@ -171,7 +184,8 @@ export default function SuperDashboardPage() {
                 </select>
               </div>
             </div>
-            <p className="text-sm text-amber-700">ระบบจะสร้างรหัสเข้าใช้งานและส่งอีเมลแจ้งบัญชีนี้โดยอัตโนมัติ</p>
+            <PasscodeField value={newPasscode} onChange={setNewPasscode} />
+            <p className="text-sm text-amber-700">ระบบจะส่งรหัสเข้าใช้งานนี้ไปยังอีเมลของบัญชีนี้โดยอัตโนมัติ</p>
             <button
               type="submit"
               className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition"
@@ -258,8 +272,9 @@ export default function SuperDashboardPage() {
                     รีเซ็ตรหัสเข้าใช้งานสำหรับ {u.name}
                   </p>
                   <p className="text-sm text-amber-700">
-                    ระบบจะสร้างรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้ง {u.email} โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
+                    กำหนดรหัสเข้าใช้งานใหม่เอง หรือกดสุ่มรหัส — ระบบจะส่งอีเมลแจ้ง {u.email} โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
                   </p>
+                  <PasscodeField value={pwPasscode} onChange={setPwPasscode} />
                   <div className="flex gap-2">
                     <button
                       type="button"
