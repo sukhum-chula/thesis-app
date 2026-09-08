@@ -185,6 +185,33 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — `AdminUsersPanel`'s user list gained a third filter: "มีคำร้องที่ยังไม่ถูกยกเลิก"
+  checkbox (has an active submission).** Sits below the role-filter-pills + search row (see the
+  entry right below this one for those). Checking it narrows `visibleUsers` to accounts with at
+  least one related submission (via the existing `getRelatedSubmissions()` helper) whose `status`
+  isn't `CANCELLED` — the same "active" meaning already used elsewhere in the app to block a
+  student from starting a second PROPOSAL (see "Proposal-first" in `AGENTS.md`): DRAFT,
+  IN_PROGRESS, REJECTED, and even COMPLETED all count as active, only CANCELLED doesn't. No new
+  state/prop plumbing beyond one `activeOnly` boolean in `AdminUsersPanel` itself.
+  **Verified**: `npm run build` passes clean. **Not yet clicked through in a real browser.**
+
+- **2026-09-08 — Fixed admin-facing popups (add-user / edit-user / reset-passcode modals in
+  `AdminUsersPanel.tsx`/`UserProfileHeader.tsx`, and the shared `NotificationBell` dropdown used by
+  every role) closing unexpectedly on a click-and-drag.** Reported behavior: press-and-hold inside
+  the popup, drag the mouse outside it, release there — the popup closed, even though the release
+  point (not the popup) was the only thing "clicked". Root cause: a browser `click` event fires
+  wherever the mouse button is *released*, regardless of where the mousedown started — so a
+  backdrop `onClick={close}` handler doesn't distinguish "a real click on the backdrop" from "a
+  drag that started inside the popup and ended on the backdrop". Fixed by tracking, via a `useRef`,
+  whether the *mousedown* for the current press also started on the backdrop (nested-modal case:
+  `e.target === e.currentTarget` on the backdrop's own `onMouseDown`; `NotificationBell`'s
+  backdrop/panel are siblings instead of nested, so it uses a shared `pressStartedInPanel` ref set
+  by each side's `onMouseDown`) — the close handler now only fires when both the press and the
+  release happened outside the popup content. **Verified**: `npm run build` passes clean after
+  every step. **Not yet clicked through in a real browser** — next session should confirm the
+  drag-from-inside-to-outside case no longer closes any of these, and that a normal click fully
+  outside the popup still does.
+
 - **2026-09-08 — `AdminUsersPanel`'s user list gained a role filter + search bar; "นักศึกษา"
   renamed to "นิสิต" everywhere in the app.** The plain user list under "จัดการผู้ใช้งาน" (both
   `/admin-dashboard`'s tab and standalone `/dashboard/admin/users`) previously had no way to narrow

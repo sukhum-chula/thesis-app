@@ -333,12 +333,15 @@ the outer page, which used to shift the whole layout when the browser's own scro
      "ลบ" confirmation), not from the list row.
 2. **จัดการผู้ใช้งาน (users)** — renders `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
    extracted 2026-09-06): pending committee-account requests **at the top of the user list** (see
-   "Committee accounts must pre-exist" above), the full STUDENT/PROFESSOR/ADMIN account list
-   (expand a row for `UserDetailPanel`), the add-user modal, and demo reset tools. The same
-   component is reused standalone at `/dashboard/admin/users` (now a thin guard+back-link wrapper
-   around it) and its `[uid]` detail route, since student names in the submission list still
-   deep-link there directly — the old "ผู้ใช้งานในระบบ" link-out card on this page was removed in
-   favor of this tab.
+   "Committee accounts must pre-exist" above), a role-filter pill row + search bar + **"มีคำร้อง
+   ที่ยังไม่ถูกยกเลิก" checkbox** (added 2026-09-08 — filters to accounts with at least one related
+   submission whose status isn't `CANCELLED`, via `getRelatedSubmissions()`; same "active" meaning
+   as the proposal-blocking rule under "Proposal-first" — DRAFT/IN_PROGRESS/REJECTED/COMPLETED all
+   count, only CANCELLED doesn't), the full STUDENT/PROFESSOR/ADMIN account list (expand a row for
+   `UserDetailPanel`), the add-user modal, and demo reset tools. The same component is reused
+   standalone at `/dashboard/admin/users` (now a thin guard+back-link wrapper around it) and its
+   `[uid]` detail route, since student names in the submission list still deep-link there directly
+   — the old "ผู้ใช้งานในระบบ" link-out card on this page was removed in favor of this tab.
 3. **ตั้งค่าระบบ (settings)** — renders `AdminSettingsPanel`
    (`src/components/AdminSettingsPanel.tsx`, extracted 2026-09-07 from what used to be a card
    inside `AdminUsersPanel`, at which point the finance-contact row was added alongside it): 3
