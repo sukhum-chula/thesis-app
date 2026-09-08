@@ -49,3 +49,8 @@ next-env.d.ts
 
 # local-only credentials reference — never commit real account passwords
 credentials.local.html
+
+# extracted demo/seed data — contains real student/faculty PII from source PDFs/XLSX
+/dataset/
+/demo-student.md
+/demo-professor.md

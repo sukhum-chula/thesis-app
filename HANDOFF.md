@@ -251,12 +251,17 @@ dated), this section is meant to be edited in place.
   checked. See "Proposal tab", "Committee people", and "Exam logistics" in `AGENTS.md`.
   **Verified**: `npm run build` and `npm run lint` both pass clean (no new errors beyond the
   pre-existing baseline — the two new API routes' `mapSub(s: any)` lint errors mirror the
-  identical pattern already present in the sibling `auto-draft-defense` route). **Not verified in a
-  real browser** — local dev's `DATABASE_URL` points at the live production Supabase project
-  (`tluqclmgbnciymxzknhh`), and no safe test credentials were available this session, so an actual
-  click-through (create a blank draft, drag-reorder committee rows, pick a 15-minute exam time,
-  confirm into a real 11-step workflow) is still owed to a future session with working STUDENT
-  credentials.
+  identical pattern already present in the sibling `auto-draft-defense` route).
+
+  **Follow-up fix, same day** — the owner clicked through this in a real browser and found that
+  pressing "+ สร้างร่างคำร้อง" made the "ความคืบหน้าปัจจุบัน (0/11)" progress line + preview
+  `WorkflowTimeline` disappear entirely, since the tab's render logic swapped straight from "no
+  proposal" (which showed the preview) to "current proposal exists" → `ProposalDraftReview` (which
+  doesn't render a timeline at all — same as `DefenseDraftReview`), with nothing in between.
+  Fixed in `student-dashboard/page.tsx`: the progress preview now stays visible across *both* the
+  blank-template state and the draft-being-edited state (nothing has actually progressed in either
+  — no workflow steps exist until confirm) and only switches to `StudentSubmissionActions`'s real
+  timeline once the proposal is an actual non-draft submission. `npm run build` passes clean.
 
 - **2026-09-08 — `AdminUsersPanel`'s user list gained a third filter: "มีคำร้องที่ยังไม่ถูกยกเลิก"
   checkbox (has an active submission).** Sits below the role-filter-pills + search row (see the

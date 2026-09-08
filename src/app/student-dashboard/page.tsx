@@ -150,15 +150,15 @@ export default function StudentDashboard() {
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
         {tab === "proposal" && (
           <div className="space-y-4">
-            {currentProposal ? (
-              isAutoDraftProposal(currentProposal) ? (
-                <ProposalDraftReview submissionId={currentProposal.id} />
-              ) : (
-                <StudentSubmissionActions submissionId={currentProposal.id} />
-              )
+            {currentProposal && !isAutoDraftProposal(currentProposal) ? (
+              <StudentSubmissionActions submissionId={currentProposal.id} />
             ) : (
               <div className="space-y-3">
-                <ProposalForm mine={mine} onCreated={() => {}} readOnlyPreview onCreateDraft={getOrCreateProposalDraft} />
+                {currentProposal ? (
+                  <ProposalDraftReview submissionId={currentProposal.id} />
+                ) : (
+                  <ProposalForm mine={mine} onCreated={() => {}} readOnlyPreview onCreateDraft={getOrCreateProposalDraft} />
+                )}
                 <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                   ความคืบหน้าปัจจุบัน (0/{previewProposalTotal})
                 </p>

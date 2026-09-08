@@ -695,9 +695,12 @@ through to a detail page" step):
    all editable, "บันทึกฉบับร่าง" (`PATCH .../[id]` action `"save_proposal_draft"`, `confirm: false`,
    stays `DRAFT`) or "ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์" (`confirm: true` — builds the 11 workflow
    steps, flips to `IN_PROGRESS`, notifies admins), same resolution pipeline
-   (`validatePeople`/`resolvePeople`) as any other creation. Once a current (most-recent
-   non-cancelled) real proposal exists, the whole block below is just
-   `<StudentSubmissionActions submissionId={...} />` (see below) — no separate read-only summary.
+   (`validatePeople`/`resolvePeople`) as any other creation. The "ความคืบหน้าปัจจุบัน (0/11)" preview
+   + `WorkflowTimeline` (`preview` prop, see below) stay visible under both the blank template *and*
+   `ProposalDraftReview` — nothing has actually progressed yet in either state, since no workflow
+   steps exist until confirm — and only disappear once a real (non-draft) proposal exists, at which
+   point the whole block is just `<StudentSubmissionActions submissionId={...} />` (see below),
+   which renders the real timeline itself — no separate read-only summary.
 3. **Defense tab**: no manual "create" entry point — the moment the tab is opened with an eligible
    `COMPLETED` proposal (and no existing non-cancelled defense), a `useEffect` fires
    `getOrCreateDefenseDraft()` (`POST /api/submissions/auto-draft-defense`, get-or-create,
