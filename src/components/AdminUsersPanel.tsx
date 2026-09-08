@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, NAME_TITLES, NAME_TITLE_LABELS } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
@@ -11,7 +11,7 @@ import { PasscodeField } from "@/components/PasscodeField";
 import { Role } from "@/types";
 import type { MockSubmission, NameTitle } from "@/types";
 import {
-  Users, RotateCcw,
+  Users, RotateCcw, Search,
   UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown,
 } from "lucide-react";
 
@@ -57,12 +57,42 @@ export function AdminUsersPanel() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<"ALL" | Role>("ALL");
+  const [search, setSearch] = useState("");
+  const [activeOnly, setActiveOnly] = useState(false);
+  const modalMouseDownOnBackdrop = useRef(false);
 
   const pendingExternalRequests = externalRequests
     .filter((r) => r.status === "PENDING")
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const creatableRoles = DB_ROLES.filter((r) => r !== "SUPER_ADMIN");
+
+  // Roles worth filtering by — same set as creatableRoles (an ADMIN's own user list never
+  // contains SUPER_ADMIN accounts, see accountScope.ts, so a pill for it would always be empty),
+  // just in the left-to-right order requested for the filter row rather than DB_ROLES' order.
+  const filterableRoles: Role[] = ["ADMIN", "PROFESSOR", "EXTERNAL", "STUDENT"];
+  const roleCounts = filterableRoles.reduce((acc, r) => {
+    acc[r] = allUsers.filter((u) => u.role === r).length;
+    return acc;
+  }, {} as Record<Role, number>);
+
+  const visibleUsers = sortUsersByRole(allUsers).filter((u) => {
+    if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const haystack = `${formatUserName(u)} ${u.email} ${u.studentId ?? ""}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    // "Active" = same definition used elsewhere in the app (e.g. blocking a new proposal while
+    // one exists): any related submission whose status isn't CANCELLED — DRAFT/IN_PROGRESS/
+    // REJECTED/COMPLETED all count.
+    if (activeOnly) {
+      const related = getRelatedSubmissions(submissions, u.id, u.roles);
+      if (!related.some((s) => s.status !== "CANCELLED")) return false;
+    }
+    return true;
+  });
 
   // People named as committee on a DRAFT submission who don't have an account yet — grouped by
   // email (the same person may be named on multiple drafts, or in multiple roles). Shown as
@@ -275,24 +305,84 @@ export function AdminUsersPanel() {
           </div>
         ))}
 
-        {sortUsersByRole(allUsers).map((u) => {
-          const isExpanded = expandedId === u.id;
-          return (
-            <div key={u.id} className="space-y-2">
-              {/* Identity + edit/reset-passcode/delete — always visible; clicking the 3 quick
-                  stats toggles the related-submissions panel below */}
-              <UserProfileHeader
-                uid={u.id}
-                onDeleted={() => setExpandedId(null)}
-                expanded={isExpanded}
-                onToggleExpand={() => setExpandedId(isExpanded ? null : u.id)}
-                accent={ROLE_ACCENT[u.role]}
-              />
+        {/* Role filter pills + search — scoped to the plain user list below (pending-account
+            request cards above are always shown regardless of these filters). */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setRoleFilter("ALL")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition ${
+                roleFilter === "ALL" ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              ทั้งหมด
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${roleFilter === "ALL" ? "bg-white/20" : "bg-gray-200"}`}>
+                {allUsers.length}
+              </span>
+            </button>
+            {filterableRoles.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRoleFilter(r)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition ${
+                  roleFilter === r ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {ROLE_LABELS[r]}
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${roleFilter === r ? "bg-white/20" : "bg-gray-200"}`}>
+                  {roleCounts[r]}
+                </span>
+              </button>
+            ))}
+          </div>
 
-              {isExpanded && <UserDetailPanel uid={u.id} />}
-            </div>
-          );
-        })}
+          <div className="relative">
+            <Search className="absolute left-4 top-3.5 w-5 h-5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ค้นหาชื่อ อีเมล หรือรหัสนิสิต..."
+              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600 select-none cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={activeOnly}
+              onChange={(e) => setActiveOnly(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+            />
+            มีคำร้องที่ยังไม่ถูกยกเลิก
+          </label>
+        </div>
+
+        {visibleUsers.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-200 py-16 text-center space-y-2 text-gray-400">
+            <Search className="w-10 h-10 mx-auto opacity-25" />
+            <p className="text-lg">ไม่พบผู้ใช้ที่ตรงกับการค้นหา</p>
+          </div>
+        ) : (
+          visibleUsers.map((u) => {
+            const isExpanded = expandedId === u.id;
+            return (
+              <div key={u.id} className="space-y-2">
+                {/* Identity + edit/reset-passcode/delete — always visible; clicking the 3 quick
+                    stats toggles the related-submissions panel below */}
+                <UserProfileHeader
+                  uid={u.id}
+                  onDeleted={() => setExpandedId(null)}
+                  expanded={isExpanded}
+                  onToggleExpand={() => setExpandedId(isExpanded ? null : u.id)}
+                  accent={ROLE_ACCENT[u.role]}
+                />
+
+                {isExpanded && <UserDetailPanel uid={u.id} />}
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Demo tools */}
@@ -339,7 +429,8 @@ export function AdminUsersPanel() {
       {showModal && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={closeModal}
+          onMouseDown={(e) => { modalMouseDownOnBackdrop.current = e.target === e.currentTarget; }}
+          onClick={() => { if (modalMouseDownOnBackdrop.current) closeModal(); }}
         >
           <div
             className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5"

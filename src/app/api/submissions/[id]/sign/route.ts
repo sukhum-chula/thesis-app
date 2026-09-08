@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ ไม่สามารถลงนามได้" }, { status: 400 });
   // Mirror the approve action: no signing while rejected — student must resubmit first.
   if (sub.status === "REJECTED")
-    return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนักศึกษายืนยันการแก้ไขก่อน" }, { status: 400 });
+    return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนิสิตยืนยันการแก้ไขก่อน" }, { status: 400 });
 
   // All steps are created PENDING up front, so "any pending committee step where I'm a
   // member" is NOT enough — that would let a member sign their step (e.g. step 9) while

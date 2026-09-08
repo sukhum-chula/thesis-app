@@ -198,7 +198,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
                 </div>
               ) : (
                 <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-4 py-3 text-center">
-                  ยังไม่มีเอกสารแนบ — นักศึกษายังไม่ได้อัปโหลดไฟล์
+                  ยังไม่มีเอกสารแนบ — นิสิตยังไม่ได้อัปโหลดไฟล์
                 </p>
               )}
             </div>

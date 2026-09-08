@@ -185,6 +185,34 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — `AdminUsersPanel`'s user list gained a role filter + search bar; "นักศึกษา"
+  renamed to "นิสิต" everywhere in the app.** The plain user list under "จัดการผู้ใช้งาน" (both
+  `/admin-dashboard`'s tab and standalone `/dashboard/admin/users`) previously had no way to narrow
+  a long account list — added a row of role filter pills (`เจ้าหน้าที่ภาควิชา` / `อาจารย์` /
+  `กรรมการภายนอก` / `นิสิต`, in that left-to-right order, each with a live count badge, mirroring
+  the submissions tab's type-filter-pill pattern) plus a search box matching name/email/รหัสนิสิต,
+  both scoped to `visibleUsers` only — the pending-account-request cards above the list (DRAFT
+  committee emails, external-examiner requests) are always shown regardless of the filter/search
+  state. Separately, every user-facing occurrence of "นักศึกษา" (the more formal/dated term for
+  student) was changed to "นิสิต" (Chulalongkorn's own term) across the codebase — `ROLE_LABELS`
+  in `src/lib/utils.ts`, `src/lib/translations.ts`'s Thai↔English dictionary (used by
+  `LanguageToggle`'s DOM-walker — the dictionary's Thai *keys* had to change too, not just the
+  rendered text, since the walker matches literal Thai substrings), and every component/API string
+  that spelled it out (`RoleSubmissionDetail`, `UserDetailPanel`, `UserProfileHeader`,
+  `AdminSubmissionPanel`, `SignatureButton`, `CommitteeSignPanel`, `/admin-dashboard`'s search
+  placeholder, and the "REJECTED" 400 error message in both `submissions/[id]/route.ts` and
+  `submissions/[id]/sign/route.ts`). **Verified**: `npm run build` passes clean; confirmed via
+  `grep` that zero occurrences of "นักศึกษา" remain in `src/`. Not yet clicked through in a real
+  browser.
+  **Built alongside another concurrent Claude Code session working in this same repo directory at
+  the same time**, which layered an "active submission only" checkbox filter onto the same user
+  list and fixed an unrelated bug (clicking inside a modal panel, dragging, and releasing over the
+  backdrop was incorrectly closing the modal — `NotificationBell`, `UserProfileHeader`'s edit/
+  reset-passcode modals, and `AdminUsersPanel`'s add-user modal all gained a mousedown-tracking ref
+  so the close-on-backdrop-click handler only fires when the press itself started on the backdrop).
+  No conflicts — both sessions' changes to `AdminUsersPanel.tsx`/`UserProfileHeader.tsx` sit side by
+  side cleanly; see that session's own entry in this file (if added) for its own verification notes.
+
 - **2026-09-08 — `User.name` split into a separate `title` field for the Thai honorific/academic
   prefix (ศ.ดร./รศ.ดร./ผศ.ดร./ผศ./อ.ดร./ดร./นาย/นางสาว/นาง).** New `NameTitle` enum in
   `prisma/schema.prisma` (`@map`s each key to its Thai text, same pattern as `Role`) plus a nullable

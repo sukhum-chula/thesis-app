@@ -36,6 +36,10 @@ export function NotificationBell() {
   const [open,    setOpen]    = useState(false);
   const [mounted, setMounted] = useState(false);
   const [panelTop, setPanelTop] = useState(0);
+  // Tracks where the current press-and-release started, so a click that begins as a drag
+  // inside the panel and is released over the backdrop doesn't close it (click fires wherever
+  // the mouse button is released, not where it went down).
+  const pressStartedInPanel = useRef(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -99,12 +103,14 @@ export function NotificationBell() {
           {/* Backdrop */}
           <div
             className="fixed inset-0 z-[90] bg-black/25"
-            onClick={() => setOpen(false)}
+            onMouseDown={() => { pressStartedInPanel.current = false; }}
+            onClick={() => { if (!pressStartedInPanel.current) setOpen(false); }}
           />
 
           {/* Panel */}
           <div
             className="fixed z-[100] bg-white shadow-2xl flex flex-col"
+            onMouseDown={() => { pressStartedInPanel.current = true; }}
             style={
               isMobile
                 ? { top: panelTop, left: 0, right: 0, bottom: 0, borderRadius: "16px 16px 0 0" }

@@ -99,7 +99,7 @@ export const PROGRAM_LABELS: Record<string, string> = {
 export const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN:           "ผู้ดูแลระบบสูงสุด",
   ADMIN:                 "เจ้าหน้าที่ภาควิชา",
-  STUDENT:               "นักศึกษา",
+  STUDENT:               "นิสิต",
   PROFESSOR:             "อาจารย์",
   EXTERNAL:              "กรรมการภายนอก",
   // Step role display labels:

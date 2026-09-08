@@ -145,7 +145,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
           <p className="text-gray-500">
-            นักศึกษา: <span className="font-medium text-gray-700">{sub.studentFullName ?? (student ? formatUserName(student) : undefined)}</span>
+            นิสิต: <span className="font-medium text-gray-700">{sub.studentFullName ?? (student ? formatUserName(student) : undefined)}</span>
             {(sub.studentCode ?? student?.studentId) && (
               <span className="text-gray-400"> ({sub.studentCode ?? student?.studentId})</span>
             )}

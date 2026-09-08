@@ -98,7 +98,7 @@ export const TH_EN: [string, string][] = [
 
   // Other long sentences
   ["กรุณาตรวจสอบเอกสาร แล้วลงนามหรือปฏิเสธด้านล่าง", "Please review the documents then sign or reject below"],
-  ["ยังไม่มีเอกสารแนบ — นักศึกษายังไม่ได้อัปโหลดไฟล์", "No attachments yet — the student has not uploaded any files"],
+  ["ยังไม่มีเอกสารแนบ — นิสิตยังไม่ได้อัปโหลดไฟล์", "No attachments yet — the student has not uploaded any files"],
   ["กรุณาอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากด้วย (ในขั้นตอนอัปโหลดด้านล่าง)", "Please also upload the 'Excellent Thesis' evaluation form (in the upload step below)"],
   ["ดาวน์โหลดเอกสาร → ลงนาม → อัปโหลด → ส่งต่อ",                            "Download → Sign → Upload → Forward"],
   ["คณะวิศวกรรมศาสตร์ · ยื่น ติดตาม และลงนามเอกสารออนไลน์",                  "Faculty of Engineering · Submit, track and sign documents online"],
@@ -222,7 +222,7 @@ export const TH_EN: [string, string][] = [
   ["ภาพรวมคำร้อง",                 "Request Overview"],
 
   // Placeholders (picked up by querySelectorAll on [placeholder])
-  ["ค้นหาชื่อวิทยานิพนธ์ หรือชื่อนักศึกษา...", "Search thesis title or student name..."],
+  ["ค้นหาชื่อวิทยานิพนธ์ หรือชื่อนิสิต...", "Search thesis title or student name..."],
 
   // Auth pages
   ["ไม่สามารถสร้างบัญชีได้ด้วยตนเอง",                "Self-registration is not available"],
@@ -350,7 +350,7 @@ export const TH_EN: [string, string][] = [
   ["ไม่ผ่าน", "Fail"],
 
   // Detail labels
-  ["นักศึกษา:",          "Student:"],
+  ["นิสิต:",          "Student:"],
   ["อาจารย์ที่ปรึกษา:", "Advisor:"],
   ["เบอร์โทร",          "Phone"],
   ["อีเมลนิสิต",        "Student Email"],
@@ -378,7 +378,6 @@ export const TH_EN: [string, string][] = [
   ["ข้าม",             "Skipped"],
   ["หมายเหตุ",         "Note"],
   ["อาจารย์",          "Professor"],
-  ["นักศึกษา",         "Student"],
   ["นิสิต",            "Student"],
   ["เจ้าหน้าที่",     "Staff"],
   ["วิทยานิพนธ์",      "Thesis"],

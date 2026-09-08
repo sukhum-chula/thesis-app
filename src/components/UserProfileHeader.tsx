@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { ROLE_LABELS, ROLE_DESC, generatePassword, isValidPasscode, isValidEmail, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
@@ -43,6 +43,8 @@ export function UserProfileHeader({
   const [pwOpen, setPwOpen] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
   const [pwPasscode, setPwPasscode] = useState(generatePassword());
+  const editModalMouseDownOnBackdrop = useRef(false);
+  const pwModalMouseDownOnBackdrop = useRef(false);
 
   const user = users.find((u) => u.id === uid);
 
@@ -146,7 +148,7 @@ export function UserProfileHeader({
             </div>
             <p className="text-gray-500 mt-0.5">{user.email}</p>
             {user.studentId && (
-              <p className="text-sm text-gray-400 mt-0.5">รหัสนักศึกษา: {user.studentId}</p>
+              <p className="text-sm text-gray-400 mt-0.5">รหัสนิสิต: {user.studentId}</p>
             )}
             <p className="text-gray-400 text-xs mt-1">{ROLE_DESC[user.role]}</p>
           </div>
@@ -255,7 +257,8 @@ export function UserProfileHeader({
       {editOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setEditOpen(false)}
+          onMouseDown={(e) => { editModalMouseDownOnBackdrop.current = e.target === e.currentTarget; }}
+          onClick={() => { if (editModalMouseDownOnBackdrop.current) setEditOpen(false); }}
         >
           <div
             className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5"
@@ -350,7 +353,8 @@ export function UserProfileHeader({
       {pwOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-          onClick={() => setPwOpen(false)}
+          onMouseDown={(e) => { pwModalMouseDownOnBackdrop.current = e.target === e.currentTarget; }}
+          onClick={() => { if (pwModalMouseDownOnBackdrop.current) setPwOpen(false); }}
         >
           <div
             className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5"

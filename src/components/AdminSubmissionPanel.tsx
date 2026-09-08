@@ -661,7 +661,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
         {!editMode && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-gray-400 mb-0.5">นักศึกษา</p>
+              <p className="text-gray-400 mb-0.5">นิสิต</p>
               <p className="font-medium text-gray-800">{student ? formatUserName(student) : undefined}</p>
               {student?.studentId && <p className="text-gray-400 text-xs">{student.studentId}</p>}
             </div>

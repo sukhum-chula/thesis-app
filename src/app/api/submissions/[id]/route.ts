@@ -131,7 +131,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (action === "approve") {
     // Block approval while submission is REJECTED — student must resubmit to reset the rejected step
     if (sub.status === "REJECTED")
-      return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนักศึกษายืนยันการแก้ไขก่อน" }, { status: 400 });
+      return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนิสิตยืนยันการแก้ไขก่อน" }, { status: 400 });
 
     const step = sub.workflowSteps.find((s: any) => s.status === "PENDING");
     if (!step) return NextResponse.json({ error: "No pending step" }, { status: 400 });
@@ -408,7 +408,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Block rejection while submission is already REJECTED — a second reject would create two
     // REJECTED steps; resubmit only resets one of them, leaving the other permanently orphaned.
     if (sub.status === "REJECTED")
-      return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนักศึกษายืนยันการแก้ไขก่อน" }, { status: 400 });
+      return NextResponse.json({ error: "คำร้องถูกปฏิเสธ — รอนิสิตยืนยันการแก้ไขก่อน" }, { status: 400 });
 
     const step = sub.workflowSteps.find((s: any) => s.status === "PENDING");
     if (!step) return NextResponse.json({ error: "No pending step" }, { status: 400 });
