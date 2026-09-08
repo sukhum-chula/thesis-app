@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { formatUserName } from "@/lib/utils";
 
 function mapRequest(r: any) {
   return { ...r, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() };
@@ -31,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   await prisma.notification.create({
     data: {
       recipientId: request.requestedById,
-      message: `คำขอเพิ่มกรรมการภายนอก "${request.name}" ไม่ได้รับการอนุมัติ`,
+      message: `คำขอเพิ่มกรรมการภายนอก "${formatUserName(request)}" ไม่ได้รับการอนุมัติ`,
       detail: reviewNote?.trim() || request.email,
       submissionId: null,
       type: "rejected",

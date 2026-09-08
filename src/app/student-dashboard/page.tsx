@@ -7,6 +7,7 @@ import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { StudentSubmissionActions } from "@/components/StudentSubmissionActions";
 import { DefenseDraftReview } from "@/components/DefenseDraftReview";
+import { ProposalDraftReview } from "@/components/ProposalDraftReview";
 import { ProposalForm } from "@/components/SubmissionForms";
 import { StudentExternalRequests } from "@/components/StudentExternalRequests";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
@@ -22,6 +23,14 @@ import type { MockSubmission, MockWorkflowStep } from "@/types";
 // pendingPeople/missing-accounts path, so it needs its own review UI rather than the normal
 // "waiting for accounts" DRAFT banner in StudentSubmissionActions.
 function isAutoDraftDefense(sub: MockSubmission): boolean {
+  return sub.status === "DRAFT" && !(sub.pendingPeople as unknown[] | null)?.length;
+}
+
+// A PROPOSAL created blank via POST /api/submissions/auto-draft-proposal — the moment the
+// student clicked "สร้าง" on the disabled template shown before any proposal exists. Told apart
+// from the legacy pendingPeople/missing-accounts DRAFT flavor the same way as a defense draft
+// (see isAutoDraftDefense above): no pendingPeople entries means it never went through that path.
+function isAutoDraftProposal(sub: MockSubmission): boolean {
   return sub.status === "DRAFT" && !(sub.pendingPeople as unknown[] | null)?.length;
 }
 
@@ -63,16 +72,14 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
 }
 
 export default function StudentDashboard() {
-  const { user, submissions, users, getOrCreateDefenseDraft } = useApp();
+  const { user, submissions, users, getOrCreateDefenseDraft, getOrCreateProposalDraft } = useApp();
   const mine = submissions.filter((s) => s.studentId === user?.id);
   const [tab, setTab] = useState<"proposal" | "defense" | "external">("proposal");
-  const [showProposalForm, setShowProposalForm] = useState(false);
   const [creatingDefenseDraft, setCreatingDefenseDraft] = useState(false);
 
-  // Gating for the two creation entry points — see AGENTS.md workflow rules.
-  // A proposal is "active" until the student cancels it; a defense may only be created from a
-  // COMPLETED proposal that doesn't already have a non-cancelled defense of its own.
-  const activeProposal = mine.find((s) => s.submissionType === "PROPOSAL" && s.status !== "CANCELLED");
+  // Gating for the defense creation entry point — see AGENTS.md workflow rules. A defense may
+  // only be created from a COMPLETED proposal that doesn't already have a non-cancelled defense
+  // of its own (the proposal tab's own gating just checks `currentProposal` below).
   const eligibleProposals = mine.filter(
     (s) =>
       s.submissionType === "PROPOSAL" &&
@@ -143,46 +150,19 @@ export default function StudentDashboard() {
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
         {tab === "proposal" && (
           <div className="space-y-4">
-            {!activeProposal && (
-              showProposalForm ? (
-                <ProposalForm
-                  mine={mine}
-                  onCreated={() => setShowProposalForm(false)}
-                  onCancel={() => setShowProposalForm(false)}
-                />
+            {currentProposal ? (
+              isAutoDraftProposal(currentProposal) ? (
+                <ProposalDraftReview submissionId={currentProposal.id} />
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowProposalForm(true)}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:border-blue-400 hover:bg-blue-100 transition group text-left"
-                >
-                  <div className="mt-0.5 w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-700 transition">
-                    <BookOpen className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-blue-900 text-sm leading-snug">ขอสอบโครงร่างวิทยานิพนธ์</p>
-                    <p className="text-xs text-blue-600 mt-0.5">สำหรับการสอบ Proposal (บ.วศ.1ก/ข/ค/ง)</p>
-                  </div>
-                </button>
+                <StudentSubmissionActions submissionId={currentProposal.id} />
               )
-            )}
-
-            {!showProposalForm && (
+            ) : (
               <div className="space-y-3">
-                {currentProposal ? (
-                  <StudentSubmissionActions submissionId={currentProposal.id} />
-                ) : (
-                  <>
-                    <div className="flex flex-col items-center justify-center py-10 text-gray-300 gap-3">
-                      <FileText className="w-12 h-12 opacity-40" />
-                      <p className="text-lg font-medium text-gray-400">No proposal</p>
-                    </div>
-                    <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                      ความคืบหน้าปัจจุบัน (0/{previewProposalTotal})
-                    </p>
-                    <WorkflowTimeline steps={PREVIEW_PROPOSAL_STEPS} users={users} submissionType="PROPOSAL" preview />
-                  </>
-                )}
+                <ProposalForm mine={mine} onCreated={() => {}} readOnlyPreview onCreateDraft={getOrCreateProposalDraft} />
+                <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                  ความคืบหน้าปัจจุบัน (0/{previewProposalTotal})
+                </p>
+                <WorkflowTimeline steps={PREVIEW_PROPOSAL_STEPS} users={users} submissionType="PROPOSAL" preview />
               </div>
             )}
           </div>

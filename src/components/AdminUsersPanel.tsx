@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, splitNameTitle } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
@@ -127,15 +127,22 @@ export function AdminUsersPanel() {
 
   // Opens the same "เพิ่มผู้ใช้" modal used for any new account, prefilled from a pending
   // committee request — role defaults to PROFESSOR since every unresolved-email committee
-  // person is one. Approving an ExternalCommitteeRequest instead prefills role EXTERNAL plus
-  // its affiliation/phone and carries the request id through to POST /api/users.
+  // person is one. Its `name` has no separate title of its own (pendingPeople rows predate the
+  // ExternalCommitteeRequest.title column, and can still carry a hand-typed prefix in rare
+  // cases), so it's run through splitNameTitle() to pull one out if present. Approving an
+  // ExternalCommitteeRequest instead prefills role EXTERNAL plus its own real `title` column
+  // directly (no splitting needed) along with affiliation/phone, and carries the request id
+  // through to POST /api/users.
   function openAddUserModal(prefill?: {
-    name: string; email: string; role?: Role; affiliation?: string; phone?: string; externalRequestId?: string;
+    title?: NameTitle | null; name: string; email: string; role?: Role; affiliation?: string; phone?: string; externalRequestId?: string;
   }) {
+    const split = prefill && prefill.title === undefined ? splitNameTitle(prefill.name) : null;
     setForm(
       prefill
         ? {
-            title: "", name: prefill.name, email: prefill.email, role: prefill.role ?? "PROFESSOR", studentId: "",
+            title: (prefill.title !== undefined ? prefill.title ?? "" : split?.title ?? ""),
+            name: split ? split.name : prefill.name,
+            email: prefill.email, role: prefill.role ?? "PROFESSOR", studentId: "",
             affiliation: prefill.affiliation ?? "", phone: prefill.phone ?? "", externalRequestId: prefill.externalRequestId,
             passcode: generatePassword(),
           }
@@ -247,7 +254,7 @@ export function AdminUsersPanel() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-sky-900 text-lg">{req.name}</p>
+                  <p className="font-semibold text-sky-900 text-lg">{formatUserName(req)}</p>
                   <span className="text-xs font-semibold text-sky-700 bg-white px-2 py-0.5 rounded-full border border-sky-200">
                     คำขอกรรมการภายนอกใหม่
                   </span>
@@ -261,7 +268,7 @@ export function AdminUsersPanel() {
               <div className="flex gap-2 shrink-0">
                 <button
                   onClick={() => openAddUserModal({
-                    name: req.name, email: req.email, role: "EXTERNAL",
+                    title: req.title, name: req.name, email: req.email, role: "EXTERNAL",
                     affiliation: req.affiliation ?? undefined, phone: req.phone ?? undefined,
                     externalRequestId: req.id,
                   })}

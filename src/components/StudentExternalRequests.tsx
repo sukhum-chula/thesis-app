@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { toUserErrorMessage, isValidEmail, isValidThaiPhone, formatDate } from "@/lib/utils";
+import { toUserErrorMessage, isValidEmail, isValidThaiPhone, formatDate, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
 import { Section, Field, INPUT } from "@/components/SubmissionForms";
 import { UserPlus, Clock, CheckCircle2, XCircle, Info } from "lucide-react";
+import type { NameTitle } from "@/types";
 
 const STATUS_STYLE: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   PENDING:  { label: "รอเจ้าหน้าที่อนุมัติ", cls: "bg-amber-50 text-amber-700 border-amber-200",  icon: <Clock className="w-3.5 h-3.5" /> },
@@ -22,6 +23,7 @@ export function StudentExternalRequests() {
 
   const mine = externalRequests.filter((r) => r.requestedById === user?.id);
 
+  const [title, setTitle] = useState<NameTitle | "">("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [affiliation, setAffiliation] = useState("");
@@ -40,13 +42,14 @@ export function StudentExternalRequests() {
     setSubmitting(true);
     try {
       await submitExternalRequest({
+        title: title || null,
         name: name.trim(),
         email: email.trim(),
         affiliation: affiliation.trim() || undefined,
         phone: phone.trim() || undefined,
       });
       showToast("ส่งคำขอแล้ว — รอเจ้าหน้าที่อนุมัติ", "info");
-      setName(""); setEmail(""); setAffiliation(""); setPhone("");
+      setTitle(""); setName(""); setEmail(""); setAffiliation(""); setPhone("");
     } catch (err) {
       setError(toUserErrorMessage(err));
     } finally {
@@ -71,8 +74,16 @@ export function StudentExternalRequests() {
       <Section icon={<UserPlus className="w-4 h-4" />} title="ยื่นคำขอใหม่">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="ชื่อ-นามสกุล (พร้อมตำแหน่ง)" required>
-              <input value={name} onChange={(e) => { setName(e.target.value); setError(null); }} className={INPUT} placeholder="เช่น ศ.ดร.สมชาย ใจดี" />
+            <Field label="คำนำหน้าชื่อ">
+              <select value={title} onChange={(e) => setTitle(e.target.value as NameTitle | "")} className={INPUT}>
+                <option value="">— ไม่มี —</option>
+                {NAME_TITLES.map((t) => (
+                  <option key={t} value={t}>{NAME_TITLE_LABELS[t]}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="ชื่อ-นามสกุล" required>
+              <input value={name} onChange={(e) => { setName(e.target.value); setError(null); }} className={INPUT} placeholder="เช่น สมชาย ใจดี" />
             </Field>
             <Field label="อีเมล" required>
               <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(null); }} className={INPUT} placeholder="email@university.ac.th" />
@@ -107,7 +118,7 @@ export function StudentExternalRequests() {
               return (
                 <div key={r.id} className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 bg-gray-50">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-800 text-sm truncate">{r.name}</p>
+                    <p className="font-medium text-gray-800 text-sm truncate">{formatUserName(r)}</p>
                     <p className="text-xs text-gray-400 truncate">{r.email}{r.affiliation ? ` — ${r.affiliation}` : ""}</p>
                     {r.status === "REJECTED" && r.reviewNote && (
                       <p className="text-xs text-red-600 mt-0.5">เหตุผล: {r.reviewNote}</p>

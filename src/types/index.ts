@@ -26,6 +26,7 @@ export interface MockUser {
 
 export interface MockExternalRequest {
   id: string;
+  title?: NameTitle | null;
   name: string;
   email: string;
   affiliation?: string | null;

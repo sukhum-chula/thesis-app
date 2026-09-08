@@ -125,6 +125,7 @@ model User {
 // selected on any future proposal/defense.
 model ExternalCommitteeRequest {
   id          String                @id @default(cuid())
+  title       NameTitle?
   name        String
   email       String
   affiliation String?

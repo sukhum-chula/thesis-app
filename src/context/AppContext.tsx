@@ -79,6 +79,22 @@ interface AppContextType {
     },
     confirm: boolean
   ) => Promise<MockSubmission>;
+  getOrCreateProposalDraft: () => Promise<MockSubmission>;
+  saveProposalDraft: (
+    submissionId: string,
+    data: {
+      title: string;
+      program: string;
+      studentPhone?: string;
+      people: { name: string; email: string; role: string; phone?: string }[];
+      examDate: string;
+      examTime: string;
+      roomNeeded: boolean;
+      parkingNeeded: boolean;
+      carPlate?: string;
+    },
+    confirm: boolean
+  ) => Promise<MockSubmission>;
   committeeSign: (submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
   needsMyAction: (sub: MockSubmission) => boolean;
   markNotificationRead: (id: string) => Promise<void>;
@@ -100,7 +116,7 @@ interface AppContextType {
   adminUpdateUserInfo: (userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
   adminSetFinanceContact: (userId: string | null) => Promise<void>;
-  submitExternalRequest: (data: { name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
+  submitExternalRequest: (data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
   rejectExternalRequest: (id: string, reviewNote?: string) => Promise<void>;
 }
 
@@ -280,6 +296,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return sub;
   }
 
+  async function getOrCreateProposalDraft(): Promise<MockSubmission> {
+    const sub = await api<MockSubmission>("/api/submissions/auto-draft-proposal", "POST");
+    setSubmissions((prev) => (prev.some((s) => s.id === sub.id) ? prev.map((s) => (s.id === sub.id ? sub : s)) : [sub, ...prev]));
+    return sub;
+  }
+
+  async function saveProposalDraft(
+    submissionId: string,
+    data: Parameters<AppContextType["saveProposalDraft"]>[1],
+    confirm: boolean
+  ): Promise<MockSubmission> {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", {
+      action: "save_proposal_draft",
+      ...data,
+      confirm,
+    });
+    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
+    return sub;
+  }
+
   async function committeeSign(submissionId: string, decision: "APPROVED" | "REJECTED", notes?: string) {
     const sub = await api<MockSubmission>(`/api/submissions/${submissionId}/sign`, "POST", { decision, notes });
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
@@ -422,7 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh(); // clears the previous holder + sets the new one across the user list
   }
 
-  async function submitExternalRequest(data: { name: string; email: string; affiliation?: string; phone?: string }) {
+  async function submitExternalRequest(data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) {
     const req = await api<MockExternalRequest>("/api/external-requests", "POST", data);
     setExternalRequests((prev) => [req, ...prev]);
   }
@@ -450,6 +486,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
       addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel, continueDraft,
       getOrCreateDefenseDraft, saveDefenseDraft,
+      getOrCreateProposalDraft, saveProposalDraft,
       committeeSign, needsMyAction,
       markNotificationRead, markAllNotificationsRead,
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,

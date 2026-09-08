@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApp, SubmissionFormData } from "@/context/AppContext";
 import { PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate, formatUserName } from "@/lib/utils";
 import { ProgramType } from "@/types";
-import { User, Users, CalendarDays, Info, X, Plus, BookOpen, GraduationCap, AlertCircle, Lock } from "lucide-react";
+import { User, Users, CalendarDays, Info, X, Plus, BookOpen, GraduationCap, AlertCircle, Lock, GripVertical } from "lucide-react";
 import Link from "next/link";
 import type { MockSubmission } from "@/types";
 
@@ -35,7 +35,15 @@ export interface Person {
 
 const emptyPerson = (role = ""): Person => ({ name: "", email: "", role, phone: "" });
 
-const initialPeople = (): Person[] => [emptyPerson()];
+// The 4 committee positions every submission starts with — ประธานหลักสูตร is never a row here
+// (see PERSON_ROLES above), and อาจารย์ที่ปรึกษาร่วม (CO_ADVISOR) is optional so it isn't a
+// default row either; the student adds one via "เพิ่มบุคคล" if needed.
+export const initialPeople = (): Person[] => [
+  emptyPerson("ADVISOR"),
+  emptyPerson("HEAD_EXAM_COMMITTEE"),
+  emptyPerson("EXAM_COMMITTEE"),
+  emptyPerson("INVITED_EXAM_COMMITTEE"),
+];
 
 const ROLE_REQUIREMENTS: { role: string; label: string; min: number; max: number | null }[] = [
   { role: "ADVISOR",                label: "อาจารย์ที่ปรึกษา",   min: 1, max: 1 },
@@ -113,18 +121,26 @@ export function validatePeopleClient(people: Person[], ownEmails: string[]): str
 
 // ─── PROPOSAL — committee selected from existing accounts only ─────────────────
 
-/** Creates a new PROPOSAL. `onCreated` decides what happens after a successful submit — the
- *  standalone `/dashboard/student/submit` page navigates to the new submission's detail page;
- *  inlined on `/student-dashboard`'s proposal tab, it just closes the form (the tab's own
- *  `!activeProposal` guard then hides this block and the current-progress card below picks up
- *  the new submission automatically). `onCancel`, if given, renders a "ยกเลิก" button — only
- *  meaningful when there's no separate page to navigate back from. */
+/** Creates a new PROPOSAL directly (no draft step) — used only by the standalone
+ *  `/dashboard/student/submit` page, which navigates to the new submission's detail page via
+ *  `onCreated`. `onCancel`, if given, renders a "ยกเลิก" button — only meaningful when there's no
+ *  separate page to navigate back from.
+ *
+ *  `readOnlyPreview` renders the exact same template with every field disabled (via a wrapping
+ *  `<fieldset disabled>`, so no field-by-field prop threading is needed) and swaps the bottom
+ *  submit button for a single "สร้าง" button calling `onCreateDraft` — this is how
+ *  `/student-dashboard`'s proposal tab shows the blank form shape before any proposal exists,
+ *  without letting the student fill it in until they've actually created the (blank) DRAFT row
+ *  (see `getOrCreateProposalDraft`/`POST /api/submissions/auto-draft-proposal`) — from then on
+ *  `ProposalDraftReview` takes over for the actual editing/confirming. */
 export function ProposalForm({
-  mine, onCreated, onCancel,
+  mine, onCreated, onCancel, readOnlyPreview, onCreateDraft,
 }: {
   mine: ReturnType<typeof useApp>["submissions"];
   onCreated: (sub: MockSubmission) => void;
   onCancel?: () => void;
+  readOnlyPreview?: boolean;
+  onCreateDraft?: () => Promise<unknown>;
 }) {
   const { createSubmission, user, users } = useApp();
 
@@ -193,6 +209,18 @@ export function ProposalForm({
     }
   }
 
+  async function handleCreateDraft() {
+    if (!onCreateDraft) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onCreateDraft();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
+      setSubmitting(false);
+    }
+  }
+
   if (activeProposal) {
     return (
       <BlockingNotice
@@ -209,84 +237,99 @@ export function ProposalForm({
     <>
       <FormHeader isProposal icon={<BookOpen className="w-5 h-5 text-white" />}
         title="ขอสอบโครงร่างวิทยานิพนธ์"
-        desc="คำร้องขอสอบโครงร่างวิทยานิพนธ์ (บ.วศ.1ก / บ.วศ.1ข / บ.วศ.1ค / บ.วศ.1ง)" />
+        desc="คำร้องขอสอบโครงร่างวิทยานิพนธ์ (บ.วศ.1ก / บ.วศ.1ข / บ.วศ.1ค / บ.วศ.1ง)"
+        action={readOnlyPreview ? (
+          <button
+            type="button"
+            onClick={handleCreateDraft}
+            disabled={submitting}
+            className="px-4 py-2.5 text-white font-semibold rounded-xl transition shadow-sm text-sm whitespace-nowrap disabled:opacity-50 bg-blue-600 hover:bg-blue-700"
+          >
+            {submitting ? "กำลังสร้าง..." : "+ สร้างร่างคำร้อง"}
+          </button>
+        ) : undefined} />
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Section icon={<Info className="w-4 h-4" />} title="ข้อมูลวิทยานิพนธ์">
-          <Field label="ชื่อหัวข้อวิทยานิพนธ์" required>
-            <input
-              value={title}
-              onChange={(e) => { setTitle(e.target.value); setError(null); }}
-              className={INPUT}
-              placeholder="เช่น การพัฒนาระบบ..."
-            />
-          </Field>
-        </Section>
-
-        <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <ReadOnlyField label="ชื่อ-นามสกุล" value={user ? formatUserName(user) : undefined} />
-            <ReadOnlyField label="รหัสนิสิต"     value={user?.studentId} />
-            <Field label="หลักสูตร" required>
-              <select value={program} onChange={(e) => { setProgram(e.target.value as ProgramType | ""); setError(null); }} className={INPUT + " bg-white"}>
-                <option value="">— เลือกหลักสูตร —</option>
-                {(Object.entries(PROGRAM_LABELS) as [string, string][]).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
+        <fieldset
+          disabled={readOnlyPreview}
+          className={`border-0 p-0 m-0 min-w-0 space-y-6 ${readOnlyPreview ? "opacity-70 pointer-events-none" : ""}`}
+        >
+          <Section icon={<Info className="w-4 h-4" />} title="ข้อมูลวิทยานิพนธ์">
+            <Field label="ชื่อหัวข้อวิทยานิพนธ์" required>
+              <input
+                value={title}
+                onChange={(e) => { setTitle(e.target.value); setError(null); }}
+                className={INPUT}
+                placeholder="เช่น การพัฒนาระบบ..."
+              />
             </Field>
-            <ProgramChairAutoField program={program} users={users} />
-            <ReadOnlyField label="อีเมล" value={user?.email} />
-            <Field label="เบอร์โทรศัพท์">
-              <input value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} className={INPUT} placeholder="0812345678" />
-            </Field>
-          </div>
-        </Section>
+          </Section>
 
-        <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
-          <div className="text-xs text-gray-500 -mt-1">
-            <p>
-              เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านจากรายชื่อในระบบเท่านั้น — ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
-              ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
-              (อาจารย์ที่ปรึกษาร่วมเพิ่มได้ตามต้องการ)
-            </p>
-          </div>
-          <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
-        </Section>
+          <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <ReadOnlyField label="ชื่อ-นามสกุล" value={user ? formatUserName(user) : undefined} />
+              <ReadOnlyField label="รหัสนิสิต"     value={user?.studentId} />
+              <Field label="หลักสูตร" required>
+                <select value={program} onChange={(e) => { setProgram(e.target.value as ProgramType | ""); setError(null); }} className={INPUT + " bg-white"}>
+                  <option value="">— เลือกหลักสูตร —</option>
+                  {(Object.entries(PROGRAM_LABELS) as [string, string][]).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </Field>
+              <ProgramChairAutoField program={program} users={users} />
+              <ReadOnlyField label="อีเมล" value={user?.email} />
+              <Field label="เบอร์โทรศัพท์">
+                <input value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} className={INPUT} placeholder="0812345678" />
+              </Field>
+            </div>
+          </Section>
 
-        <ExamLogisticsSection
-          examDate={examDate} setExamDate={setExamDate}
-          examTime={examTime} setExamTime={setExamTime}
-          roomNeeded={roomNeeded} setRoomNeeded={setRoomNeeded}
-          parkingNeeded={parkingNeeded} setParkingNeeded={setParkingNeeded}
-          carPlate={carPlate} setCarPlate={setCarPlate}
-          clearError={() => setError(null)}
-        />
+          <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
+            <div className="text-xs text-gray-500 -mt-1">
+              <p>
+                เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านจากรายชื่อในระบบเท่านั้น — ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
+                ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
+                (อาจารย์ที่ปรึกษาร่วมเพิ่มได้ตามต้องการ)
+              </p>
+            </div>
+            <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
+          </Section>
+
+          <ExamLogisticsSection
+            examDate={examDate} setExamDate={setExamDate}
+            examTime={examTime} setExamTime={setExamTime}
+            roomNeeded={roomNeeded} setRoomNeeded={setRoomNeeded}
+            parkingNeeded={parkingNeeded} setParkingNeeded={setParkingNeeded}
+            carPlate={carPlate} setCarPlate={setCarPlate}
+            clearError={() => setError(null)}
+          />
+
+          <ConfirmCheckbox confirmed={confirmed} setConfirmed={setConfirmed} />
+
+          <div className="flex gap-3">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-5 py-3.5 border border-gray-300 text-gray-600 font-medium rounded-xl hover:bg-gray-50 transition"
+              >
+                ยกเลิก
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!confirmed || submitting}
+              className="flex-1 py-3.5 text-white font-semibold rounded-xl transition shadow-sm text-base disabled:opacity-50 bg-blue-600 hover:bg-blue-700"
+            >
+              {submitting ? "กำลังยื่น..." : "ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์"}
+            </button>
+          </div>
+        </fieldset>
 
         {error && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>
         )}
-
-        <ConfirmCheckbox confirmed={confirmed} setConfirmed={setConfirmed} />
-
-        <div className="flex gap-3">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-5 py-3.5 border border-gray-300 text-gray-600 font-medium rounded-xl hover:bg-gray-50 transition"
-            >
-              ยกเลิก
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={!confirmed || submitting}
-            className="flex-1 py-3.5 text-white font-semibold rounded-xl transition shadow-sm text-base disabled:opacity-50 bg-blue-600 hover:bg-blue-700"
-          >
-            {submitting ? "กำลังยื่น..." : "ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์"}
-          </button>
-        </div>
       </form>
     </>
   );
@@ -545,18 +588,46 @@ function BlockingNotice({ icon, title, desc, linkHref, linkLabel }: {
   );
 }
 
-export function FormHeader({ isProposal, icon, title, desc }: {
-  isProposal: boolean; icon: React.ReactNode; title: string; desc: string;
+export function FormHeader({ isProposal, icon, title, desc, action }: {
+  isProposal: boolean; icon: React.ReactNode; title: string; desc: string; action?: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-2xl p-4 sm:p-5 flex items-start gap-3 sm:gap-4 ${isProposal ? "bg-blue-50 border border-blue-200" : "bg-indigo-50 border border-indigo-200"}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isProposal ? "bg-blue-600" : "bg-indigo-600"}`}>
-        {icon}
+    <div className={`rounded-2xl p-4 sm:p-5 flex items-start justify-between gap-3 sm:gap-4 ${isProposal ? "bg-blue-50 border border-blue-200" : "bg-indigo-50 border border-indigo-200"}`}>
+      <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isProposal ? "bg-blue-600" : "bg-indigo-600"}`}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h1 className={`text-xl font-bold ${isProposal ? "text-blue-900" : "text-indigo-900"}`}>{title}</h1>
+          <p className={`text-sm mt-0.5 ${isProposal ? "text-blue-600" : "text-indigo-600"}`}>{desc}</p>
+        </div>
       </div>
-      <div>
-        <h1 className={`text-xl font-bold ${isProposal ? "text-blue-900" : "text-indigo-900"}`}>{title}</h1>
-        <p className={`text-sm mt-0.5 ${isProposal ? "text-blue-600" : "text-indigo-600"}`}>{desc}</p>
-      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
+const TIME_HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const TIME_MINUTES = ["00", "15", "30", "45"];
+
+/** 24-hour, 15-minute-increment time picker (two plain <select>s instead of the native
+ *  <input type="time">, whose AM/PM display and free-scroll minute spinner both depend on the
+ *  browser/OS locale — this keeps the format and the option list identical for every user).
+ *  `value`/`onChange` are still the same "HH:MM" string the rest of the app already validates
+ *  against (`^([01]\d|2[0-3]):[0-5]\d$`). */
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [h, m] = value ? value.split(":") : ["", ""];
+  return (
+    <div className="flex items-center gap-1.5">
+      <select value={h ?? ""} onChange={(e) => onChange(`${e.target.value}:${m || "00"}`)} className={INPUT + " bg-white"} aria-label="ชั่วโมง">
+        <option value="">ชม.</option>
+        {TIME_HOURS.map((hh) => <option key={hh} value={hh}>{hh}</option>)}
+      </select>
+      <span className="text-gray-400 font-semibold">:</span>
+      <select value={m ?? ""} onChange={(e) => onChange(`${h || "00"}:${e.target.value}`)} className={INPUT + " bg-white"} aria-label="นาที">
+        <option value="">นาที</option>
+        {TIME_MINUTES.map((mm) => <option key={mm} value={mm}>{mm}</option>)}
+      </select>
     </div>
   );
 }
@@ -579,23 +650,26 @@ export function ExamLogisticsSection({
           <input type="date" value={examDate} min={new Date().toISOString().split("T")[0]} onChange={(e) => { setExamDate(e.target.value); clearError(); }} className={INPUT} />
         </Field>
         <Field label="เวลาสอบ" required>
-          <input type="time" value={examTime} onChange={(e) => { setExamTime(e.target.value); clearError(); }} className={INPUT} />
+          <TimeSelect value={examTime} onChange={(v) => { setExamTime(v); clearError(); }} />
         </Field>
       </div>
 
-      <div className="space-y-2">
-        <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-300">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-300 shrink-0">
           <input type="checkbox" checked={roomNeeded} onChange={(e) => setRoomNeeded(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-          <span className="text-sm text-gray-800">ต้องการใช้ห้องประชุม</span>
+          <span className="text-sm text-gray-800 whitespace-nowrap">ต้องการห้องประชุม</span>
         </label>
-        <label className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-300">
+        <label className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-gray-200 cursor-pointer hover:border-blue-300 shrink-0">
           <input type="checkbox" checked={parkingNeeded} onChange={(e) => setParkingNeeded(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-          <span className="text-sm text-gray-800">ต้องการที่จอดรถสำหรับกรรมการภายนอก</span>
+          <span className="text-sm text-gray-800 whitespace-nowrap">ต้องการที่จอดรถสำหรับกรรมการภายนอก</span>
         </label>
         {parkingNeeded && (
-          <Field label="เลขทะเบียนรถ" required>
-            <input value={carPlate} onChange={(e) => setCarPlate(e.target.value)} className={INPUT} placeholder="เช่น กข 1234 กรุงเทพมหานคร" />
-          </Field>
+          <input
+            value={carPlate}
+            onChange={(e) => setCarPlate(e.target.value)}
+            className={INPUT + " flex-1 min-w-[12rem]"}
+            placeholder="เลขทะเบียนรถ เช่น กข 1234 กรุงเทพมหานคร"
+          />
         )}
       </div>
     </Section>
@@ -658,13 +732,13 @@ export function ReadOnlyField({ label, value }: { label: string; value?: string 
   );
 }
 
-// Shared committee people editor — used by both ProposalForm (starts empty) and DefenseForm
-// (starts prefilled from the source proposal, still fully editable).
-// Shared committee people editor — used by both ProposalForm (starts empty) and DefenseForm
-// (starts prefilled from the source proposal, still fully editable). Every row picks an existing
-// account from a dropdown (PROFESSOR for internal roles, EXTERNAL for กรรมการภายนอก) — there is
-// no free-text name/email entry, so every submitted committee member is guaranteed to already
-// have an account. PROGRAM_CHAIR is never offered here — see ProgramChairAutoField.
+// Shared committee people editor — used by both ProposalForm (starts with the 4 default roles,
+// see initialPeople()) and DefenseForm (starts prefilled from the source proposal, still fully
+// editable). Every row picks an existing account from a dropdown (PROFESSOR for internal roles,
+// EXTERNAL for กรรมการภายนอก) — there is no free-text name/email entry, so every submitted
+// committee member is guaranteed to already have an account. PROGRAM_CHAIR is never offered here
+// — see ProgramChairAutoField. Rows can be dragged (via the leftmost numbered handle) to reorder
+// the underlying array, which is the real sign order for roles with multiple members.
 export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   people: Person[];
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
@@ -673,6 +747,9 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   const { users } = useApp();
   const professors = users.filter((u) => u.roles.includes("PROFESSOR"));
   const externals  = users.filter((u) => u.roles.includes("EXTERNAL"));
+  // Tracks the row being dragged — a plain ref (not state) since it never needs to trigger a
+  // re-render on its own, only on drop (via setPeople).
+  const dragIndex = useRef<number | null>(null);
 
   function accountsFor(role: string) {
     return EXTERNAL_ROLES.has(role) ? externals : professors;
@@ -693,6 +770,20 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   }
   function removePerson(index: number) {
     setPeople((prev) => prev.filter((_, i) => i !== index));
+    clearError();
+  }
+  // Reorders the committee list — the array order is what's actually submitted as
+  // committeeIds/coAdvisorIds, so dragging a row here changes the real sequential sign order for
+  // roles with multiple members (see "Sequential only" in AGENTS.md), not just the display order.
+  function reorderPerson(from: number, to: number) {
+    if (from === to) return;
+    setPeople((prev) => {
+      if (from < 0 || to < 0 || from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
     clearError();
   }
 
@@ -719,72 +810,77 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
         })}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {people.map((p, i) => {
           const isExternalRole = EXTERNAL_ROLES.has(p.role);
           const accounts = accountsFor(p.role);
           // Match the selected account by email (state stores name/email/phone, not the id).
           const selectedAccount = accounts.find((a) => a.email.toLowerCase() === p.email.trim().toLowerCase());
           return (
-            <div key={i} className="border border-gray-200 rounded-xl p-3.5 bg-gray-50 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-500">บุคคลที่ {i + 1}</span>
-                {people.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removePerson(i)}
-                    className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
-                    aria-label="ลบบุคคลนี้"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
+            <div
+              key={i}
+              draggable
+              onDragStart={() => { dragIndex.current = i; }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragIndex.current !== null) reorderPerson(dragIndex.current, i);
+                dragIndex.current = null;
+              }}
+              onDragEnd={() => { dragIndex.current = null; }}
+              className="flex items-start gap-2 border border-gray-200 rounded-xl p-3 bg-gray-50"
+            >
+              <div
+                className="flex flex-col items-center gap-1 pt-2.5 shrink-0 text-gray-300 cursor-grab active:cursor-grabbing"
+                title="ลากเพื่อจัดลำดับ"
+              >
+                <GripVertical className="w-4 h-4" />
+                <span className="text-xs font-semibold text-gray-400 w-4 text-center">{i + 1}</span>
               </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="บทบาท" required>
+
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="grid sm:grid-cols-2 gap-3">
                   <select
                     value={p.role}
                     onChange={(e) => updatePerson(i, { role: e.target.value, name: "", email: "", phone: "" })}
                     className={INPUT + " bg-white"}
+                    aria-label="บทบาท"
                   >
                     <option value="">— เลือกบทบาท —</option>
                     {PERSON_ROLES.map((r) => (
                       <option key={r} value={r}>{ROLE_LABELS[r] ?? r}</option>
                     ))}
                   </select>
-                </Field>
-                <Field label={isExternalRole ? "กรรมการภายนอก" : "อาจารย์"} required>
                   <select
                     value={selectedAccount?.id ?? ""}
                     onChange={(e) => selectAccount(i, e.target.value)}
                     disabled={!p.role}
                     className={INPUT + " bg-white disabled:opacity-50"}
+                    aria-label={isExternalRole ? "กรรมการภายนอก" : "อาจารย์"}
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>{formatUserName(a)}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
                     ))}
                   </select>
-                </Field>
-              </div>
-              {isExternalRole && (
-                <p className="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
-                  ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
-                  แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกได้ที่นี่
-                </p>
-              )}
-              {selectedAccount && (
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <ReadOnlyField label="อีเมล" value={selectedAccount.email} />
-                  <Field label="เบอร์โทรศัพท์">
-                    <input
-                      value={p.phone}
-                      onChange={(e) => updatePerson(i, { phone: e.target.value })}
-                      className={INPUT}
-                      placeholder="0812345678"
-                    />
-                  </Field>
                 </div>
+                {isExternalRole && (
+                  <p className="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
+                    ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
+                    แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกได้ที่นี่
+                  </p>
+                )}
+              </div>
+
+              {people.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removePerson(i)}
+                  className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition shrink-0"
+                  aria-label="ลบบุคคลนี้"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               )}
             </div>
           );

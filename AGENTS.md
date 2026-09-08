@@ -151,9 +151,12 @@ through NextAuth's callbacks — `api/auth/magic` and `api/auth/demo`) into `App
 **Deliberately not touched** — historical denormalized text snapshots that have no parallel title
 column to go with them, so fixing this properly would mean new schema columns, not a display-layer
 change: `Submission.studentFullName` / `invitedProfName` (student/invited-committee snapshots taken
-at submission-creation time), any `pendingPeople[].name` entry recorded before that person had an
-account, and `ExternalCommitteeRequest.name` (a student's own free-text request, before ADMIN turns
-it into a real account — and a real title — at approval time via the add-user modal above).
+at submission-creation time), and any `pendingPeople[].name` entry recorded before that person had
+an account.
+
+`ExternalCommitteeRequest` is **no longer** in that "deliberately not touched" bucket (fixed
+2026-09-08) — it gained its own nullable `title` column (same `NameTitle` enum) instead of relying
+on the requester typing a prefix into the free-text `name`. See "EXTERNAL account requests" below.
 
 ### Program Chair & finance-contact assignment — SystemSetting table (redesigned 2026-09-07)
 Both of these admin-designated single-holder-per-key assignments live in one generic key/value
@@ -419,19 +422,30 @@ stepUploads={isFutureStep ? [] : stepUploads}
 
 **Student info:** ชื่อ-นามสกุล, รหัสนิสิต, หลักสูตร (PHD=วิศวกรรมศาสตรดุษฎีบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_MECH=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล / ME_CPS=วิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาระบบกายภาพที่เชื่อมประสานด้วยเครือข่ายไซเบอร์), อีเมล์, เบอร์โทร
 
-**Committee people (`data.people[]`, 2026-09-07 — selected from accounts, not typed):**
-`CommitteePeopleEditor` (`src/components/SubmissionForms.tsx`, shared by `ProposalForm`,
-`DefenseForm` and `DefenseDraftReview`) renders each row as a role `<select>` plus an account
-`<select>` — never free-text name/email entry. ADVISOR/CO_ADVISOR/HEAD_EXAM_COMMITTEE/
+**Committee people (`data.people[]`, 2026-09-07 — selected from accounts, not typed; row layout
+reworked 2026-09-08):** `CommitteePeopleEditor` (`src/components/SubmissionForms.tsx`, shared by
+`ProposalForm`, `DefenseForm`, `ProposalDraftReview` and `DefenseDraftReview`) renders each row as
+a role `<select>` plus an account `<select>` — never free-text name/email entry, and neither
+select carries a visible label any more (role/account picker labels are `aria-label` only,
+selection is conveyed by the placeholder option text). ADVISOR/CO_ADVISOR/HEAD_EXAM_COMMITTEE/
 EXAM_COMMITTEE pick from every `PROFESSOR`-role account; INVITED_EXAM_COMMITTEE (กรรมการภายนอก)
 picks from every `EXTERNAL`-role account (see "EXTERNAL account requests" below for how those get
-created). Picking an account fills `{name, email, phone}` from it (phone stays editable — it
-isn't stored on `User` for internal-role accounts). The submitted shape is still `{name, email,
-role, phone?}[]`, identical to before, so server-side resolution (`src/lib/committee.ts`'s
-`resolvePeople`, email lookup only, never creates an account) is unchanged — since every option
-in the dropdown is already a real account, an unresolved email is now only a theoretical race
-(account deleted between page load and submit), but the `DRAFT`/`pendingPeople` fallback (see
-"Committee accounts must pre-exist" above) still exists as defense-in-depth. **PROGRAM_CHAIR is
+created). Picking an account fills `{name, email, phone}` from it, but the row no longer displays
+either — only the role/account selects are shown; email and phone are still carried internally
+(and still submitted) so `resolvePeople`'s email-lookup and the optional phone-override still
+work, they're just not rendered. `initialPeople()` seeds a fresh editor (a new `ProposalForm`/
+`ProposalDraftReview`) with 4 default rows — ADVISOR, HEAD_EXAM_COMMITTEE, EXAM_COMMITTEE,
+INVITED_EXAM_COMMITTEE (CO_ADVISOR is optional so it isn't a default row; add one via
+"เพิ่มบุคคล"). Each row has a leftmost numbered drag handle (`GripVertical`, native HTML5
+drag-and-drop) so the student can reorder the list — this isn't just display order: the array
+order is exactly what's submitted as `committeeIds`/`coAdvisorIds`, which is the real sequential
+sign order for roles with multiple members (see "Sequential only" further below). The submitted
+shape is still `{name, email, role, phone?}[]`, identical to before, so server-side resolution
+(`src/lib/committee.ts`'s `resolvePeople`, email lookup only, never creates an account) is
+unchanged — since every option in the dropdown is already a real account, an unresolved email is
+now only a theoretical race (account deleted between page load and submit), but the
+`DRAFT`/`pendingPeople` fallback (see "Committee accounts must pre-exist" above) still exists as
+defense-in-depth. **PROGRAM_CHAIR is
 never a row in this editor at all** — the student's own account-level `Role` for creating a
 submission has nothing to do with it; instead `resolveProgramChair()`/`ProgramChairAutoField`
 auto-resolve and display (read-only) whichever `PROFESSOR`'s `programChairFor` array includes the
@@ -444,14 +458,19 @@ PROGRAM_CHAIR) but remains fully editable (see "Proposal-first" above). The same
 multiple roles (one account); committee id arrays are deduped — duplicates would break sequential
 signing.
 
-**EXTERNAL account requests (2026-09-07):** a STUDENT who can't find the external examiner they
-need in the INVITED_EXAM_COMMITTEE dropdown submits a request via the "กรรมการภายนอก" tab on
-`/student-dashboard` (`StudentExternalRequests.tsx`) — `{name, email, affiliation?, phone?}`,
-independent of any specific submission, saved as an `ExternalCommitteeRequest` row (`status:
-PENDING`). ADMIN reviews every pending request as a card at the top of `AdminUsersPanel`'s user
-list (same visual pattern as the missing-committee-account cards) with two actions: **อนุมัติ**
-opens the same "เพิ่มผู้ใช้งาน" modal used for any new account, prefilled (name/email locked,
-role forced to `EXTERNAL`, affiliation/phone editable) — submitting it calls the same
+**EXTERNAL account requests (2026-09-07, `title` field added 2026-09-08):** a STUDENT who can't
+find the external examiner they need in the INVITED_EXAM_COMMITTEE dropdown submits a request via
+the "กรรมการภายนอก" tab on `/student-dashboard` (`StudentExternalRequests.tsx`) —
+`{title?, name, email, affiliation?, phone?}`, independent of any specific submission, saved as an
+`ExternalCommitteeRequest` row (`status: PENDING`). `title` is a "คำนำหน้าชื่อ" `<select>`
+(`NAME_TITLES`, same as every other account form) next to the name field — the request no longer
+relies on the student typing a Thai honorific prefix into free-text `name` the way it briefly did;
+`ExternalCommitteeRequest.title` (nullable `NameTitle`) stores it separately, same shape as
+`User.title` (see "Name title" above). ADMIN reviews every pending request as a card at the top of
+`AdminUsersPanel`'s user list (same visual pattern as the missing-committee-account cards) with two
+actions: **อนุมัติ** opens the same "เพิ่มผู้ใช้งาน" modal used for any new account, prefilled
+(email/role locked, `title`/`name` prefilled directly from the request's own columns — no parsing
+needed since they're already split, affiliation/phone editable) — submitting it calls the same
 `POST /api/users` every account is created through (see "Account creation & passcodes" above),
 passing `externalRequestId` so the route also marks the request `APPROVED`, links
 `createdUserId`, and notifies the requesting student; **ปฏิเสธ** (`PATCH
@@ -464,7 +483,15 @@ recipient's landing page when it's null.
 
 **Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
 
-**Exam logistics:** วันที่สอบ + เวลา, ห้องประชุม (yes/no), ที่จอดรถ (yes/no), เลขทะเบียนรถ
+**Exam logistics:** วันที่สอบ + เวลา, ห้องประชุม (yes/no), ที่จอดรถ (yes/no), เลขทะเบียนรถ.
+เวลาสอบ (`ExamLogisticsSection`, `src/components/SubmissionForms.tsx`) is a `TimeSelect` — two
+plain `<select>`s (hour 00–23, minute in 15-minute steps: 00/15/30/45) joined into the same
+`"HH:MM"` string every server-side check already validates against, used instead of the native
+`<input type="time">` so the 24-hour format and the minute options are identical for every user
+regardless of browser/OS locale (a native time input's AM/PM display and free-scroll minute spinner
+both depend on that locale). ห้องประชุม/ที่จอดรถ render as two checkboxes on the same line
+(`flex flex-wrap`), with the เลขทะเบียนรถ input appearing inline next to them — not on its own
+row — the moment ที่จอดรถ is checked.
 
 ---
 
@@ -637,24 +664,40 @@ pending/history list). STUDENT never had `DashboardHeader` grow this baggage —
 `DashboardHeader` was removed outright once name/date/email moved into its own top bar, since the
 one stat it showed (in-progress count) wasn't worth a whole hero card on its own.
 
-**Student dashboard** (`src/app/student-dashboard/page.tsx`, 2-tab layout since 2026-09-06; the
-student can now fully act on their submission — upload, continue a DRAFT, resubmit, cancel,
-create a new proposal, review/confirm an auto-imported defense draft — **without ever leaving this
-page** as of 2026-09-07; there is no more read-only "click through to a detail page" step):
-1. **Tab bar** — two full-width buttons, `สอบโครงร่าง` / `สอบวิทยานิพนธ์` (`grid grid-cols-2 gap-2`,
-   same tab-bar pattern as `/admin-dashboard`), switching a `useState<"proposal" | "defense">`.
-   Below it, one shared frame (`bg-white rounded-2xl border border-gray-200 p-4 sm:p-6
-   max-h-[75vh] overflow-y-auto` — same "scrollbar stays inside the frame" convention as
+**Student dashboard** (`src/app/student-dashboard/page.tsx`, 2-tab layout since 2026-09-06,
+extended to 3 tabs 2026-09-07; the student can now fully act on their submission — upload,
+continue a DRAFT, resubmit, cancel, create a new proposal, review/confirm an auto-imported defense
+draft — **without ever leaving this page** as of 2026-09-07; there is no more read-only "click
+through to a detail page" step):
+1. **Tab bar** — three full-width buttons, `สอบโครงร่าง` / `สอบวิทยานิพนธ์` / `กรรมการภายนอก`
+   (`grid grid-cols-3 gap-2`, same tab-bar pattern as `/admin-dashboard`), switching a
+   `useState<"proposal" | "defense" | "external">`. The third tab renders `StudentExternalRequests`
+   (see "EXTERNAL account requests" above) — added the same day as that feature, alongside the
+   original two. Below the tab bar, one shared frame (`bg-white rounded-2xl border border-gray-200
+   p-4 sm:p-6 max-h-[75vh] overflow-y-auto` — same "scrollbar stays inside the frame" convention as
    `/admin-dashboard`) renders whichever tab is active.
-2. **Proposal tab**: when there's **no** active proposal, the entry card is a `<button>` (not a
-   `Link`) toggling local `showProposalForm` state — clicking it swaps the card for `ProposalForm`
-   (`src/components/SubmissionForms.tsx`) rendered **inline in the tab**, pre-filled from the
-   logged-in account. Submitting calls `onCreated` → just closes the form; the tab's own
-   `!activeProposal` guard then hides that block on the next render and the current-submission
-   section below picks up the new proposal automatically (`createSubmission` updates context state
-   synchronously, no page nav involved). Once a current (most-recent non-cancelled) proposal
-   exists, the whole block below is just `<StudentSubmissionActions submissionId={...} />` (see
-   below) — no separate read-only summary anymore.
+2. **Proposal tab** (blank-draft-first since 2026-09-08, replacing the earlier "toggle a button
+   card to reveal the full form" flow): when there's **no** current proposal, `ProposalForm`
+   (`src/components/SubmissionForms.tsx`) is rendered directly with `readOnlyPreview` — every field
+   disabled via a wrapping `<fieldset disabled>` (no field-by-field prop threading needed), showing
+   the blank form template — including its own (also disabled) ยืนยัน-checkbox and submit button at
+   the end of the card, so the template shows the form's complete shape, not a truncated one — so
+   the student can see what's required before starting. `FormHeader` gained an optional `action`
+   slot (rendered top-right of the header card, next to the title) for the one control that stays
+   live even in preview mode: the "+ สร้างร่างคำร้อง" button, which calls
+   get-or-create/idempotent), which creates a `THESIS_DEFENSE`-draft-style blank `PROPOSAL` row —
+   `status: "DRAFT"`, only the student's own account fields pre-filled, no committee/program/exam
+   info at all — told apart from the legacy pendingPeople/missing-accounts DRAFT flavor the same
+   way an auto-draft defense is (`status === "DRAFT" && no pendingPeople entries`, see
+   `isAutoDraftProposal()` in `student-dashboard/page.tsx`). Once that row exists,
+   `ProposalDraftReview` (`src/components/ProposalDraftReview.tsx`, mirrors `DefenseDraftReview`)
+   takes over as the actual editable form — title/program/student phone/committee/exam logistics,
+   all editable, "บันทึกฉบับร่าง" (`PATCH .../[id]` action `"save_proposal_draft"`, `confirm: false`,
+   stays `DRAFT`) or "ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์" (`confirm: true` — builds the 11 workflow
+   steps, flips to `IN_PROGRESS`, notifies admins), same resolution pipeline
+   (`validatePeople`/`resolvePeople`) as any other creation. Once a current (most-recent
+   non-cancelled) real proposal exists, the whole block below is just
+   `<StudentSubmissionActions submissionId={...} />` (see below) — no separate read-only summary.
 3. **Defense tab**: no manual "create" entry point — the moment the tab is opened with an eligible
    `COMPLETED` proposal (and no existing non-cancelled defense), a `useEffect` fires
    `getOrCreateDefenseDraft()` (`POST /api/submissions/auto-draft-defense`, get-or-create,

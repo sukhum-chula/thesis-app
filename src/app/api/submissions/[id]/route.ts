@@ -755,6 +755,94 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   }
 
+  // Blank PROPOSAL draft (see POST /api/submissions/auto-draft-proposal) — the student fills in
+  // the title/program/committee/exam logistics here, either just saving (confirm: false, stays
+  // DRAFT) or confirming (confirm: true — starts the real workflow). Never touches
+  // pendingPeople-style DRAFTs (those are gated out below), since this draft never went through
+  // that path in the first place.
+  else if (action === "save_proposal_draft") {
+    if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (sub.submissionType !== "PROPOSAL" || sub.status !== "DRAFT" || ((sub.pendingPeople as any[] | null)?.length ?? 0) > 0)
+      return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่างที่รอกรอกข้อมูล" }, { status: 400 });
+
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    if (!title) return NextResponse.json({ error: "กรุณาระบุชื่อหัวข้อวิทยานิพนธ์" }, { status: 400 });
+    if (title.length > 500) return NextResponse.json({ error: "ชื่อหัวข้อยาวเกิน 500 ตัวอักษร" }, { status: 400 });
+
+    if (!["PHD", "ME_MECH", "ME_CPS"].includes(body.program))
+      return NextResponse.json({ error: "กรุณาเลือกหลักสูตร" }, { status: 400 });
+
+    const studentPhone = typeof body.studentPhone === "string" ? body.studentPhone.trim() : "";
+
+    const examDate = typeof body.examDate === "string" ? body.examDate.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || isNaN(Date.parse(examDate)))
+      return NextResponse.json({ error: "กรุณาระบุวันที่สอบให้ถูกต้อง" }, { status: 400 });
+    const todayBkk = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    if (examDate < todayBkk)
+      return NextResponse.json({ error: "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต" }, { status: 400 });
+    const examTime = typeof body.examTime === "string" ? body.examTime.trim() : "";
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(examTime))
+      return NextResponse.json({ error: "กรุณาระบุเวลาสอบให้ถูกต้อง (เช่น 13:00)" }, { status: 400 });
+    const roomNeeded = !!body.roomNeeded;
+    const parkingNeeded = !!body.parkingNeeded;
+    const carPlate = typeof body.carPlate === "string" ? body.carPlate.trim() : "";
+    if (parkingNeeded && (!carPlate || carPlate.length > 50))
+      return NextResponse.json({ error: "กรุณาระบุเลขทะเบียนรถ (ไม่เกิน 50 ตัวอักษร)" }, { status: 400 });
+
+    const studentOwnEmails = new Set(
+      [session.user.email, sub.studentEmail].filter((e): e is string => !!e).map((e) => e.trim().toLowerCase())
+    );
+    const people: PersonInput[] = Array.isArray(body.people) ? body.people : [];
+    const peopleError = validatePeople(people, studentOwnEmails);
+    if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+
+    const resolved = await resolvePeople(people);
+    if (!resolved.ok)
+      return NextResponse.json(
+        { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${resolved.missingEmails.join(", ")}` },
+        { status: 400 }
+      );
+
+    const confirm = body.confirm === true;
+
+    await prisma.submission.update({
+      where: { id },
+      data: {
+        title,
+        program: body.program,
+        studentPhone: studentPhone || null,
+        advisorId: resolved.advisorId,
+        headCommitteeId: resolved.headCommitteeId,
+        committeeIds: resolved.committeeIds,
+        coAdvisorIds: resolved.coAdvisorIds,
+        invitedCommitteeId: resolved.invitedCommitteeId,
+        programChairId: resolved.programChairId,
+        invitedProfName: resolved.invitedProfName,
+        invitedProfEmail: resolved.invitedProfEmail,
+        invitedProfPhone: resolved.invitedProfPhone,
+        examDate,
+        examTime,
+        roomNeeded,
+        parkingNeeded,
+        carPlate: parkingNeeded ? carPlate : null,
+        ...(confirm ? { status: "IN_PROGRESS" } : {}),
+      },
+    });
+
+    if (confirm) {
+      await prisma.workflowStep.createMany({
+        data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId)
+          .map((s) => ({ ...s, submissionId: id })),
+      });
+      const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
+      if (admins.length) {
+        await prisma.notification.createMany({
+          data: admins.map((a: any) => ({ recipientId: a.id, message: "มีคำร้องวิทยานิพนธ์ใหม่", detail: title, submissionId: id, type: "info" })),
+        });
+      }
+    }
+  }
+
   // Auto-imported THESIS_DEFENSE draft (see POST /api/submissions/auto-draft-defense) — the
   // student reviews/edits the imported committee + fills in exam logistics here, either just
   // saving (confirm: false, stays DRAFT) or confirming (confirm: true — starts the real workflow,

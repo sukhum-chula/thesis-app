@@ -185,6 +185,79 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — `ExternalCommitteeRequest` gained its own `title` column; the student-facing
+  "ขอเพิ่มบัญชีกรรมการภายนอก" form and the admin approval flow both updated to match.** Previously
+  this form (`StudentExternalRequests.tsx`) had a single free-text "ชื่อ-นามสกุล (พร้อมตำแหน่ง)"
+  field — every other account-creation form in the app has a separate "คำนำหน้าชื่อ" `NameTitle`
+  dropdown, this one didn't, so a student had to type a Thai honorific prefix (e.g. "ผศ.ดร.") into
+  the name field by hand. Added a nullable `title NameTitle?` column to `ExternalCommitteeRequest`
+  (`prisma/schema.prisma`) alongside a matching "คำนำหน้าชื่อ" `<select>` on the student form;
+  `POST /api/external-requests` validates and stores it. `AdminUsersPanel`'s approval flow
+  (`openAddUserModal`) now prefills the add-user modal's title dropdown directly from the request's
+  own `title` column for an `ExternalCommitteeRequest` approval — no parsing needed, since the two
+  are already split — while the older DRAFT/`pendingPeople` prefill path (committee members named
+  before the "select from existing accounts" change, who have no structured title field of their
+  own) still falls back to `splitNameTitle()` on the free-text name. Both the pending-request card
+  and the student's own request list now render via `formatUserName()` instead of raw `.name`.
+  **DB migration**: applied via a one-off `scripts/add-external-request-title.ts` (same pattern as
+  prior sessions' migrations in this file — `$executeRawUnsafe` over the pooler connection, run
+  once via `npx tsx`, then deleted, not committed), since this session only had the pooler
+  connection and not the direct one `prisma db push` needs. Verified before/after (column didn't
+  exist, then did; 0 existing rows affected).
+  **Also hit, and fixed, the documented stale-Prisma-client gotcha** (§3 above): the local dev
+  server had been running since before this schema change, so it kept serving 500s on
+  `POST /api/external-requests` with a bare "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง" (the client's generic
+  fallback, since the actual Prisma error had no Thai text for `toUserErrorMessage()` to surface) —
+  fixed the same way the doc already prescribes: killed the process, cleared `.next/`, restarted.
+  See "Name title" and "EXTERNAL account requests" in `AGENTS.md`.
+  **Verified**: `npm run build` passes clean. **Not yet verified in a real browser beyond
+  confirming the dev-server restart fixed the request** — next session with STUDENT/ADMIN
+  credentials should submit a request with a title selected, approve it as ADMIN, and confirm the
+  title dropdown comes pre-filled and the resulting account's display name isn't doubled up.
+
+- **2026-09-08 — Proposal tab reworked into a blank-draft-first flow; `CommitteePeopleEditor` and
+  `ExamLogisticsSection` redesigned.** Before any proposal exists, `/student-dashboard`'s proposal
+  tab now shows `ProposalForm` in a new `readOnlyPreview` mode — every field disabled via a
+  wrapping `<fieldset disabled>` (no per-field prop threading needed) — so the student sees the
+  blank template's complete shape before starting, including its own (also disabled) confirm
+  checkbox and submit button at the end of the card. `FormHeader` gained an optional `action` slot
+  (top-right of the header card) for the one control that stays live in preview mode — the
+  "+ สร้างร่างคำร้อง" button — which calls new `getOrCreateProposalDraft()` → new `POST /api/submissions/auto-draft-proposal`
+  (STUDENT-only, get-or-create/idempotent), which creates a blank `PROPOSAL` row directly in
+  `DRAFT` status with only the student's own account fields pre-filled — no committee/program/exam
+  info yet. New `src/components/ProposalDraftReview.tsx` (mirrors `DefenseDraftReview.tsx`) then
+  takes over as the actual editable form; "บันทึกฉบับร่าง"/"ยืนยัน" call new
+  `saveProposalDraft()` → a new `PATCH .../[id]` action `"save_proposal_draft"` (mirrors
+  `save_defense_draft`, plus handles `program`/`studentPhone` since those aren't inherited from
+  anywhere the way a defense's are). The blank-draft flavor is told apart from the older
+  pendingPeople/missing-accounts DRAFT flavor the same way an auto-draft defense already is
+  (`status === "DRAFT" && no pendingPeople entries` — `isAutoDraftProposal()` in
+  `student-dashboard/page.tsx`). The standalone `/dashboard/student/submit?type=proposal` page is
+  unaffected — `ProposalForm` without `readOnlyPreview` still fills-and-submits directly, same as
+  before.
+  Separately, `CommitteePeopleEditor` (shared by `ProposalForm`/`DefenseForm`/
+  `ProposalDraftReview`/`DefenseDraftReview`) no longer displays a selected committee member's
+  email/phone at all (still carried internally/submitted, just not rendered), dropped the visible
+  "บทบาท"/"อาจารย์"/"กรรมการภายนอก" field labels in favor of `aria-label` only, gained a leftmost
+  numbered drag handle (native HTML5 drag-and-drop) so the student can reorder rows — the array
+  order is the real `committeeIds`/`coAdvisorIds` sequential sign order, not just display order —
+  and `initialPeople()` (a fresh editor's starting state) now seeds 4 default rows (ADVISOR,
+  HEAD_EXAM_COMMITTEE, EXAM_COMMITTEE, INVITED_EXAM_COMMITTEE) instead of one blank row.
+  `ExamLogisticsSection`'s เวลาสอบ field switched from the native `<input type="time">` (whose
+  AM/PM display and minute-spinner granularity both depend on browser/OS locale) to a new
+  `TimeSelect` — two plain `<select>`s, hour 00–23 and minute in 15-minute steps, joined into the
+  same `"HH:MM"` string already validated server-side; ห้องประชุม/ที่จอดรถ checkboxes now render on
+  one line with เลขทะเบียนรถ appearing inline next to them (not on its own row) once ที่จอดรถ is
+  checked. See "Proposal tab", "Committee people", and "Exam logistics" in `AGENTS.md`.
+  **Verified**: `npm run build` and `npm run lint` both pass clean (no new errors beyond the
+  pre-existing baseline — the two new API routes' `mapSub(s: any)` lint errors mirror the
+  identical pattern already present in the sibling `auto-draft-defense` route). **Not verified in a
+  real browser** — local dev's `DATABASE_URL` points at the live production Supabase project
+  (`tluqclmgbnciymxzknhh`), and no safe test credentials were available this session, so an actual
+  click-through (create a blank draft, drag-reorder committee rows, pick a 15-minute exam time,
+  confirm into a real 11-step workflow) is still owed to a future session with working STUDENT
+  credentials.
+
 - **2026-09-08 — `AdminUsersPanel`'s user list gained a third filter: "มีคำร้องที่ยังไม่ถูกยกเลิก"
   checkbox (has an active submission).** Sits below the role-filter-pills + search row (see the
   entry right below this one for those). Checking it narrows `visibleUsers` to accounts with at

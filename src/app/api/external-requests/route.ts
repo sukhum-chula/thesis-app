@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidEmail, isValidThaiPhone } from "@/lib/utils";
+import { isValidEmail, isValidThaiPhone, NAME_TITLES, formatUserName } from "@/lib/utils";
 
 function mapRequest(r: any) {
   return {
@@ -34,13 +34,15 @@ export async function POST(req: NextRequest) {
   if (!session?.user || !roles.includes("STUDENT"))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, email, affiliation, phone } = await req.json();
+  const { title, name, email, affiliation, phone } = await req.json();
 
   if (!name?.trim())  return NextResponse.json({ error: "กรุณาระบุชื่อ-นามสกุล" }, { status: 400 });
   if (!email?.trim()) return NextResponse.json({ error: "กรุณาระบุอีเมล" }, { status: 400 });
   if (!isValidEmail(email)) return NextResponse.json({ error: "รูปแบบอีเมลไม่ถูกต้อง" }, { status: 400 });
   if (phone?.trim() && !isValidThaiPhone(phone))
     return NextResponse.json({ error: "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)" }, { status: 400 });
+  if (title !== undefined && title !== null && !NAME_TITLES.includes(title))
+    return NextResponse.json({ error: "คำนำหน้าชื่อไม่ถูกต้อง" }, { status: 400 });
 
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
 
   const request = await prisma.externalCommitteeRequest.create({
     data: {
+      title: title || null,
       name: name.trim(),
       email: normalizedEmail,
       affiliation: affiliation?.trim() || null,
@@ -67,7 +70,7 @@ export async function POST(req: NextRequest) {
     await prisma.notification.createMany({
       data: admins.map((a) => ({
         recipientId: a.id,
-        message: `คำขอเพิ่มกรรมการภายนอกใหม่ — ${request.name}`,
+        message: `คำขอเพิ่มกรรมการภายนอกใหม่ — ${formatUserName(request)}`,
         detail: request.email,
         submissionId: null,
         type: "pending",
