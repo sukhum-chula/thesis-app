@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { PROGRAM_LABELS } from "@/lib/utils";
+import { PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { ProgramType } from "@/types";
 import { Landmark, Mail, Loader2 } from "lucide-react";
 
@@ -79,7 +79,7 @@ export function AdminSettingsPanel() {
                   const otherPrograms = (p.programChairFor ?? []).filter((pr) => pr !== program);
                   const alsoChairs = otherPrograms.length ? ` (เป็นประธานหลักสูตร ${otherPrograms.join(", ")} ด้วย)` : "";
                   return (
-                    <option key={p.id} value={p.id}>{p.name}{alsoChairs}</option>
+                    <option key={p.id} value={p.id}>{formatUserName(p)}{alsoChairs}</option>
                   );
                 })}
               </select>
@@ -108,7 +108,7 @@ export function AdminSettingsPanel() {
             >
               <option value="">— ไม่มี —</option>
               {adminAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name} ({a.email})</option>
+                <option key={a.id} value={a.id}>{formatUserName(a)} ({a.email})</option>
               ))}
             </select>
           </div>

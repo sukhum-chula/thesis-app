@@ -5,7 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge";
-import { FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile, toUserErrorMessage } from "@/lib/utils";
+import { FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile, toUserErrorMessage, formatUserName } from "@/lib/utils";
 import { MockWorkflowStep, MockUpload } from "@/types";
 import {
   ArrowLeft, Download, FileText, Pencil, Check, X,
@@ -662,12 +662,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-gray-400 mb-0.5">นักศึกษา</p>
-              <p className="font-medium text-gray-800">{student?.name}</p>
+              <p className="font-medium text-gray-800">{student ? formatUserName(student) : undefined}</p>
               {student?.studentId && <p className="text-gray-400 text-xs">{student.studentId}</p>}
             </div>
             <div>
               <p className="text-gray-400 mb-0.5">อาจารย์ที่ปรึกษา</p>
-              <p className="font-medium text-gray-800">{advisor?.name ?? "—"}</p>
+              <p className="font-medium text-gray-800">{advisor ? formatUserName(advisor) : "—"}</p>
             </div>
             <div>
               <p className="text-gray-400 mb-0.5">วันที่ยื่น</p>
@@ -707,7 +707,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       return (
                         <div key={`${label}-${uid}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1 border-b border-gray-50 last:border-0">
                           <p className="text-xs text-gray-400 w-32 shrink-0">{ids.length > 1 ? `${label} ${i + 1}` : label}</p>
-                          <p className="text-sm font-medium text-gray-800">{u?.name ?? uid}</p>
+                          <p className="text-sm font-medium text-gray-800">{u ? formatUserName(u) : uid}</p>
                           {u?.email && <a href={`mailto:${u.email}`} className="text-xs text-blue-500 hover:underline">{u.email}</a>}
                         </div>
                       );
@@ -717,7 +717,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1">
                       <p className="text-xs text-gray-400 w-32 shrink-0">กรรมการภายนอก</p>
                       <p className="text-sm font-medium text-gray-800">
-                        {sub.invitedProfName ?? allUsers.find((u) => u.id === sub.invitedCommitteeId)?.name ?? sub.invitedCommitteeId}
+                        {sub.invitedProfName ?? (() => { const u = allUsers.find((u) => u.id === sub.invitedCommitteeId); return u ? formatUserName(u) : sub.invitedCommitteeId; })()}
                         {sub.invitedProfAffiliation && <span className="text-gray-400 font-normal"> · {sub.invitedProfAffiliation}</span>}
                       </p>
                       {sub.invitedProfEmail && <a href={`mailto:${sub.invitedProfEmail}`} className="text-xs text-blue-500 hover:underline">{sub.invitedProfEmail}</a>}
@@ -768,21 +768,21 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <EField label="อาจารย์ที่ปรึกษา">
                   <select value={editDraft.advisorId} onChange={(e) => upd("advisorId", e.target.value)} className={EDIT_INPUT_CLS}>
                     <option value="">— ไม่ระบุ —</option>
-                    {advisors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                   </select>
                 </EField>
                 {[0, 1, 2].map((i) => (
                   <EField key={i} label={`อาจารย์ที่ปรึกษาร่วม ${i + 1}`}>
                     <select value={editDraft.coAdvisorIds[i] ?? ""} onChange={(e) => updArr("coAdvisorIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                 ))}
                 <EField label="ประธานหลักสูตร">
                   <div className={`${EDIT_INPUT_CLS} bg-gray-50 text-gray-700`}>
                     {resolvedProgramChair
-                      ? resolvedProgramChair.name
+                      ? formatUserName(resolvedProgramChair)
                       : editDraft.program
                         ? "— ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ —"
                         : "— กรุณาเลือกหลักสูตรก่อน —"}
@@ -794,14 +794,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <EField label="ประธานกรรมการสอบ">
                   <select value={editDraft.headCommitteeId} onChange={(e) => upd("headCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>
                     <option value="">— ไม่ระบุ —</option>
-                    {advisors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                   </select>
                 </EField>
                 {[0, 1, 2].map((i) => (
                   <EField key={i} label={`กรรมการสอบ ${i + 1}`}>
                     <select value={editDraft.committeeIds[i] ?? ""} onChange={(e) => updArr("committeeIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                 ))}
@@ -814,7 +814,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <EField label="ในระบบ (เลือก)">
                     <select value={editDraft.invitedCommitteeId} onChange={(e) => upd("invitedCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                   <EField label="ชื่อ (ภายนอก)"><input value={editDraft.invitedProfName} onChange={(e) => upd("invitedProfName", e.target.value)} className={EDIT_INPUT_CLS} placeholder="ถ้าไม่อยู่ในระบบ" /></EField>
@@ -913,13 +913,17 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
                 // Resolve who is assigned to this step
                 let assignedName: string | null = null;
-                if (step.role === "STUDENT") assignedName = student?.name ?? null;
-                else if (step.role === "ADMIN") assignedName = allUsers.find((u) => u.roles.includes("ADMIN"))?.name ?? null;
-                else if (step.role === "ADVISOR") assignedName = advisor?.name ?? null;
-                else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => allUsers.find((u) => u.id === uid)?.name ?? uid).join(", ") || null;
-                else if (step.role === "HEAD_EXAM_COMMITTEE") assignedName = allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? null;
-                else if (step.role === "INVITED_EXAM_COMMITTEE") assignedName = allUsers.find((u) => u.id === sub.invitedCommitteeId)?.name ?? (sub.invitedProfName ?? null);
-                else if (step.role === "PROGRAM_CHAIR") assignedName = allUsers.find((u) => u.id === (sub as any).programChairId)?.name ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program))?.name : null) ?? null;
+                if (step.role === "STUDENT") assignedName = student ? formatUserName(student) : null;
+                else if (step.role === "ADMIN") { const u = allUsers.find((u) => u.roles.includes("ADMIN")); assignedName = u ? formatUserName(u) : null; }
+                else if (step.role === "ADVISOR") assignedName = advisor ? formatUserName(advisor) : null;
+                else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
+                else if (step.role === "HEAD_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.headCommitteeId); assignedName = u ? formatUserName(u) : null; }
+                else if (step.role === "INVITED_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.invitedCommitteeId); assignedName = u ? formatUserName(u) : (sub.invitedProfName ?? null); }
+                else if (step.role === "PROGRAM_CHAIR") {
+                  const u = allUsers.find((u) => u.id === (sub as any).programChairId)
+                    ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
+                  assignedName = u ? formatUserName(u) : null;
+                }
 
                 // Committee sign breakdown
                 const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR")
@@ -927,7 +931,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       const u = allUsers.find((u) => u.id === uid);
                       const action = step.committeeActions?.find((a) => a.userId === uid);
                       const stepApproved = step.status === "APPROVED";
-                      return { name: u?.name ?? uid, signed: stepApproved || !!action, approved: stepApproved || action?.decision === "APPROVED" };
+                      return { name: u ? formatUserName(u) : uid, signed: stepApproved || !!action, approved: stepApproved || action?.decision === "APPROVED" };
                     })
                   : undefined;
 
@@ -935,7 +939,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
                 const financeAdminName =
                   sub.submissionType === "PROPOSAL" && step.stepOrder === 4
-                    ? allUsers.find((u) => u.roles.includes("ADMIN"))?.name ?? null
+                    ? (() => { const u = allUsers.find((u) => u.roles.includes("ADMIN")); return u ? formatUserName(u) : null; })()
                     : null;
 
                 return (

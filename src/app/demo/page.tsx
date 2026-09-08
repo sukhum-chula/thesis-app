@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
+import { formatUserName } from "@/lib/utils";
 import { LogIn, Zap, CheckCircle2, Users } from "lucide-react";
 
 interface DemoUser {
@@ -109,7 +110,7 @@ export default function DemoPage() {
           <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-2xl px-5 py-3">
             <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
             <div>
-              <p className="text-green-300 font-semibold text-sm">กำลังใช้งานในฐานะ: {user.name}</p>
+              <p className="text-green-300 font-semibold text-sm">กำลังใช้งานในฐานะ: {formatUserName(user)}</p>
               <p className="text-green-500/70 text-xs">{user.email}</p>
             </div>
             <button

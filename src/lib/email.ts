@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { randomBytes } from "crypto";
 import { prisma } from "./prisma";
-import { ROLE_LABELS } from "./utils";
+import { ROLE_LABELS, formatUserName } from "./utils";
 import { getSignedUrl } from "./supabase";
 import { getProgramChairUser, getFinanceContactUser } from "./systemSettings";
 
@@ -111,28 +111,28 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
   try {
     if (role === "STUDENT" && sub.studentId) {
       const u = await prisma.user.findUnique({ where: { id: sub.studentId } });
-      if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else if (role === "ADVISOR" && sub.advisorId) {
       const u = await prisma.user.findUnique({ where: { id: sub.advisorId } });
-      if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else if (role === "HEAD_EXAM_COMMITTEE" && sub.headCommitteeId) {
       const u = await prisma.user.findUnique({ where: { id: sub.headCommitteeId } });
-      if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else if (role === "EXAM_COMMITTEE" || role === "CO_ADVISOR") {
       if (options.specificMemberId) {
         const u = await prisma.user.findUnique({ where: { id: options.specificMemberId } });
-        if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+        if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
       } else {
         // Fallback: first member only
         const ids: string[] = role === "EXAM_COMMITTEE" ? (sub.committeeIds ?? []) : ((sub as any).coAdvisorIds ?? []);
         if (ids[0]) {
           const u = await prisma.user.findUnique({ where: { id: ids[0] } });
-          if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+          if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
         }
       }
     } else if (role === "INVITED_EXAM_COMMITTEE" && sub.invitedCommitteeId) {
       const u = await prisma.user.findUnique({ where: { id: sub.invitedCommitteeId } });
-      if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else if (role === "PROGRAM_CHAIR") {
       // Per-submission chair (assigned by the student) with per-program admin-designated fallback
       const u = sub.programChairId
@@ -140,10 +140,10 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
         : sub.program
         ? await getProgramChairUser(sub.program)
         : null;
-      if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else {
       const u = await prisma.user.findFirst({ where: { roles: { has: role as any } } });
-      if (u) recipients = [{ id: u.id, name: u.name, email: u.email }];
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     }
   } catch (e) {
     console.error("[email/step] Error looking up recipients:", e);
@@ -458,6 +458,97 @@ function buildPasscodeResetHtml(name: string, email: string, passcode: string, l
         ท่านสามารถเข้าสู่ระบบได้ที่ <a href="${loginLink}" style="color:#1d4ed8;word-break:break-all;">${loginLink}</a><br>
         <span style="color:#6b7280;font-size:13px;">ใช้อีเมลและรหัสเข้าใช้งานใหม่ด้านบนเพื่อเข้าสู่ระบบ</span>
       </p>
+
+      <p style="color:#6b7280;font-size:13px;border-top:1px solid #e5e7eb;padding-top:16px;margin-top:24px;">
+        อีเมลนี้ถูกส่งโดยอัตโนมัติจากระบบจัดการวิทยานิพนธ์ ภาควิชาวิศวกรรมเครื่องกล จุฬาฯ<br>
+        กรุณาอย่าตอบกลับอีเมลนี้
+      </p>
+    </div>
+  `;
+}
+
+// ─── Email-changed notice (sent when an admin edits a user's login email) ─────
+
+export interface EmailChangedNoticeData {
+  userId: string;
+  name: string;
+  oldEmail: string;
+  newEmail: string;
+}
+
+export async function sendEmailChangedNotice(data: EmailChangedNoticeData): Promise<void> {
+  const { name, oldEmail, newEmail } = data;
+  const loginLink = `${getAppUrl()}/login`;
+
+  // Notify the OLD address first — if this change was a mistake or unauthorized, the account
+  // owner needs to see it at the address they still recognize, since the new address can now
+  // log in as them.
+  const oldResult = await sendMail({
+    to: oldEmail,
+    subject: "[ระบบจัดการวิทยานิพนธ์] อีเมลเข้าสู่ระบบของบัญชีท่านถูกเปลี่ยนแปลง",
+    html: buildEmailChangedOldHtml(name, oldEmail, newEmail),
+  });
+  if (oldResult.error) {
+    console.error(`[email/email-changed] Send error to old address (${oldEmail}):`, oldResult.error.message);
+  } else {
+    console.log(`[email/email-changed] Old-address notice sent to ${oldEmail}`);
+  }
+
+  const newResult = await sendMail({
+    to: newEmail,
+    subject: "[ระบบจัดการวิทยานิพนธ์] ยืนยันอีเมลเข้าสู่ระบบใหม่ของท่าน",
+    html: buildEmailChangedNewHtml(name, oldEmail, newEmail, loginLink),
+  });
+  if (newResult.error) {
+    console.error(`[email/email-changed] Send error to new address (${newEmail}):`, newResult.error.message);
+  } else {
+    console.log(`[email/email-changed] New-address notice sent to ${newEmail}`);
+  }
+}
+
+function buildEmailChangedOldHtml(name: string, oldEmail: string, newEmail: string): string {
+  const rName = escapeHtml(name);
+  const oEmail = escapeHtml(oldEmail);
+  const nEmail = escapeHtml(newEmail);
+  return `
+    <div style="font-family:'Sarabun',sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <div style="background:linear-gradient(135deg,#b91c1c,#dc2626);border-radius:12px;padding:24px;color:white;margin-bottom:24px;">
+        <h1 style="margin:0;font-size:20px;">ระบบจัดการวิทยานิพนธ์</h1>
+        <p style="margin:8px 0 0;opacity:0.85;font-size:14px;">ภาควิชาวิศวกรรมเครื่องกล คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย</p>
+      </div>
+
+      <p style="color:#374151;font-size:16px;">เรียน ${rName}</p>
+      <p style="color:#374151;">ผู้ดูแลระบบได้เปลี่ยนอีเมลที่ใช้เข้าสู่ระบบของบัญชีท่านจาก <strong>${oEmail}</strong> เป็น <strong>${nEmail}</strong> ท่านจะต้องใช้อีเมลใหม่นี้ในการเข้าสู่ระบบตั้งแต่บัดนี้เป็นต้นไป (รหัสเข้าใช้งานเดิมยังใช้งานได้ตามปกติ)</p>
+
+      <p style="color:#7f1d1d;background:#fef2f2;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;padding:12px 16px;font-size:14px;">หากท่านไม่ได้ร้องขอหรือไม่ทราบเรื่องการเปลี่ยนแปลงนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชาโดยด่วน</p>
+
+      <p style="color:#6b7280;font-size:13px;border-top:1px solid #e5e7eb;padding-top:16px;margin-top:24px;">
+        อีเมลนี้ถูกส่งโดยอัตโนมัติจากระบบจัดการวิทยานิพนธ์ ภาควิชาวิศวกรรมเครื่องกล จุฬาฯ<br>
+        กรุณาอย่าตอบกลับอีเมลนี้
+      </p>
+    </div>
+  `;
+}
+
+function buildEmailChangedNewHtml(name: string, oldEmail: string, newEmail: string, loginLink: string): string {
+  const rName = escapeHtml(name);
+  const oEmail = escapeHtml(oldEmail);
+  const nEmail = escapeHtml(newEmail);
+  return `
+    <div style="font-family:'Sarabun',sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <div style="background:linear-gradient(135deg,#1e40af,#4f46e5);border-radius:12px;padding:24px;color:white;margin-bottom:24px;">
+        <h1 style="margin:0;font-size:20px;">ระบบจัดการวิทยานิพนธ์</h1>
+        <p style="margin:8px 0 0;opacity:0.85;font-size:14px;">ภาควิชาวิศวกรรมเครื่องกล คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย</p>
+      </div>
+
+      <p style="color:#374151;font-size:16px;">เรียน ${rName}</p>
+      <p style="color:#374151;">ผู้ดูแลระบบได้เปลี่ยนอีเมลที่ใช้เข้าสู่ระบบของบัญชีท่านจาก <strong>${oEmail}</strong> เป็นอีเมลนี้ (<strong>${nEmail}</strong>) ท่านสามารถเข้าสู่ระบบด้วยอีเมลนี้และรหัสเข้าใช้งานเดิมได้ตั้งแต่บัดนี้เป็นต้นไป</p>
+
+      <p style="color:#374151;margin:24px 0;">
+        ท่านสามารถเข้าสู่ระบบได้ที่ <a href="${loginLink}" style="color:#1d4ed8;word-break:break-all;">${loginLink}</a>
+      </p>
+
+      <p style="color:#6b7280;font-size:14px;">หากท่านไม่ได้คาดหมายว่าจะมีการเปลี่ยนแปลงนี้ กรุณาติดต่อผู้ดูแลระบบทันที</p>
 
       <p style="color:#6b7280;font-size:13px;border-top:1px solid #e5e7eb;padding-top:16px;margin-top:24px;">
         อีเมลนี้ถูกส่งโดยอัตโนมัติจากระบบจัดการวิทยานิพนธ์ ภาควิชาวิศวกรรมเครื่องกล จุฬาฯ<br>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useApp, SubmissionFormData } from "@/context/AppContext";
-import { PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate } from "@/lib/utils";
+import { PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate, formatUserName } from "@/lib/utils";
 import { ProgramType } from "@/types";
 import { User, Users, CalendarDays, Info, X, Plus, BookOpen, GraduationCap, AlertCircle, Lock } from "lucide-react";
 import Link from "next/link";
@@ -62,7 +62,7 @@ export function resolveProgramChair(
  *  PROGRAM_CHAIR row) keep working unchanged, without the chair ever being an editable row. */
 export function withProgramChair(people: Person[], chair: ReturnType<typeof resolveProgramChair>): Person[] {
   if (!chair) return people;
-  return [...people, { name: chair.name, email: chair.email, role: "PROGRAM_CHAIR", phone: chair.phone ?? "" }];
+  return [...people, { name: formatUserName(chair), email: chair.email, role: "PROGRAM_CHAIR", phone: chair.phone ?? "" }];
 }
 
 /** Read-only "ประธานหลักสูตร" display — shown next to/under the program selector so the student
@@ -78,7 +78,7 @@ export function ProgramChairAutoField({ program, users }: {
         {!program
           ? "— กรุณาเลือกหลักสูตรก่อน —"
           : chair
-          ? chair.name
+          ? formatUserName(chair)
           : "— ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา —"}
       </div>
       <p className="text-xs text-gray-400 mt-1">กำหนดตามหลักสูตรโดยอัตโนมัติ — ไม่สามารถเปลี่ยนแปลงได้</p>
@@ -168,7 +168,7 @@ export function ProposalForm({
       const data: SubmissionFormData = {
         title: title.trim(),
         submissionType: "PROPOSAL",
-        studentFullName: user?.name ?? "",
+        studentFullName: user ? formatUserName(user) : "",
         studentCode: user?.studentId ?? "",
         program: program as ProgramType,
         studentEmail: user?.email ?? "",
@@ -225,7 +225,7 @@ export function ProposalForm({
 
         <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
           <div className="grid sm:grid-cols-2 gap-4">
-            <ReadOnlyField label="ชื่อ-นามสกุล" value={user?.name} />
+            <ReadOnlyField label="ชื่อ-นามสกุล" value={user ? formatUserName(user) : undefined} />
             <ReadOnlyField label="รหัสนิสิต"     value={user?.studentId} />
             <Field label="หลักสูตร" required>
               <select value={program} onChange={(e) => { setProgram(e.target.value as ProgramType | ""); setError(null); }} className={INPUT + " bg-white"}>
@@ -301,7 +301,7 @@ export function buildPeopleFromSubmission(
   p: ReturnType<typeof useApp>["submissions"][number],
   users: ReturnType<typeof useApp>["users"]
 ): Person[] {
-  const nameOf  = (id?: string | null) => users.find((u) => u.id === id)?.name ?? "";
+  const nameOf  = (id?: string | null) => { const u = users.find((u) => u.id === id); return u ? formatUserName(u) : ""; };
   const emailOf = (id?: string | null) => users.find((u) => u.id === id)?.email ?? "";
   const result: Person[] = [];
   if (p.advisorId) result.push({ name: nameOf(p.advisorId), email: emailOf(p.advisorId), role: "ADVISOR", phone: "" });
@@ -685,7 +685,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   function selectAccount(index: number, userId: string) {
     const account = users.find((u) => u.id === userId);
     updatePerson(index, account
-      ? { name: account.name, email: account.email, phone: account.phone ?? "" }
+      ? { name: formatUserName(account), email: account.email, phone: account.phone ?? "" }
       : { name: "", email: "", phone: "" });
   }
   function addPerson() {
@@ -762,7 +762,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
                     {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
+                      <option key={a.id} value={a.id}>{formatUserName(a)}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
                     ))}
                   </select>
                 </Field>

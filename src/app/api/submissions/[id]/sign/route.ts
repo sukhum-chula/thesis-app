@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStepName, ROLE_LABELS } from "@/lib/utils";
+import { getStepName, ROLE_LABELS, formatUserName } from "@/lib/utils";
 import { sendStepEmail } from "@/lib/email";
 import { getProgramChairUserId } from "@/lib/systemSettings";
 
@@ -28,7 +28,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id: submissionId } = await params;
   const { decision, notes } = await req.json();
-  const { id: userId, name: userName } = session.user;
+  const { id: userId } = session.user;
+  const userName = formatUserName(session.user);
 
   const sub = await prisma.submission.findUnique({
     where: { id: submissionId },

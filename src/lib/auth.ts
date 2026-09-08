@@ -21,6 +21,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!valid) return null;
         return {
           id: user.id,
+          title: user.title ?? null,
           email: user.email,
           name: user.name,
           roles: user.roles as string[],
@@ -35,6 +36,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.id = (user.id ?? "") as string;
+        token.title = (user as any).title as string | null | undefined;
         token.roles = (user as any).roles as string[];
         token.role = ((user as any).roles?.[0] ?? "") as string;
         token.studentId = (user as any).studentId as string | undefined;
@@ -47,6 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     session({ session, token }) {
       session.user.id = token.id as string;
+      session.user.title = (token.title as string | null | undefined) ?? null;
       session.user.roles = (token.roles ?? [token.role]) as string[];
       session.user.role = ((token.roles as string[])?.[0] ?? token.role) as string;
       session.user.studentId = token.studentId as string | undefined;

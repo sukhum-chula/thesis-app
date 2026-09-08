@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { getStepName, getRelatedSubmissions } from "@/lib/utils";
+import { getStepName, getRelatedSubmissions, formatUserName } from "@/lib/utils";
 import {
   ChevronRight, FileText, AlertCircle,
 } from "lucide-react";
@@ -96,10 +96,10 @@ export function UserDetailPanel({ uid }: { uid: string }) {
                   {/* Meta */}
                   <div className="text-sm text-gray-500 space-y-0.5">
                     {!user.roles.includes("STUDENT") && student && (
-                      <p>นักศึกษา: <span className="font-medium text-gray-700">{student.name}</span></p>
+                      <p>นักศึกษา: <span className="font-medium text-gray-700">{formatUserName(student)}</span></p>
                     )}
                     {!user.roles.includes("PROFESSOR") && advisor && (
-                      <p>ที่ปรึกษา: <span className="text-gray-700">{advisor.name}</span></p>
+                      <p>ที่ปรึกษา: <span className="text-gray-700">{formatUserName(advisor)}</span></p>
                     )}
                   </div>
 

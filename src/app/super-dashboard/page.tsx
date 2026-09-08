@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
-import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC, formatDate, generatePassword, isValidPasscode } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_GRADIENT, ROLE_EMOJI, ROLE_DESC, formatDate, generatePassword, isValidPasscode, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { PasscodeField } from "@/components/PasscodeField";
@@ -23,6 +23,7 @@ const ALL_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "PROFESSOR", "STUDENT"];
 
 interface DirectoryUser {
   id: string;
+  title?: string | null;
   name: string;
   email: string;
   role: string;
@@ -74,6 +75,7 @@ export default function SuperDashboardPage() {
 
   const [confirmDelete,    setConfirmDelete]    = useState<string | null>(null);
   const [showAddForm,      setShowAddForm]       = useState(false);
+  const [newTitle,         setNewTitle]          = useState("");
   const [newName,          setNewName]           = useState("");
   const [newEmail,         setNewEmail]          = useState("");
   const [newRole,          setNewRole]           = useState<Role>("ADMIN");
@@ -116,6 +118,7 @@ export default function SuperDashboardPage() {
       return;
     }
     const userData: Omit<MockUser, "id"> & { passcode?: string } = {
+      title: (newTitle || null) as MockUser["title"],
       name:  newName.trim(),
       email: newEmail.trim().toLowerCase(),
       role:  newRole,
@@ -123,7 +126,7 @@ export default function SuperDashboardPage() {
       passcode: newPasscode.trim(),
     };
     superAdminAddUser(userData);
-    setNewName(""); setNewEmail(""); setNewRole("ADMIN"); setNewPasscode(generatePassword());
+    setNewTitle(""); setNewName(""); setNewEmail(""); setNewRole("ADMIN"); setNewPasscode(generatePassword());
     setShowAddForm(false);
   }
 
@@ -150,6 +153,19 @@ export default function SuperDashboardPage() {
           <form onSubmit={handleAddUser} className="p-5 border-b border-amber-100 bg-amber-50 space-y-4">
             <p className="font-medium text-amber-800">เพิ่มบัญชีผู้ดูแลระบบใหม่</p>
             <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">คำนำหน้าชื่อ</label>
+                <select
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                >
+                  <option value="">— ไม่มี —</option>
+                  {NAME_TITLES.map((t) => (
+                    <option key={t} value={t}>{NAME_TITLE_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล *</label>
                 <input
@@ -209,7 +225,7 @@ export default function SuperDashboardPage() {
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">{u.name}</p>
+                  <p className="font-semibold text-gray-900 truncate">{formatUserName(u)}</p>
                   <p className="text-sm text-gray-400 truncate">{u.email}</p>
                 </div>
 
@@ -269,7 +285,7 @@ export default function SuperDashboardPage() {
                 <div className="mx-5 mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
                   <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
                     <KeyRound className="w-4 h-4" />
-                    รีเซ็ตรหัสเข้าใช้งานสำหรับ {u.name}
+                    รีเซ็ตรหัสเข้าใช้งานสำหรับ {formatUserName(u)}
                   </p>
                   <p className="text-sm text-amber-700">
                     กำหนดรหัสเข้าใช้งานใหม่เอง หรือกดสุ่มรหัส — ระบบจะส่งอีเมลแจ้ง {u.email} โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
@@ -380,7 +396,7 @@ export default function SuperDashboardPage() {
                     {group.map((u) => (
                       <div key={u.id} className="flex items-center gap-3 pl-8">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate">{formatUserName(u)}</p>
                         </div>
                         <p className="text-sm text-gray-400 truncate">{u.email}</p>
                         {u.studentId && (

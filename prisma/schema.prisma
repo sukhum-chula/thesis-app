@@ -26,6 +26,22 @@ enum ExternalRequestStatus {
   REJECTED
 }
 
+// Thai name-title prefix, split out of User.name so it can be selected from a fixed dropdown
+// instead of typed as part of the name. @map holds the actual Thai text — the client only ever
+// sees/sends the English key (same pattern as Role) and looks up the label via
+// NAME_TITLE_LABELS in src/lib/utils.ts.
+enum NameTitle {
+  PROF_DR       @map("ศ.ดร.")
+  ASSOC_PROF_DR @map("รศ.ดร.")
+  ASST_PROF_DR  @map("ผศ.ดร.")
+  ASST_PROF     @map("ผศ.")
+  LECTURER_DR   @map("อ.ดร.")
+  DR            @map("ดร.")
+  MR            @map("นาย")
+  MISS          @map("นางสาว")
+  MRS           @map("นาง")
+}
+
 enum FormType {
   BW1A
   BW1B
@@ -73,6 +89,8 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passcodeHash String
+  // Thai honorific/academic title prefix, split out of the name — null means none was given/matched.
+  title        NameTitle?
   name         String
   roles           Role[]
   studentId       String?      @unique

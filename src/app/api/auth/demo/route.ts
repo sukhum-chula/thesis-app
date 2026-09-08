@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     token: {
       sub:       user.id,
       id:        user.id,
+      title:     user.title ?? null,
       name:      user.name,
       email:     user.email,
       roles:     user.roles as string[],

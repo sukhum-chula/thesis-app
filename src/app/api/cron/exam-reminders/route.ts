@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendExamReminderEmail } from "@/lib/email";
 import { getProgramChairUserId } from "@/lib/systemSettings";
+import { formatUserName } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -64,16 +65,16 @@ export async function GET(req: NextRequest) {
 
         const student = await prisma.user.findUnique({
           where: { id: sub.studentId },
-          select: { id: true, name: true, email: true },
+          select: { id: true, title: true, name: true, email: true },
         });
         if (student) {
           await sendExamReminderEmail({
             recipientId:    student.id,
-            recipientName:  student.name,
+            recipientName:  formatUserName(student),
             recipientEmail: student.email,
             submissionId:   sub.id,
             thesisTitle:    sub.title,
-            studentDisplay: sub.studentFullName ?? student.name,
+            studentDisplay: sub.studentFullName ?? formatUserName(student),
             examDate:       sub.examDate,
             examTime:       sub.examTime,
             daysUntil:      14,
@@ -128,16 +129,16 @@ export async function GET(req: NextRequest) {
 
         const student = await prisma.user.findUnique({
           where: { id: sub.studentId },
-          select: { id: true, name: true, email: true },
+          select: { id: true, title: true, name: true, email: true },
         });
         if (student) {
           await sendExamReminderEmail({
             recipientId:    student.id,
-            recipientName:  student.name,
+            recipientName:  formatUserName(student),
             recipientEmail: student.email,
             submissionId:   sub.id,
             thesisTitle:    sub.title,
-            studentDisplay: sub.studentFullName ?? student.name,
+            studentDisplay: sub.studentFullName ?? formatUserName(student),
             examDate:       sub.examDate,
             examTime:       sub.examTime,
             daysUntil:      7,

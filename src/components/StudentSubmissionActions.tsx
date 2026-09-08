@@ -5,7 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { FileUploader } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile } from "@/lib/utils";
+import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName } from "@/lib/utils";
 import { FormType } from "@/types";
 import Link from "next/link";
 import {
@@ -176,16 +176,17 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   function resolvePendingName(): string {
     if (!currentStep || !sub) return "";
     switch (currentStep.role) {
-      case "ADVISOR":             return allUsers.find((u) => u.id === sub.advisorId)?.name ?? ROLE_LABELS[currentStep.role];
-      case "HEAD_EXAM_COMMITTEE": return allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? ROLE_LABELS[currentStep.role];
-      case "PROGRAM_CHAIR":
-        return allUsers.find((u) => u.id === (sub as any).programChairId)?.name
-          ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program))?.name : undefined)
-          ?? ROLE_LABELS[currentStep.role];
+      case "ADVISOR":             { const u = allUsers.find((u) => u.id === sub.advisorId); return u ? formatUserName(u) : ROLE_LABELS[currentStep.role]; }
+      case "HEAD_EXAM_COMMITTEE": { const u = allUsers.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : ROLE_LABELS[currentStep.role]; }
+      case "PROGRAM_CHAIR": {
+        const u = allUsers.find((u) => u.id === (sub as any).programChairId)
+          ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
+        return u ? formatUserName(u) : ROLE_LABELS[currentStep.role];
+      }
       case "EXAM_COMMITTEE": {
         const memberIds = (currentStep.committeeMembers?.length ? currentStep.committeeMembers : (sub.committeeIds ?? [])) as string[];
         const done = ((currentStep.committeeActions ?? []) as any[]).filter((a) => a.decision === "APPROVED").length;
-        const names = memberIds.map((uid) => allUsers.find((u) => u.id === uid)?.name ?? uid);
+        const names = memberIds.map((uid) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; });
         return `${names.join(", ")} (ลงนามแล้ว ${done}/${memberIds.length})`;
       }
       default: return ROLE_LABELS[currentStep.role];
@@ -372,7 +373,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
           {advisor && (
             <p className="text-gray-500 text-sm">
-              อาจารย์ที่ปรึกษา: <span className="font-medium text-gray-700">{advisor.name}</span>
+              อาจารย์ที่ปรึกษา: <span className="font-medium text-gray-700">{formatUserName(advisor)}</span>
             </p>
           )}
           <p className="text-sm text-gray-400">{formatDate(sub.createdAt)}</p>

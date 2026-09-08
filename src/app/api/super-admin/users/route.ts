@@ -28,6 +28,7 @@ export async function GET() {
   const mapped = users
     .map((u) => ({
       id: u.id,
+      title: u.title ?? null,
       name: u.name,
       email: u.email,
       roles: u.roles,

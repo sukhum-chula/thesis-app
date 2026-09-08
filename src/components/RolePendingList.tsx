@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { DashboardHeader } from "./DashboardHeader";
-import { getStepName, formatDate } from "@/lib/utils";
+import { getStepName, formatDate, formatUserName } from "@/lib/utils";
 import Link from "next/link";
 import { ChevronRight, Clock, CheckCircle2, History, FileText } from "lucide-react";
 
@@ -67,7 +67,7 @@ export function RolePendingList({ role, title, basePath }: Props) {
       {/* Header */}
       <DashboardHeader
         role={role}
-        name={user?.name ?? ""}
+        name={user ? formatUserName(user) : ""}
         title={title}
         highlight={{ label: "รอดำเนินการ", value: pending.length }}
         stats={[
@@ -149,7 +149,7 @@ export function RolePendingList({ role, title, basePath }: Props) {
                       <p className="text-lg font-semibold text-gray-900 leading-snug truncate">{sub.title}</p>
                       {student && (
                         <p className="text-sm text-gray-500">
-                          {student.name}
+                          {formatUserName(student)}
                           {student.studentId && <span className="text-gray-400"> · {student.studentId}</span>}
                         </p>
                       )}

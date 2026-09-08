@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, NAME_TITLES, NAME_TITLE_LABELS } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Role } from "@/types";
-import type { MockSubmission } from "@/types";
+import type { MockSubmission, NameTitle } from "@/types";
 import {
   Users, RotateCcw,
   UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown,
@@ -49,7 +49,7 @@ export function AdminUsersPanel() {
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    name: "", email: "", role: "STUDENT" as Role, studentId: "",
+    title: "", name: "", email: "", role: "STUDENT" as Role, studentId: "",
     affiliation: "", phone: "", externalRequestId: undefined as string | undefined,
     passcode: generatePassword(),
   });
@@ -92,7 +92,7 @@ export function AdminUsersPanel() {
 
   function closeModal() {
     setShowModal(false);
-    setForm({ name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() });
+    setForm({ title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() });
   }
 
   // Opens the same "เพิ่มผู้ใช้" modal used for any new account, prefilled from a pending
@@ -105,11 +105,11 @@ export function AdminUsersPanel() {
     setForm(
       prefill
         ? {
-            name: prefill.name, email: prefill.email, role: prefill.role ?? "PROFESSOR", studentId: "",
+            title: "", name: prefill.name, email: prefill.email, role: prefill.role ?? "PROFESSOR", studentId: "",
             affiliation: prefill.affiliation ?? "", phone: prefill.phone ?? "", externalRequestId: prefill.externalRequestId,
             passcode: generatePassword(),
           }
-        : { name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() }
+        : { title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() }
     );
     setShowModal(true);
   }
@@ -123,6 +123,7 @@ export function AdminUsersPanel() {
     setSaving(true);
     try {
       await superAdminAddUser({
+        title: (form.title || null) as NameTitle | null,
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         role: form.role,
@@ -352,6 +353,19 @@ export function AdminUsersPanel() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <FormField label="คำนำหน้าชื่อ">
+                <select
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className={INPUT_CLS}
+                >
+                  <option value="">— ไม่มี —</option>
+                  {NAME_TITLES.map((t) => (
+                    <option key={t} value={t}>{NAME_TITLE_LABELS[t]}</option>
+                  ))}
+                </select>
+              </FormField>
+
               <FormField label="ชื่อ-นามสกุล *">
                 <input
                   type="text"

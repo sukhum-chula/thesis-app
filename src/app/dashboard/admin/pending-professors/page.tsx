@@ -6,10 +6,10 @@ import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { ROLE_ROUTES } from "@/lib/roleRoutes";
-import { ROLE_LABELS, toUserErrorMessage, formatDate, generatePassword, isValidPasscode } from "@/lib/utils";
+import { ROLE_LABELS, toUserErrorMessage, formatDate, generatePassword, isValidPasscode, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
 import { PasscodeField } from "@/components/PasscodeField";
 import { ArrowLeft, UserPlus, Mail, Phone, ChevronRight, CheckCircle2 } from "lucide-react";
-import type { MockSubmission } from "@/types";
+import type { MockSubmission, NameTitle } from "@/types";
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition";
 
@@ -30,7 +30,7 @@ export default function PendingProfessorsPage() {
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
 
   const [openEmail, setOpenEmail] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", passcode: generatePassword() });
+  const [form, setForm] = useState({ title: "", name: "", phone: "", passcode: generatePassword() });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function PendingProfessorsPage() {
 
   function openForm(req: PendingRequest) {
     setOpenEmail(req.email);
-    setForm({ name: req.name, phone: req.phone, passcode: generatePassword() });
+    setForm({ title: "", name: req.name, phone: req.phone, passcode: generatePassword() });
   }
 
   async function handleCreate(req: PendingRequest) {
@@ -80,6 +80,7 @@ export default function PendingProfessorsPage() {
       // Same route as the regular "เพิ่มผู้ใช้" flow — the server notifies any student whose
       // draft this email was blocking, regardless of which screen created the account.
       await superAdminAddUser({
+        title: (form.title || null) as NameTitle | null,
         name: form.name.trim(),
         email: req.email,
         role: "PROFESSOR",
@@ -158,7 +159,7 @@ export default function PendingProfessorsPage() {
                         className="flex items-center gap-2 text-sm bg-gray-50 hover:bg-gray-100 rounded-xl px-3 py-2 transition"
                       >
                         <span className="flex-1 min-w-0 truncate text-gray-700">{s.title}</span>
-                        <span className="text-gray-400 text-xs shrink-0">{student?.name ?? "—"} · {formatDate(s.createdAt)}</span>
+                        <span className="text-gray-400 text-xs shrink-0">{student ? formatUserName(student) : "—"} · {formatDate(s.createdAt)}</span>
                         <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                       </Link>
                     );
@@ -168,6 +169,15 @@ export default function PendingProfessorsPage() {
                 {openEmail === req.email && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 space-y-3">
                     <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">คำนำหน้าชื่อ</label>
+                        <select value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={INPUT_CLS}>
+                          <option value="">— ไม่มี —</option>
+                          {NAME_TITLES.map((t) => (
+                            <option key={t} value={t}>{NAME_TITLE_LABELS[t]}</option>
+                          ))}
+                        </select>
+                      </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อ-นามสกุล</label>
                         <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={INPUT_CLS} />

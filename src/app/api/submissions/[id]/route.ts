@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStepName, ROLE_LABELS, PROGRAM_LABELS } from "@/lib/utils";
+import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
@@ -112,7 +112,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json();
   const { action } = body;
-  const { id: userId, name: userName } = session.user;
+  const { id: userId } = session.user;
+  const userName = formatUserName(session.user);
 
   // Always look up roles from DB — JWT role can be stale after a role change
   const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true } });
@@ -309,12 +310,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       try {
         const invitedId = (sub as any).invitedCommitteeId as string | null | undefined;
         const [advisorUser, headUser, committeeUsers, invitedUser, financeAttach] = await Promise.all([
-          sub.advisorId ? prisma.user.findUnique({ where: { id: sub.advisorId }, select: { name: true } }) : null,
-          sub.headCommitteeId ? prisma.user.findUnique({ where: { id: sub.headCommitteeId }, select: { name: true } }) : null,
+          sub.advisorId ? prisma.user.findUnique({ where: { id: sub.advisorId }, select: { title: true, name: true } }) : null,
+          sub.headCommitteeId ? prisma.user.findUnique({ where: { id: sub.headCommitteeId }, select: { title: true, name: true } }) : null,
           (sub.committeeIds as string[] | undefined)?.length
-            ? prisma.user.findMany({ where: { id: { in: sub.committeeIds as string[] } }, select: { name: true } })
+            ? prisma.user.findMany({ where: { id: { in: sub.committeeIds as string[] } }, select: { title: true, name: true } })
             : Promise.resolve([]),
-          invitedId ? prisma.user.findUnique({ where: { id: invitedId }, select: { name: true, email: true } }) : null,
+          invitedId ? prisma.user.findUnique({ where: { id: invitedId }, select: { title: true, name: true, email: true } }) : null,
           prisma.formUpload.findFirst({ where: { submissionId: id, formType: "FINANCE_ATTACH" }, orderBy: { uploadedAt: "desc" }, select: { fileUrl: true, fileName: true } }),
         ]);
         await sendFinanceEmail({
@@ -325,10 +326,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           program: sub.program ? (PROGRAM_LABELS[sub.program] ?? sub.program) : "-",
           thesisTitle: sub.title,
           submissionId: id,
-          advisorName: advisorUser?.name,
-          headCommitteeName: headUser?.name,
-          committeeNames: (committeeUsers as { name: string }[]).map((u) => u.name),
-          invitedProfName: (sub as any).invitedProfName ?? invitedUser?.name,
+          advisorName: advisorUser ? formatUserName(advisorUser) : undefined,
+          headCommitteeName: headUser ? formatUserName(headUser) : undefined,
+          committeeNames: committeeUsers.map((u) => formatUserName(u)),
+          invitedProfName: (sub as any).invitedProfName ?? (invitedUser ? formatUserName(invitedUser) : undefined),
           invitedProfAffiliation: (sub as any).invitedProfAffiliation,
           invitedProfEmail: (sub as any).invitedProfEmail ?? invitedUser?.email,
           invitedProfPhone: (sub as any).invitedProfPhone,
@@ -356,12 +357,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       try {
         const invitedId = (sub as any).invitedCommitteeId as string | null | undefined;
         const [advisorUser, headUser, committeeUsers, invitedUser, financeAttach] = await Promise.all([
-          sub.advisorId ? prisma.user.findUnique({ where: { id: sub.advisorId }, select: { name: true } }) : null,
-          sub.headCommitteeId ? prisma.user.findUnique({ where: { id: sub.headCommitteeId }, select: { name: true } }) : null,
+          sub.advisorId ? prisma.user.findUnique({ where: { id: sub.advisorId }, select: { title: true, name: true } }) : null,
+          sub.headCommitteeId ? prisma.user.findUnique({ where: { id: sub.headCommitteeId }, select: { title: true, name: true } }) : null,
           (sub.committeeIds as string[] | undefined)?.length
-            ? prisma.user.findMany({ where: { id: { in: sub.committeeIds as string[] } }, select: { name: true } })
+            ? prisma.user.findMany({ where: { id: { in: sub.committeeIds as string[] } }, select: { title: true, name: true } })
             : Promise.resolve([]),
-          invitedId ? prisma.user.findUnique({ where: { id: invitedId }, select: { name: true, email: true } }) : null,
+          invitedId ? prisma.user.findUnique({ where: { id: invitedId }, select: { title: true, name: true, email: true } }) : null,
           prisma.formUpload.findFirst({ where: { submissionId: id, formType: "FINANCE_ATTACH" }, orderBy: { uploadedAt: "desc" }, select: { fileUrl: true, fileName: true } }),
         ]);
         await sendFinanceEmail({
@@ -372,10 +373,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           program: sub.program ? (PROGRAM_LABELS[sub.program] ?? sub.program) : "-",
           thesisTitle: sub.title,
           submissionId: id,
-          advisorName: advisorUser?.name,
-          headCommitteeName: headUser?.name,
-          committeeNames: (committeeUsers as { name: string }[]).map((u) => u.name),
-          invitedProfName: (sub as any).invitedProfName ?? invitedUser?.name,
+          advisorName: advisorUser ? formatUserName(advisorUser) : undefined,
+          headCommitteeName: headUser ? formatUserName(headUser) : undefined,
+          committeeNames: committeeUsers.map((u) => formatUserName(u)),
+          invitedProfName: (sub as any).invitedProfName ?? (invitedUser ? formatUserName(invitedUser) : undefined),
           invitedProfAffiliation: (sub as any).invitedProfAffiliation,
           invitedProfEmail: (sub as any).invitedProfEmail ?? invitedUser?.email,
           invitedProfPhone: (sub as any).invitedProfPhone,

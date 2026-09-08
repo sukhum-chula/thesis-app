@@ -1,4 +1,4 @@
-import { PROGRAM_LABELS } from "@/lib/utils";
+import { PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { User, Users, CalendarDays } from "lucide-react";
 import type { MockSubmission, MockUser } from "@/types";
 
@@ -58,26 +58,29 @@ export function SubmissionInfoPanel({
           <div className="flex items-center gap-1.5 text-sm text-gray-400"><Users className="w-3.5 h-3.5" />คณะกรรมการ</div>
           <div className="space-y-2">
             {advisor && (
-              <InfoRow label="อาจารย์ที่ปรึกษา" value={advisor.name} />
+              <InfoRow label="อาจารย์ที่ปรึกษา" value={formatUserName(advisor)} />
             )}
             {sub.headCommitteeId && (
-              <InfoRow label="ประธานกรรมการสอบ" value={users.find((u) => u.id === sub.headCommitteeId)?.name ?? sub.headCommitteeId!} />
+              <InfoRow label="ประธานกรรมการสอบ" value={(() => { const u = users.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : sub.headCommitteeId!; })()} />
             )}
             {(sub.coAdvisorIds?.length ?? 0) > 0 && (
               <InfoRow
                 label="อาจารย์ที่ปรึกษาร่วม"
-                value={(sub.coAdvisorIds ?? []).map((uid) => users.find((u) => u.id === uid)?.name ?? uid).join(", ")}
+                value={(sub.coAdvisorIds ?? []).map((uid) => { const u = users.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ")}
               />
             )}
             {(sub.committeeIds?.length ?? 0) > 0 && (
               <div className="flex gap-4">
                 <p className="text-xs text-gray-400 w-32 shrink-0 pt-0.5">กรรมการสอบ</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {(sub.committeeIds ?? []).map((uid) => (
-                    <span key={uid} className="bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-lg">
-                      {users.find((u) => u.id === uid)?.name ?? uid}
-                    </span>
-                  ))}
+                  {(sub.committeeIds ?? []).map((uid) => {
+                    const u = users.find((u) => u.id === uid);
+                    return (
+                      <span key={uid} className="bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-lg">
+                        {u ? formatUserName(u) : uid}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -85,7 +88,7 @@ export function SubmissionInfoPanel({
               <div className="pt-1 space-y-2">
                 <InfoRow
                   label="กรรมการภายนอก"
-                  value={sub.invitedProfName ?? users.find((u) => u.id === sub.invitedCommitteeId)?.name ?? sub.invitedCommitteeId!}
+                  value={sub.invitedProfName ?? (() => { const u = users.find((u) => u.id === sub.invitedCommitteeId); return u ? formatUserName(u) : sub.invitedCommitteeId!; })()}
                 />
                 {sub.invitedProfAffiliation && <InfoRow label="สังกัด" value={sub.invitedProfAffiliation} />}
                 {sub.invitedProfEmail && <InfoRow label="อีเมลกรรมการภายนอก" value={sub.invitedProfEmail} />}

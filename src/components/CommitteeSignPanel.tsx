@@ -5,7 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { MockWorkflowStep } from "@/types";
 import { CheckCircle2, XCircle, Clock, Loader2, Users, Download, Pen } from "lucide-react";
-import { FORM_LABELS, FORM_SHORT, downloadFile, toUserErrorMessage } from "@/lib/utils";
+import { FORM_LABELS, FORM_SHORT, downloadFile, toUserErrorMessage, formatUserName } from "@/lib/utils";
 import { UploadSlot } from "@/components/FileUploader";
 import type { FormType } from "@/types";
 
@@ -116,7 +116,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
                 <Clock className="w-4 h-4 text-gray-200 shrink-0" />
               )}
               <span className={`flex-1 ${a ? "text-gray-700" : isActive ? "text-blue-700 font-medium" : "text-gray-300"}`}>
-                {m?.name ?? mid}
+                {m ? formatUserName(m) : mid}
                 {mid === user?.id && <span className="text-blue-500"> (ท่าน)</span>}
               </span>
               {a ? (
@@ -147,7 +147,8 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
           const waitingId = prevMembers.find(
             (mid) => actions.find((a) => a.userId === mid)?.decision !== "APPROVED"
           );
-          const waitingName = users.find((u) => u.id === waitingId)?.name;
+          const waitingUser = users.find((u) => u.id === waitingId);
+          const waitingName = waitingUser ? formatUserName(waitingUser) : undefined;
           return (
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-500 text-center">
               รอ{waitingName ? ` ${waitingName}` : `กรรมการลำดับที่ ${myIndex}`} ลงนามและอัปโหลดก่อน จึงจะถึงคิวของท่าน

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
-import { ROLE_LABELS, formatDate } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, formatUserName } from "@/lib/utils";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { StudentSubmissionActions } from "@/components/StudentSubmissionActions";
@@ -45,11 +45,13 @@ function getLastActedDate(steps: any[]): string | null {
 
 function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
   switch (step.role) {
-    case "ADVISOR":             return users.find((u: any) => u.id === sub.advisorId)?.name ?? null;
-    case "HEAD_EXAM_COMMITTEE": return users.find((u: any) => u.id === sub.headCommitteeId)?.name ?? null;
-    case "PROGRAM_CHAIR":
-      return users.find((u: any) => u.id === sub.programChairId)?.name
-          ?? (sub.program ? users.find((u: any) => u.programChairFor?.includes(sub.program))?.name : null) ?? null;
+    case "ADVISOR":             { const u = users.find((u: any) => u.id === sub.advisorId); return u ? formatUserName(u) : null; }
+    case "HEAD_EXAM_COMMITTEE": { const u = users.find((u: any) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : null; }
+    case "PROGRAM_CHAIR": {
+      const u = users.find((u: any) => u.id === sub.programChairId)
+        ?? (sub.program ? users.find((u: any) => u.programChairFor?.includes(sub.program)) : null);
+      return u ? formatUserName(u) : null;
+    }
     case "ADMIN":               return "เจ้าหน้าที่";
     case "EXAM_COMMITTEE": {
       const memberIds: string[] = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);
@@ -290,7 +292,7 @@ export default function StudentDashboard() {
 
                   {advisor && (
                     <p className="text-sm text-gray-500">
-                      ที่ปรึกษา: {advisor.name}
+                      ที่ปรึกษา: {formatUserName(advisor)}
                     </p>
                   )}
 

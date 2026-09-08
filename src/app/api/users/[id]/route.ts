@@ -4,13 +4,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canManageAccount, canGrantRole } from "@/lib/accountScope";
-import { generatePassword, isValidPasscode } from "@/lib/utils";
-import { sendPasscodeResetEmail } from "@/lib/email";
+import { generatePassword, isValidPasscode, isValidEmail, NAME_TITLES, formatUserName } from "@/lib/utils";
+import { sendPasscodeResetEmail, sendEmailChangedNotice } from "@/lib/email";
 import { attachSystemSettings, clearUserFromSystemSettings } from "@/lib/systemSettings";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
-  return { id: u.id, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false };
+  return { id: u.id, title: u.title ?? null, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false };
 }
 
 function sessionRoles(session: any): string[] {
@@ -58,12 +58,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.name = name;
   }
 
+  if (body.title !== undefined) {
+    if (body.title !== null && !NAME_TITLES.includes(body.title))
+      return NextResponse.json({ error: "คำนำหน้าชื่อไม่ถูกต้อง" }, { status: 400 });
+    data.title = body.title || null;
+  }
+
   if (body.studentId !== undefined) {
     const sid = typeof body.studentId === "string" ? body.studentId.trim() : "";
     // Allow clearing studentId by sending empty string
     if (sid && !/^\d{10}$/.test(sid))
       return NextResponse.json({ error: "รหัสนิสิตต้องเป็นตัวเลข 10 หลัก" }, { status: 400 });
     data.studentId = sid || null;
+  }
+
+  // Email doubles as the login identifier (auth.ts looks users up by it), so a change here
+  // is effectively handing over the account to whoever controls the new address — validate
+  // format, enforce uniqueness, and notify both the old and new address once it's applied.
+  let emailChange: { oldEmail: string; newEmail: string } | null = null;
+  if (body.email !== undefined) {
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    if (!email || !isValidEmail(email))
+      return NextResponse.json({ error: "กรุณากรอกอีเมลให้ถูกต้อง" }, { status: 400 });
+    if (email !== target.email) {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing && existing.id !== target.id)
+        return NextResponse.json({ error: "อีเมลนี้มีในระบบแล้ว" }, { status: 409 });
+      data.email = email;
+      emailChange = { oldEmail: target.email, newEmail: email };
+    }
   }
 
   let newPasscode: string | null = null;
@@ -86,10 +109,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (newPasscode) {
     await sendPasscodeResetEmail({
       userId: user.id,
-      name: user.name,
+      name: formatUserName(user),
       email: user.email,
       passcode: newPasscode,
       role: user.roles[0] ?? "",
+    });
+  }
+
+  if (emailChange) {
+    await sendEmailChangedNotice({
+      userId: user.id,
+      name: formatUserName(user),
+      oldEmail: emailChange.oldEmail,
+      newEmail: emailChange.newEmail,
     });
   }
 

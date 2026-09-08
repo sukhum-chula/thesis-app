@@ -3,14 +3,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canGrantRole } from "@/lib/accountScope";
-import { generatePassword, isValidPasscode, isValidThaiPhone } from "@/lib/utils";
+import { generatePassword, isValidPasscode, isValidThaiPhone, NAME_TITLES, formatUserName } from "@/lib/utils";
 import { sendWelcomeEmail } from "@/lib/email";
 import { attachSystemSettings } from "@/lib/systemSettings";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
   return {
-    id: u.id, name: u.name, email: u.email, roles, role: roles[0] ?? "",
+    id: u.id, title: u.title ?? null, name: u.name, email: u.email, roles, role: roles[0] ?? "",
     studentId: u.studentId ?? undefined,
     programChairFor: u.programChairFor ?? [],
     isFinanceContact: u.isFinanceContact ?? false,
@@ -69,12 +69,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const {
-    name, email, role, studentId, passcode: requestedPasscode,
+    title, name, email, role, studentId, passcode: requestedPasscode,
     affiliation, phone, externalRequestId,
   } = await req.json();
 
   if (!name?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อ-นามสกุล" }, { status: 400 });
   if (!email?.trim()) return NextResponse.json({ error: "กรุณากรอกอีเมล" }, { status: 400 });
+  if (title !== undefined && title !== null && !NAME_TITLES.includes(title))
+    return NextResponse.json({ error: "คำนำหน้าชื่อไม่ถูกต้อง" }, { status: 400 });
   if (!role)          return NextResponse.json({ error: "กรุณาเลือกบทบาท" }, { status: 400 });
   if (phone?.trim() && !isValidThaiPhone(phone))
     return NextResponse.json({ error: "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)" }, { status: 400 });
@@ -118,6 +120,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.create({
     data: {
+      title: title || null,
       name: name.trim(),
       email: email.trim().toLowerCase(),
       roles: role ? [role] : [],
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
     await prisma.notification.create({
       data: {
         recipientId: externalRequest.requestedById,
-        message: `คำขอเพิ่มกรรมการภายนอก "${user.name}" ได้รับการอนุมัติแล้ว — สามารถเลือกในคำร้องได้`,
+        message: `คำขอเพิ่มกรรมการภายนอก "${formatUserName(user)}" ได้รับการอนุมัติแล้ว — สามารถเลือกในคำร้องได้`,
         detail: user.email,
         submissionId: null,
         type: "approved",
@@ -144,7 +147,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const { sent } = await sendWelcomeEmail({ userId: user.id, name: user.name, email: user.email, passcode, role });
+  const { sent } = await sendWelcomeEmail({ userId: user.id, name: formatUserName(user), email: user.email, passcode, role });
 
   // If this email was blocking any DRAFT submission's committee (see "Committee accounts must
   // pre-exist" in AGENTS.md), notify the student(s) whose draft is now fully resolved — the same

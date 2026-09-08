@@ -1,9 +1,54 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { FormType, MockSubmission, Role, StepStatus, SubmissionStatus } from "@/types";
+import { FormType, MockSubmission, NameTitle, Role, StepStatus, SubmissionStatus } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+// Thai name-title prefix — split out of User.name (see prisma/schema.prisma's NameTitle enum,
+// which @maps each key to the exact Thai text below) so it's a fixed dropdown everywhere a name
+// is entered, instead of free-typed as part of the name. Order here is the dropdown display order.
+export const NAME_TITLE_LABELS: Record<NameTitle, string> = {
+  PROF_DR:       "ศ.ดร.",
+  ASSOC_PROF_DR: "รศ.ดร.",
+  ASST_PROF_DR:  "ผศ.ดร.",
+  ASST_PROF:     "ผศ.",
+  LECTURER_DR:   "อ.ดร.",
+  DR:            "ดร.",
+  MR:            "นาย",
+  MISS:          "นางสาว",
+  MRS:           "นาง",
+};
+
+export const NAME_TITLES = Object.keys(NAME_TITLE_LABELS) as NameTitle[];
+
+// Longest label first, so "ผศ.ดร." is tried before "ผศ." — otherwise the shorter title would
+// match first and leave "ดร." stuck on the front of the remaining name.
+const NAME_TITLE_PARSE_ORDER = [...NAME_TITLES].sort(
+  (a, b) => NAME_TITLE_LABELS[b].length - NAME_TITLE_LABELS[a].length
+);
+
+// Splits a Thai title prefix off a full name, e.g. "ผศ.ดร.สมชาย ใจดี" -> { title: "ASST_PROF_DR",
+// name: "สมชาย ใจดี" }. Returns title: null when no known prefix matches (name is left as-is).
+export function splitNameTitle(fullName: string): { title: NameTitle | null; name: string } {
+  const trimmed = fullName.trim();
+  for (const key of NAME_TITLE_PARSE_ORDER) {
+    const label = NAME_TITLE_LABELS[key];
+    if (trimmed.startsWith(label)) {
+      return { title: key, name: trimmed.slice(label.length).trim() };
+    }
+  }
+  return { title: null, name: trimmed };
+}
+
+// The inverse of splitNameTitle — renders a title + name back together for display, exactly as
+// it would have been typed as one field before the split (no space between title and name).
+// `title` is typed loosely (string, not NameTitle) so callers with API responses typed as plain
+// strings (e.g. DirectoryUser) don't need a cast at every call site.
+export function formatUserName(u: { title?: string | null; name: string }): string {
+  const label = u.title ? NAME_TITLE_LABELS[u.title as NameTitle] : undefined;
+  return label ? `${label}${u.name}` : u.name;
 }
 
 // Submissions a given user is involved in — ADMIN sees everything (submission workflow is

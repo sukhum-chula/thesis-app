@@ -1,7 +1,7 @@
 "use client";
 
 import { MockUser, MockWorkflowStep, MockSubmission, MockUpload } from "@/types";
-import { ROLE_LABELS, getStepName, formatDate } from "@/lib/utils";
+import { ROLE_LABELS, getStepName, formatDate, formatUserName } from "@/lib/utils";
 import { StepStatusBadge } from "./StatusBadge";
 import { CheckCircle2, Clock, XCircle, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,19 +24,19 @@ function resolveAssignees(
   switch (step.role) {
     case "STUDENT": {
       const u = find(sub.studentId);
-      return u ? [{ id: u.id, name: u.name }] : [];
+      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
     case "ADVISOR": {
       const u = find(sub.advisorId);
-      return u ? [{ id: u.id, name: u.name }] : [];
+      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
     case "HEAD_EXAM_COMMITTEE": {
       const u = find(sub.headCommitteeId);
-      return u ? [{ id: u.id, name: u.name }] : [];
+      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
     case "INVITED_EXAM_COMMITTEE": {
       const u = find(sub.invitedCommitteeId);
-      const name = u?.name ?? sub.invitedProfName;
+      const name = u ? formatUserName(u) : sub.invitedProfName;
       return name ? [{ id: sub.invitedCommitteeId ?? "ext", name }] : [];
     }
     case "PROGRAM_CHAIR": {
@@ -45,23 +45,23 @@ function resolveAssignees(
         : sub.program
         ? users.find((u) => (u as any).programChairFor?.includes(sub.program))
         : undefined;
-      return u ? [{ id: u.id, name: u.name }] : [];
+      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
     case "ADMIN": {
       const u = users.find((u) => u.roles.includes("ADMIN"));
-      return u ? [{ id: u.id, name: u.name }] : [];
+      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
     case "CO_ADVISOR": {
       const ids: string[] = (step.committeeMembers?.length
         ? step.committeeMembers
         : (sub.coAdvisorIds ?? [])) as string[];
-      return ids.map((id) => ({ id, name: find(id)?.name ?? id }));
+      return ids.map((id) => { const u = find(id); return { id, name: u ? formatUserName(u) : id }; });
     }
     case "EXAM_COMMITTEE": {
       const ids: string[] = (step.committeeMembers?.length
         ? step.committeeMembers
         : (sub.committeeIds ?? [])) as string[];
-      return ids.map((id) => ({ id, name: find(id)?.name ?? id }));
+      return ids.map((id) => { const u = find(id); return { id, name: u ? formatUserName(u) : id }; });
     }
     default:
       return [];
@@ -262,7 +262,7 @@ export function WorkflowTimeline({
                           ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
                           : <Circle className="w-3.5 h-3.5 text-gray-300 shrink-0" />}
                         <span className={cn("flex-1", financeUploaded ? "text-green-700 font-medium" : "text-gray-600")}>
-                          {adminFinanceUser?.name ?? "เจ้าหน้าที่"}
+                          {adminFinanceUser ? formatUserName(adminFinanceUser) : "เจ้าหน้าที่"}
                           <span className="text-gray-400 font-normal"> (เอกสารการเงิน)</span>
                         </span>
                         {!financeUploaded && (

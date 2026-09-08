@@ -185,6 +185,83 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — `User.name` split into a separate `title` field for the Thai honorific/academic
+  prefix (ศ.ดร./รศ.ดร./ผศ.ดร./ผศ./อ.ดร./ดร./นาย/นางสาว/นาง).** New `NameTitle` enum in
+  `prisma/schema.prisma` (`@map`s each key to its Thai text, same pattern as `Role`) plus a nullable
+  `User.title` column. `src/lib/utils.ts` gained the shared helpers: `NAME_TITLE_LABELS`/`NAME_TITLES`
+  (dropdown source, in display order), `splitNameTitle()` (longest-prefix-first parser, used only by
+  the one-off backfill script), and `formatUserName({title, name})` (the inverse — renders them back
+  together with no space, exactly как a pre-split name would have read). `POST /api/users` and
+  `PATCH /api/users/[id]` both accept an optional `title`; every admin-facing create/edit account
+  form gained a "คำนำหน้าชื่อ" `<select>` next to the name field — `AdminUsersPanel`'s add-user modal,
+  `UserProfileHeader`'s edit modal, `/super-dashboard`'s add-admin form, and
+  `/dashboard/admin/pending-professors`'s quick-create form. `formatUserName()` was then threaded
+  through essentially every place a user's name is displayed from a live `User`/`MockUser` record —
+  admin/student/professor dashboards, `SubmissionInfoPanel`, `RoleSubmissionDetail`,
+  `WorkflowTimeline`, `CommitteeSignPanel`, `CommitteePeopleEditor`'s account-picker dropdowns (so
+  the title is baked into `people[].name`/`programChairFor`'s auto-injected chair entry going
+  forward), the dashboard top bar, all outgoing step/welcome/passcode-reset/finance/exam-reminder
+  emails (`src/lib/email.ts`, plus the two other places that mint a session JWT by hand —
+  `api/auth/magic` and `api/auth/demo`), and `WorkflowStep.actedByName`/committee-sign snapshots
+  taken at approve/reject time (`submissions/[id]/route.ts`, `submissions/[id]/sign/route.ts`).
+  `NameTitle` was added to `src/types/next-auth.d.ts`'s `Session`/`User`/`JWT` shapes and threaded
+  through `auth.ts`'s `authorize`/`jwt`/`session` callbacks so the logged-in user's own title is
+  available client-side via `AppContext`'s `user`. Deliberately **not** touched: historical
+  denormalized snapshot text that has no parallel title column to go with it and would need a much
+  larger schema change to fix — `Submission.studentFullName`/`invitedProfName`, `pendingPeople[].name`
+  entries from before an account existed, and `ExternalCommitteeRequest.name` (the student's own
+  free-text request, before ADMIN turns it into a real account+title at approval time).
+  **DB migration**: applied via a one-off `scripts/add-name-title.ts` (same pattern as this file's
+  other raw-SQL migrations — run once via `npx tsx`, then deleted, not committed) since `prisma db
+  push` isn't usable here (this session only had the pooler connection, not the direct one) — `CREATE
+  TYPE "NameTitle"` + `ALTER TABLE users ADD COLUMN title`, then backfilled every existing user by
+  parsing `name` for a matching prefix (longest first). One real mistake caught mid-run: the raw SQL
+  UPDATE first tried casting the English enum *key* (e.g. `'ASST_PROF_DR'`) into the `NameTitle`
+  column, which failed with `invalid input value for enum` — the Postgres enum's actual stored labels
+  are the `@map`ped Thai text, not the Prisma-side key, since raw SQL bypasses the client's
+  key→label translation; fixed by passing `NAME_TITLE_LABELS[title]` instead. **Verified**: of 10
+  live users, 7 had a matching Thai prefix split off correctly (e.g. "ผศ.ดร.อรุณี ใหม่มาก" →
+  `title=ASST_PROF_DR`, `name="อรุณี ใหม่มาก"`) and 3 legitimately had none (a descriptive finance
+  account name, an admin's plain Thai name, and a super-admin's English name) — confirmed via a
+  read-only query before/after, no data loss. `npm run build` passes clean; `npm run lint` shows no
+  new errors from this work (the one `any` at `AdminUsersPanel.tsx:139` is a pre-existing
+  `catch (err: any)`, same pattern used throughout this codebase). **Not yet verified in a real
+  browser** — next session with working credentials should confirm the title dropdown actually
+  saves/displays correctly end-to-end on account creation and edit.
+  **Built alongside another concurrent Claude Code session** (`thesis-app-c1`, working in this same
+  repo directory at the same time on an unrelated admin-editable-email feature touching overlapping
+  files — `UserProfileHeader.tsx`, `AppContext.tsx`, `api/users/[id]/route.ts`, `email.ts`).
+  Coordinated directly via cross-session messages (checked in before editing shared files, re-read
+  each file fresh immediately before editing to avoid a stale-write clobber, flagged the DB migration
+  timing so neither session raced `prisma db push`/raw SQL against the schema at the same time) — no
+  conflicts, both features' changes now sit side by side cleanly.
+
+- **2026-09-08 — ADMIN/SUPER_ADMIN can now edit a user's login email; previously the only way to
+  change one was a direct database edit.** `PATCH /api/users/[id]` (`src/app/api/users/[id]/route.ts`)
+  accepts an optional `email` field alongside the existing `name`/`studentId`/`resetPasscode`
+  updates — normalized (trim + lowercase, matching the login lookup in `auth.ts`), validated with
+  `isValidEmail()`, and checked for uniqueness against every other user (409 if taken). Since email
+  doubles as the login identifier, changing it is effectively handing account access to whoever
+  controls the new address, so on a successful change both the old and new address are notified
+  automatically via new `sendEmailChangedNotice()` (`src/lib/email.ts`) — the old address is warned
+  in case the change was unauthorized/a mistake, the new address gets a "you can now log in here"
+  confirmation. `UserProfileHeader.tsx`'s "แก้ไข" modal (ADMIN/SUPER_ADMIN only, gated by the
+  existing `canManageAccount` tiering) gained an email input with inline validation and an amber
+  warning note when the value differs from the account's current one; `AppContext.adminUpdateUserInfo`'s
+  type signature extended to accept `email`. No new endpoint — reuses the same route/flow every
+  other admin-driven account edit already goes through.
+  **Verified**: `npm run build` and `npm run lint` pass clean (242 pre-existing lint errors, same
+  baseline as documented elsewhere in this file — no new ones from this change). **Not yet verified
+  in a real browser** — no working ADMIN credentials were exercised this session; next session with
+  one should confirm the edit modal actually updates the login email (old email stops working, new
+  one logs in) and that both notice emails arrive.
+  **Built alongside another concurrent Claude Code session** (`thesis-app-df`, working in this same
+  repo directory at the same time on an unrelated Thai name-title (`NameTitle`) feature touching
+  overlapping files — `UserProfileHeader.tsx`, `AppContext.tsx`, `api/users/[id]/route.ts`,
+  `email.ts`). Coordinated directly via cross-session messages to avoid clobbering each other's
+  edits; the other session layered `formatUserName()`/`title` handling on top of this feature's
+  code without conflict. See that session's own entry in this file once it lands its DB migration.
+
 - **2026-09-07 — Student committee selection restricted to existing accounts only; new `EXTERNAL`
   account role + self-service request flow for external examiners.** Previously students typed
   every committee member's name/email/phone by hand (see "Committee accounts must pre-exist" —

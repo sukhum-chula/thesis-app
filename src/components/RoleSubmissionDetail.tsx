@@ -8,7 +8,7 @@ import { SignatureButton } from "./SignatureButton";
 import { CommitteeSignPanel } from "./CommitteeSignPanel";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
-import { ROLE_LABELS, formatDate, PROGRAM_LABELS } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { ArrowLeft, Clock, AlertCircle, StickyNote, CalendarDays } from "lucide-react";
 import Link from "next/link";
 
@@ -145,14 +145,14 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
           <p className="text-gray-500">
-            นักศึกษา: <span className="font-medium text-gray-700">{sub.studentFullName ?? student?.name}</span>
+            นักศึกษา: <span className="font-medium text-gray-700">{sub.studentFullName ?? (student ? formatUserName(student) : undefined)}</span>
             {(sub.studentCode ?? student?.studentId) && (
               <span className="text-gray-400"> ({sub.studentCode ?? student?.studentId})</span>
             )}
           </p>
           {advisor && (
             <p className="text-gray-500 text-sm">
-              อาจารย์ที่ปรึกษา: <span className="text-gray-700">{advisor.name}</span>
+              อาจารย์ที่ปรึกษา: <span className="text-gray-700">{formatUserName(advisor)}</span>
             </p>
           )}
           <p className="text-sm text-gray-400">{formatDate(sub.createdAt)}</p>
@@ -173,19 +173,19 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
             )}
             {sub.roomNeeded && <InfoRow label="ห้องประชุม" value="ต้องการ" />}
             {sub.parkingNeeded && sub.carPlate && <InfoRow label="ที่จอดรถ (ทะเบียน)" value={sub.carPlate} />}
-            {sub.headCommitteeId && <InfoRow label="ประธานกรรมการสอบ" value={allUsers.find((u) => u.id === sub.headCommitteeId)?.name ?? sub.headCommitteeId} />}
+            {sub.headCommitteeId && <InfoRow label="ประธานกรรมการสอบ" value={(() => { const u = allUsers.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : sub.headCommitteeId; })()} />}
             {sub.committeeIds && sub.committeeIds.length > 0 && (
               <InfoRow
                 label="กรรมการสอบ"
                 value={sub.committeeIds
-                  .map((uid: string) => allUsers.find((u) => u.id === uid)?.name ?? uid)
+                  .map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; })
                   .join(", ")}
               />
             )}
             {(sub.invitedProfName || sub.invitedCommitteeId) && (
               <InfoRow
                 label="กรรมการภายนอก"
-                value={sub.invitedProfName ?? allUsers.find((u) => u.id === sub.invitedCommitteeId)?.name ?? sub.invitedCommitteeId ?? ""}
+                value={sub.invitedProfName ?? (() => { const u = allUsers.find((u) => u.id === sub.invitedCommitteeId); return u ? formatUserName(u) : (sub.invitedCommitteeId ?? ""); })()}
               />
             )}
             {sub.invitedProfAffiliation && <InfoRow label="สังกัดกรรมการภายนอก" value={sub.invitedProfAffiliation} />}

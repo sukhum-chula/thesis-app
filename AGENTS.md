@@ -111,6 +111,50 @@ the value doesn't change that it's still emailed to the account owner. `AppConte
 `superAdminAddUser(userData)` takes an optional `passcode` field on `userData`, and
 `superAdminResetPasscode(userId, passcode?)` takes an optional second argument.
 
+### Name title (คำนำหน้าชื่อ) — split out of `User.name` into `User.title` (2026-09-08)
+Every account's Thai honorific/academic prefix is its own nullable field, `User.title`, typed as
+the `NameTitle` enum (`prisma/schema.prisma`) — **not** part of the free-text `name` anymore. The
+enum's 9 values (`PROF_DR` ศ.ดร., `ASSOC_PROF_DR` รศ.ดร., `ASST_PROF_DR` ผศ.ดร., `ASST_PROF` ผศ.,
+`LECTURER_DR` อ.ดร., `DR` ดร., `MR` นาย, `MISS` นางสาว, `MRS` นาง) `@map` each English key to its
+Thai text, same pattern as `Role` — client code only ever sees/sends the English key.
+
+`src/lib/utils.ts` is the only place this mapping is defined:
+- `NAME_TITLE_LABELS` / `NAME_TITLES` — the key→Thai-label map and its keys, in dropdown order.
+- `formatUserName({ title, name })` — renders `title + name` back together with no space, exactly
+  as a pre-split name would have read (e.g. `{title: "ASST_PROF_DR", name: "อรุณี ใหม่มาก"}` →
+  `"ผศ.ดร.อรุณี ใหม่มาก"`). Loosely typed (`title?: string | null`) so API-response shapes typed as
+  plain strings don't need a cast at the call site. **Always use this to display a person's name**
+  — never concatenate `title`/`name` inline, and never render bare `.name` for a `User`/`MockUser`.
+- `splitNameTitle(fullName)` — the inverse parser (longest-prefix-first, so "ผศ.ดร." matches before
+  "ผศ."); used only by the one-off backfill script that performed the original migration, not by
+  any runtime code path (there's no "paste a full name and auto-split" UI).
+
+`POST /api/users` and `PATCH /api/users/[id]` both accept an optional `title` (validated against
+`NAME_TITLES`, nullable to clear it). Every admin-facing account create/edit form has a
+"คำนำหน้าชื่อ" `<select>` (values from `NAME_TITLES`, defaulting to "— ไม่มี —") next to the name
+field: `AdminUsersPanel`'s add-user modal, `UserProfileHeader`'s edit modal, `/super-dashboard`'s
+add-admin form, and `/dashboard/admin/pending-professors`'s quick-create form.
+
+`formatUserName()` is threaded through every surface that displays a name from a live `User`
+record: all dashboards, `SubmissionInfoPanel`, `RoleSubmissionDetail`, `WorkflowTimeline`,
+`CommitteeSignPanel`, and `CommitteePeopleEditor`'s account-picker `<select>` — picking an account
+there writes `formatUserName(account)` into that row's `Person.name`, so the title is baked into
+`people[]`/`pendingPeople`/the auto-injected `PROGRAM_CHAIR` entry exactly as it would have been
+before the split. It also covers every outgoing email (`src/lib/email.ts`'s recipient/greeting
+names, `sendWelcomeEmail`/`sendPasscodeResetEmail`/`sendFinanceEmail`/`sendExamReminderEmail`) and
+`WorkflowStep.actedByName`/committee-sign-action snapshots taken at approve/reject time
+(`submissions/[id]/route.ts`, `submissions/[id]/sign/route.ts`). The logged-in user's own title
+flows through the same NextAuth session/JWT pipeline as `roles`/`studentId` (`src/lib/auth.ts`,
+`src/types/next-auth.d.ts`, plus the two routes that mint a session JWT by hand instead of going
+through NextAuth's callbacks — `api/auth/magic` and `api/auth/demo`) into `AppContext`'s `user`.
+
+**Deliberately not touched** — historical denormalized text snapshots that have no parallel title
+column to go with them, so fixing this properly would mean new schema columns, not a display-layer
+change: `Submission.studentFullName` / `invitedProfName` (student/invited-committee snapshots taken
+at submission-creation time), any `pendingPeople[].name` entry recorded before that person had an
+account, and `ExternalCommitteeRequest.name` (a student's own free-text request, before ADMIN turns
+it into a real account — and a real title — at approval time via the add-user modal above).
+
 ### Program Chair & finance-contact assignment — SystemSetting table (redesigned 2026-09-07)
 Both of these admin-designated single-holder-per-key assignments live in one generic key/value
 table, `SystemSetting` (`prisma/schema.prisma`: `key String @id`, `userId String?`,

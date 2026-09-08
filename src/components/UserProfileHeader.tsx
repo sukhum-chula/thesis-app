@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, ROLE_DESC, generatePassword, isValidPasscode, getRelatedSubmissions } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_DESC, generatePassword, isValidPasscode, isValidEmail, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
 import { canManageAccount } from "@/lib/accountScope";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Pencil, X, Loader2, Trash2, KeyRound, ChevronDown } from "lucide-react";
+import type { NameTitle } from "@/types";
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
@@ -33,7 +34,9 @@ export function UserProfileHeader({
   const { user: viewer, users, submissions, adminUpdateUserInfo, superAdminDeleteUser, superAdminResetPasscode } = useApp();
   const { showToast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState<NameTitle | "">("");
   const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editStudentId, setEditStudentId] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -56,21 +59,33 @@ export function UserProfileHeader({
   const rejected  = related.filter((s) => s.status === "REJECTED").length;
 
   function openEdit() {
+    setEditTitle(user?.title ?? "");
     setEditName(user?.name ?? "");
+    setEditEmail(user?.email ?? "");
     setEditStudentId(user?.studentId ?? "");
     setEditOpen(true);
   }
 
   async function handleSaveInfo(e: React.FormEvent) {
     e.preventDefault();
+    const emailChanged = editEmail.trim().toLowerCase() !== (user?.email ?? "").toLowerCase();
+    if (emailChanged && !isValidEmail(editEmail)) {
+      showToast("กรุณากรอกอีเมลให้ถูกต้อง", "error");
+      return;
+    }
     setSaving(true);
     try {
-      const updates: { name?: string; studentId?: string } = {};
+      const updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string } = {};
+      if ((editTitle || null) !== (user?.title ?? null)) updates.title = editTitle || null;
       if (editName.trim() !== user?.name) updates.name = editName.trim();
       if (editStudentId.trim() !== (user?.studentId ?? "")) updates.studentId = editStudentId.trim();
+      if (emailChanged) updates.email = editEmail.trim().toLowerCase();
       if (Object.keys(updates).length === 0) { setEditOpen(false); return; }
       await adminUpdateUserInfo(uid, updates);
-      showToast("แก้ไขข้อมูลสำเร็จ", "success");
+      showToast(
+        emailChanged ? "แก้ไขข้อมูลสำเร็จ — ส่งอีเมลแจ้งทั้งที่อยู่เดิมและใหม่แล้ว" : "แก้ไขข้อมูลสำเร็จ",
+        "success"
+      );
       setEditOpen(false);
     } catch (err: any) {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
@@ -124,7 +139,7 @@ export function UserProfileHeader({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900 leading-snug">{user.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 leading-snug">{formatUserName(user)}</h1>
               <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
                 {user.roles.map((r) => ROLE_LABELS[r]).join(" / ")}
               </span>
@@ -166,7 +181,7 @@ export function UserProfileHeader({
             <button
               onClick={openEdit}
               className="w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-              title="แก้ไขชื่อ / รหัสนิสิต"
+              title="แก้ไขชื่อ / อีเมล / รหัสนิสิต"
             >
               <Pencil className="w-4 h-4" />
               แก้ไข
@@ -255,6 +270,20 @@ export function UserProfileHeader({
 
             <form onSubmit={handleSaveInfo} className="space-y-4">
               <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">คำนำหน้าชื่อ</label>
+                <select
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value as NameTitle | "")}
+                  className={INPUT_CLS}
+                >
+                  <option value="">— ไม่มี —</option>
+                  {NAME_TITLES.map((t) => (
+                    <option key={t} value={t}>{NAME_TITLE_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">ชื่อ-นามสกุล *</label>
                 <input
                   type="text"
@@ -263,6 +292,22 @@ export function UserProfileHeader({
                   onChange={(e) => setEditName(e.target.value)}
                   className={INPUT_CLS}
                 />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">อีเมล (ใช้เข้าสู่ระบบ) *</label>
+                <input
+                  type="email"
+                  required
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className={INPUT_CLS}
+                />
+                {editEmail.trim().toLowerCase() !== (user?.email ?? "").toLowerCase() && (
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    ผู้ใช้งานจะต้องเข้าสู่ระบบด้วยอีเมลใหม่นี้ตั้งแต่บันทึก — ระบบจะส่งอีเมลแจ้งทั้งที่อยู่เดิมและที่อยู่ใหม่โดยอัตโนมัติ
+                  </p>
+                )}
               </div>
 
               {canManageTarget && user.roles.includes("STUDENT") && (

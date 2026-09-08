@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { ROLE_LABELS, sortUsersByRole } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, formatUserName } from "@/lib/utils";
 
 export default async function DemoUsersPage() {
   // Local-testing convenience only — never renders in a production build.
@@ -30,7 +30,7 @@ export default async function DemoUsersPage() {
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="border-t border-gray-100">
-                <td className="px-3 py-2 text-gray-800">{u.name}</td>
+                <td className="px-3 py-2 text-gray-800">{formatUserName(u)}</td>
                 <td className="px-3 py-2 text-gray-600">{u.email}</td>
                 <td className="px-3 py-2 text-gray-600">
                   {(u.roles ?? []).map((r) => ROLE_LABELS[r as keyof typeof ROLE_LABELS] ?? r).join(" / ")}

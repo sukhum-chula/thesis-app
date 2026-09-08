@@ -8,7 +8,7 @@ import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { AdminUsersPanel } from "@/components/AdminUsersPanel";
 import { AdminSettingsPanel } from "@/components/AdminSettingsPanel";
 import { AdminSubmissionPanel } from "@/components/AdminSubmissionPanel";
-import { ROLE_LABELS, getStepName, formatDate } from "@/lib/utils";
+import { ROLE_LABELS, getStepName, formatDate, formatUserName } from "@/lib/utils";
 import { SubmissionStatus } from "@/types";
 import Link from "next/link";
 import {
@@ -33,15 +33,16 @@ function getStuckDays(sub: MockSubmission): number {
 function resolvePendingName(
   sub: MockSubmission,
   step: MockWorkflowStep,
-  users: { id: string; name: string; role: string; roles: string[] }[],
+  users: { id: string; title?: string | null; name: string; role: string; roles: string[] }[],
 ): string {
   switch (step.role) {
-    case "ADVISOR":             return users.find((u) => u.id === sub.advisorId)?.name ?? ROLE_LABELS[step.role];
-    case "HEAD_EXAM_COMMITTEE": return users.find((u) => u.id === sub.headCommitteeId)?.name ?? ROLE_LABELS[step.role];
-    case "PROGRAM_CHAIR":
-      return users.find((u) => u.id === (sub as any).programChairId)?.name
-        ?? (sub.program ? users.find((u) => (u as any).programChairFor?.includes(sub.program))?.name : undefined)
-        ?? ROLE_LABELS[step.role];
+    case "ADVISOR":             { const u = users.find((u) => u.id === sub.advisorId); return u ? formatUserName(u) : ROLE_LABELS[step.role]; }
+    case "HEAD_EXAM_COMMITTEE": { const u = users.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : ROLE_LABELS[step.role]; }
+    case "PROGRAM_CHAIR": {
+      const u = users.find((u) => u.id === (sub as any).programChairId)
+        ?? (sub.program ? users.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
+      return u ? formatUserName(u) : ROLE_LABELS[step.role];
+    }
     case "EXAM_COMMITTEE": {
       const memberIds = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);
       const done = (step.committeeActions ?? []).filter((a) => a.decision === "APPROVED").length;
@@ -232,7 +233,7 @@ export default function AdminDashboard() {
                     <p className="font-semibold text-gray-900 truncate">{sub.title}</p>
                     <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                       <User className="w-3 h-3 shrink-0" />
-                      {student?.name ?? "—"}
+                      {student ? formatUserName(student) : "—"}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {taskIcon}
@@ -401,7 +402,7 @@ export default function AdminDashboard() {
                             className="font-medium text-blue-600 hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {student.name}
+                            {formatUserName(student)}
                           </Link>
                         ) : "—"}
                         {student?.studentId && <span className="text-gray-400">({student.studentId})</span>}

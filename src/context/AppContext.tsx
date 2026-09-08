@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  MockUser, MockSubmission, MockNotification, MockExternalRequest, Role, FormType, ProgramType,
+  MockUser, MockSubmission, MockNotification, MockExternalRequest, Role, FormType, ProgramType, NameTitle,
 } from "@/types";
 
 export interface SubmissionFormData {
@@ -97,7 +97,7 @@ interface AppContextType {
     externalRequestId?: string;
   }) => Promise<void>;
   superAdminResetPasscode: (userId: string, passcode?: string) => Promise<void>;
-  adminUpdateUserInfo: (userId: string, updates: { name?: string; studentId?: string }) => Promise<void>;
+  adminUpdateUserInfo: (userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
   adminSetFinanceContact: (userId: string | null) => Promise<void>;
   submitExternalRequest: (data: { name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
@@ -130,6 +130,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const user: MockUser | null = session?.user
     ? {
         id: session.user.id,
+        title: (session.user as any).title ?? null,
         name: session.user.name,
         email: session.user.email,
         roles: ((session.user as any).roles ?? [session.user.role as string]) as Role[],
@@ -406,7 +407,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await api(`/api/users/${userId}`, "PATCH", { resetPasscode: true, passcode });
   }
 
-  async function adminUpdateUserInfo(userId: string, updates: { name?: string; studentId?: string }) {
+  async function adminUpdateUserInfo(userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) {
     const updated = await api<MockUser>(`/api/users/${userId}`, "PATCH", updates);
     setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
   }
