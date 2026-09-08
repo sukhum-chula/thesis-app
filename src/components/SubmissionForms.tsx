@@ -23,8 +23,12 @@ const PERSON_ROLES = [
 ] as const;
 
 // Roles filled from the internal faculty (PROFESSOR) account list vs. the external-examiner
-// (EXTERNAL) account list — CommitteePeopleEditor renders a plain account picker, never free text.
-const EXTERNAL_ROLES = new Set(["INVITED_EXAM_COMMITTEE"]);
+// (EXTERNAL) account list vs. both — CommitteePeopleEditor renders a plain account picker, never
+// free text. INVITED_EXAM_COMMITTEE (กรรมการภายนอก) is external-only; CO_ADVISOR and
+// EXAM_COMMITTEE can be filled by either an internal PROFESSOR or an external examiner, since both
+// commonly serve in those roles too — only ADVISOR/HEAD_EXAM_COMMITTEE stay PROFESSOR-only.
+const EXTERNAL_ONLY_ROLES = new Set(["INVITED_EXAM_COMMITTEE"]);
+const MIXED_ROLES = new Set(["CO_ADVISOR", "EXAM_COMMITTEE"]);
 
 export interface Person {
   name: string;
@@ -752,7 +756,9 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   const dragIndex = useRef<number | null>(null);
 
   function accountsFor(role: string) {
-    return EXTERNAL_ROLES.has(role) ? externals : professors;
+    if (EXTERNAL_ONLY_ROLES.has(role)) return externals;
+    if (MIXED_ROLES.has(role)) return [...professors, ...externals];
+    return professors;
   }
 
   function updatePerson(index: number, patch: Partial<Person>) {
@@ -812,7 +818,8 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
 
       <div className="space-y-2">
         {people.map((p, i) => {
-          const isExternalRole = EXTERNAL_ROLES.has(p.role);
+          const isExternalOnlyRole = EXTERNAL_ONLY_ROLES.has(p.role);
+          const canBeExternal = isExternalOnlyRole || MIXED_ROLES.has(p.role);
           const accounts = accountsFor(p.role);
           // Match the selected account by email (state stores name/email/phone, not the id).
           const selectedAccount = accounts.find((a) => a.email.toLowerCase() === p.email.trim().toLowerCase());
@@ -856,7 +863,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
                     onChange={(e) => selectAccount(i, e.target.value)}
                     disabled={!p.role}
                     className={INPUT + " bg-white disabled:opacity-50"}
-                    aria-label={isExternalRole ? "กรรมการภายนอก" : "อาจารย์"}
+                    aria-label={isExternalOnlyRole ? "กรรมการภายนอก" : canBeExternal ? "อาจารย์หรือกรรมการภายนอก" : "อาจารย์"}
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
                     {accounts.map((a) => (
@@ -864,7 +871,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
                     ))}
                   </select>
                 </div>
-                {isExternalRole && (
+                {canBeExternal && (
                   <p className="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
                     ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
                     แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกได้ที่นี่

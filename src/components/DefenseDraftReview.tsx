@@ -53,6 +53,13 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
     return null;
   }
 
+  // A plain save is allowed to be incomplete — only checks that a filled-in exam date isn't
+  // outright wrong (in the past). Full completeness is only required to confirm (see validate()).
+  function validateForSave(): string | null {
+    if (examDate.trim() && examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
+    return null;
+  }
+
   function draftData() {
     return {
       title: title.trim(),
@@ -66,7 +73,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
   }
 
   async function handleSave() {
-    const v = validate();
+    const v = validateForSave();
     if (v) { setError(v); return; }
     setError(null);
     setSaving(true);

@@ -53,6 +53,29 @@ export function validatePeople(people: PersonInput[], studentOwnEmails: Set<stri
   return null;
 }
 
+/** Lenient counterpart to validatePeople() for saving an in-progress draft (`confirm: false` on
+ *  save_proposal_draft/save_defense_draft) — a draft is allowed to be incomplete, so no role-count
+ *  requirement is enforced here and a row with no role/email yet is simply skipped rather than
+ *  rejected. Still rejects a filled-in row that's outright wrong (bad email format, self-email,
+ *  a duplicate role+account, an unrecognized role, an overlong name/phone), since those aren't
+ *  "incomplete", they're mistakes. */
+export function validatePeopleLenient(people: PersonInput[], studentOwnEmails: Set<string>): string | null {
+  const seenRoleEmail = new Set<string>();
+  for (const p of people) {
+    if (!p.role || !p.email?.trim()) continue; // not filled in yet — fine for a draft
+    if (!(PERSON_ROLES as readonly string[]).includes(p.role)) return "บทบาทของกรรมการไม่ถูกต้อง";
+    if (!isValidEmail(p.email)) return `รูปแบบอีเมลของกรรมการไม่ถูกต้อง (${p.email.trim()})`;
+    if (p.name && p.name.trim().length > 200) return "ชื่อของกรรมการยาวเกิน 200 ตัวอักษร";
+    if (p.phone?.trim() && !isValidThaiPhone(p.phone)) return "เบอร์โทรศัพท์ของกรรมการไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
+    const email = p.email.trim().toLowerCase();
+    if (studentOwnEmails.has(email)) return "ไม่สามารถใช้อีเมลของนิสิตเป็นกรรมการได้";
+    const key = `${p.role}:${email}`;
+    if (seenRoleEmail.has(key)) return "อีเมลนี้ถูกเพิ่มในบทบาทเดียวกันซ้ำ";
+    seenRoleEmail.add(key);
+  }
+  return null;
+}
+
 export type ResolvedCommittee = {
   advisorId: string;
   headCommitteeId: string;
@@ -93,5 +116,50 @@ export async function resolvePeople(
     invitedProfName: invited.name!.trim(),
     invitedProfEmail: invited.email!.trim().toLowerCase(),
     invitedProfPhone: invited.phone?.trim() || null,
+  };
+}
+
+export type PartialResolvedCommittee = {
+  advisorId: string | null;
+  headCommitteeId: string | null;
+  programChairId: string | null;
+  coAdvisorIds: string[];
+  committeeIds: string[];
+  invitedCommitteeId: string | null;
+  invitedProfName: string | null;
+  invitedProfEmail: string | null;
+  invitedProfPhone: string | null;
+};
+
+/** Lenient counterpart to resolvePeople() for saving an in-progress draft — unlike resolvePeople(),
+ *  this never fails: a row with no role, no account picked yet, or an email that no longer
+ *  resolves to a real account (e.g. deleted between page load and save) is simply left out of the
+ *  result rather than blocking the save. Any role with no valid entry resolves to null (or an
+ *  empty array for CO_ADVISOR/EXAM_COMMITTEE). Assumes validatePeopleLenient() already passed. */
+export async function resolvePeoplePartial(people: PersonInput[]): Promise<PartialResolvedCommittee> {
+  const filled = people.filter((p) => p.role && p.email?.trim());
+  const uniqueEmails = [...new Set(filled.map((p) => p.email!.trim().toLowerCase()))];
+  const existingUsers = uniqueEmails.length
+    ? await prisma.user.findMany({ where: { email: { in: uniqueEmails } } })
+    : [];
+  const idByEmail = new Map(existingUsers.map((u) => [u.email.toLowerCase(), u.id]));
+  const resolvable = filled.filter((p) => idByEmail.has(p.email!.trim().toLowerCase()));
+  const idOf = (p: PersonInput) => idByEmail.get(p.email!.trim().toLowerCase())!;
+
+  const advisor = resolvable.find((p) => p.role === "ADVISOR");
+  const head    = resolvable.find((p) => p.role === "HEAD_EXAM_COMMITTEE");
+  const chair   = resolvable.find((p) => p.role === "PROGRAM_CHAIR");
+  const invited = resolvable.find((p) => p.role === "INVITED_EXAM_COMMITTEE");
+
+  return {
+    advisorId: advisor ? idOf(advisor) : null,
+    headCommitteeId: head ? idOf(head) : null,
+    programChairId: chair ? idOf(chair) : null,
+    coAdvisorIds: [...new Set(resolvable.filter((p) => p.role === "CO_ADVISOR").map(idOf))],
+    committeeIds: [...new Set(resolvable.filter((p) => p.role === "EXAM_COMMITTEE").map(idOf))],
+    invitedCommitteeId: invited ? idOf(invited) : null,
+    invitedProfName: invited?.name?.trim() || null,
+    invitedProfEmail: invited?.email?.trim().toLowerCase() || null,
+    invitedProfPhone: invited?.phone?.trim() || null,
   };
 }

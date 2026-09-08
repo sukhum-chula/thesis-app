@@ -427,10 +427,17 @@ reworked 2026-09-08):** `CommitteePeopleEditor` (`src/components/SubmissionForms
 `ProposalForm`, `DefenseForm`, `ProposalDraftReview` and `DefenseDraftReview`) renders each row as
 a role `<select>` plus an account `<select>` — never free-text name/email entry, and neither
 select carries a visible label any more (role/account picker labels are `aria-label` only,
-selection is conveyed by the placeholder option text). ADVISOR/CO_ADVISOR/HEAD_EXAM_COMMITTEE/
-EXAM_COMMITTEE pick from every `PROFESSOR`-role account; INVITED_EXAM_COMMITTEE (กรรมการภายนอก)
-picks from every `EXTERNAL`-role account (see "EXTERNAL account requests" below for how those get
-created). Picking an account fills `{name, email, phone}` from it, but the row no longer displays
+selection is conveyed by the placeholder option text). ADVISOR/HEAD_EXAM_COMMITTEE pick from every
+`PROFESSOR`-role account only; INVITED_EXAM_COMMITTEE (กรรมการภายนอก) picks from every `EXTERNAL`-
+role account only (see "EXTERNAL account requests" below for how those get created).
+**CO_ADVISOR and EXAM_COMMITTEE pick from both lists combined** (2026-09-08) — either role is
+commonly filled by an external examiner as well as an internal faculty member, so their dropdown
+offers every `PROFESSOR` account followed by every `EXTERNAL` account (`MIXED_ROLES` in
+`CommitteePeopleEditor`, `src/components/SubmissionForms.tsx`; `EXTERNAL_ONLY_ROLES` still gates
+INVITED_EXAM_COMMITTEE to externals-only). Server-side this needed no change at all —
+`resolvePeople`/`resolvePeoplePartial` (`src/lib/committee.ts`) only look up an account by email,
+never checking its `Role`, so a CO_ADVISOR/EXAM_COMMITTEE entry resolving to an `EXTERNAL` account
+was already accepted. Picking an account fills `{name, email, phone}` from it, but the row no longer displays
 either — only the role/account selects are shown; email and phone are still carried internally
 (and still submitted) so `resolvePeople`'s email-lookup and the optional phone-override still
 work, they're just not rendered. `initialPeople()` seeds a fresh editor (a new `ProposalForm`/
@@ -709,8 +716,12 @@ through to a detail page" step):
    takes over as the actual editable form — title/program/student phone/committee/exam logistics,
    all editable, "บันทึกฉบับร่าง" (`PATCH .../[id]` action `"save_proposal_draft"`, `confirm: false`,
    stays `DRAFT`) or "ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์" (`confirm: true` — builds the 11 workflow
-   steps, flips to `IN_PROGRESS`, notifies admins), same resolution pipeline
-   (`validatePeople`/`resolvePeople`) as any other creation. The "ความคืบหน้าปัจจุบัน (0/11)" preview
+   steps, flips to `IN_PROGRESS`, notifies admins). **A plain save is deliberately allowed to be
+   incomplete** (2026-09-08) — blank title, no program picked, no committee members chosen yet, no
+   exam date/time — since the whole point of a draft is to let the student leave and come back
+   later; only a value that's actually filled in but outright wrong (e.g. a malformed phone number,
+   an exam date in the past) is rejected either way. Only `confirm: true` enforces the full
+   requirements (see "Draft save vs. confirm validation" below). The "ความคืบหน้าปัจจุบัน (0/11)" preview
    + `WorkflowTimeline` (`preview` prop, see below) stay visible under both the blank template *and*
    `ProposalDraftReview` — nothing has actually progressed yet in either state, since no workflow
    steps exist until confirm — and only disappear once a real (non-draft) proposal exists, at which
@@ -729,13 +740,34 @@ through to a detail page" step):
    `StudentSubmissionActions` — editable title/committee-people-editor/exam-logistics (all
    pre-filled, all still editable — the imported committee never writes back to the source
    proposal), with two actions both hitting `PATCH .../[id]` action `"save_defense_draft"`
-   (`{ ...fields, confirm }`, re-validated/re-resolved through the same `validatePeople`/
-   `resolvePeople` pipeline as any submission): **"บันทึกฉบับร่าง"** (`confirm: false`, persists
-   edits, stays `DRAFT` — safe to navigate away and come back to) and **"ยืนยัน — ขอสอบวิทยานิพนธ์"**
-   (`confirm: true` — flips to `IN_PROGRESS`, builds the 22 workflow steps, notifies admins). After
-   confirming, the same `StudentSubmissionActions` view takes over. If there's no eligible
-   completed proposal at all yet, a locked gray card explains that, followed by the "No defense"
-   preview timeline (unchanged from before).
+   (`{ ...fields, confirm }`): **"บันทึกฉบับร่าง"** (`confirm: false`, persists whatever's filled in
+   — same allowed-incomplete rule as the proposal draft above — stays `DRAFT`, safe to navigate away
+   and come back to) and **"ยืนยัน — ขอสอบวิทยานิพนธ์"** (`confirm: true` — re-validated/re-resolved
+   through the full `validatePeople`/`resolvePeople` pipeline, same as any other creation; flips to
+   `IN_PROGRESS`, builds the 22 workflow steps, notifies admins). After confirming, the same
+   `StudentSubmissionActions` view takes over. If there's no eligible completed proposal at all yet,
+   a locked gray card explains that, followed by the "No defense" preview timeline (unchanged from
+   before).
+
+   **Draft save vs. confirm validation** (2026-09-08): both `save_proposal_draft` and
+   `save_defense_draft` branch on `confirm` in `src/app/api/submissions/[id]/route.ts` — required-
+   ness checks (non-empty title/program, an exam date/time present, a car plate when ที่จอดรถ is
+   checked) only run when `confirm: true`; a plain save only rejects a value that's actually
+   present but malformed (title/car-plate too long, an unparseable exam date, a bad `HH:MM` time).
+   Committee people[] gets the same split: `confirm: true` still runs `validatePeople`/
+   `resolvePeople` (`src/lib/committee.ts`) exactly as before — full role-count requirements, and
+   an unresolvable email blocks the whole action — while `confirm: false` runs the new
+   `validatePeopleLenient`/`resolvePeoplePartial` instead, which impose no role-count minimums at
+   all (a row with no role or no account picked yet is simply skipped, not rejected) and never fail
+   on an unresolvable email (silently dropped instead of blocking the save) — only an outright bad
+   row (self-email, a duplicate role+account, a malformed email) is still rejected. Each committee
+   field (`advisorId`, `headCommitteeId`, `committeeIds`, `coAdvisorIds`, `invitedCommitteeId`,
+   `programChairId`, `invitedProf*`) is written as whatever resolved — `null`/`[]` for a role with
+   no valid entry — since every one of those columns is already nullable/defaults-empty in the
+   schema. Client-side, `ProposalDraftReview`/`DefenseDraftReview` mirror this with a separate
+   `validateForSave()` (used by "บันทึกฉบับร่าง") alongside the existing strict `validate()` (used by
+   "ยืนยัน") — `validateForSave()` only checks a value that was actually typed and is wrong (a
+   malformed student phone, a past exam date), never requires a field to be filled in.
 4. **"รายการอื่นๆ"** — every submission that isn't the current proposal or the current defense
    (cancelled ones, or an older one superseded by a newer current one of the same type), each in
    the original per-item row style (accent bar, status icon, mini progress bar, links to its detail

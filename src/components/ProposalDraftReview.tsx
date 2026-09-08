@@ -63,6 +63,16 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
     return null;
   }
 
+  // A plain save is allowed to be incomplete (blank title/program, no committee picked yet, no
+  // exam date/time) — only checks a value that was actually typed in and is outright wrong, since
+  // that's a mistake rather than something left for later. Full completeness is only required to
+  // confirm (see validate() above).
+  function validateForSave(): string | null {
+    if (studentPhone.trim() && !isValidThaiPhone(studentPhone)) return "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
+    if (examDate.trim() && examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
+    return null;
+  }
+
   function draftData() {
     return {
       title: title.trim(),
@@ -80,7 +90,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
   }
 
   async function handleSave() {
-    const v = validate();
+    const v = validateForSave();
     if (v) { setError(v); return; }
     setError(null);
     setSaving(true);

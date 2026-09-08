@@ -185,6 +185,53 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — Saving a proposal/defense draft no longer requires complete information; CO_ADVISOR
+  and EXAM_COMMITTEE committee dropdowns now include external examiners too.** Two related fixes to
+  the blank-draft-first proposal/defense flow (see the other 2026-09-08 entries below for that
+  flow's original shipping notes):
+  1. **Draft save relaxed.** "บันทึกฉบับร่าง" on `ProposalDraftReview`/`DefenseDraftReview` used to
+     call the exact same strict `validate()` as "ยืนยัน" — meaning a student couldn't save a draft
+     at all unless title, program, every required committee role, and exam date/time were already
+     fully filled in, defeating the entire point of a save-and-come-back-later draft. Split into
+     `validate()` (still required for confirm) and a new lenient `validateForSave()` (only rejects
+     a value that's actually typed in and wrong — a malformed phone number, a past exam date; never
+     requires a field to be present). Server-side, `PATCH .../[id]` actions `save_proposal_draft`/
+     `save_defense_draft` (`src/app/api/submissions/[id]/route.ts`) now branch on `confirm`:
+     required-ness checks (non-blank title/program, an exam date/time, a car plate when parking is
+     checked) only apply when `confirm: true`. Committee people[] got the same treatment via two
+     new `src/lib/committee.ts` exports — `validatePeopleLenient` (no role-count minimums; a row
+     with no role/account yet is skipped, not rejected) and `resolvePeoplePartial` (never fails —
+     an unresolvable email, or a role with no entry at all, just resolves to `null`/`[]` instead of
+     blocking the whole save) — used only when `confirm: false`; `confirm: true` still runs the
+     original strict `validatePeople`/`resolvePeople` unchanged. Every committee column
+     (`advisorId`, `headCommitteeId`, `committeeIds`, `coAdvisorIds`, `invitedCommitteeId`,
+     `programChairId`, `invitedProf*`) was already nullable/defaults-empty in the schema, so no
+     migration was needed.
+  2. **CO_ADVISOR and EXAM_COMMITTEE can now be external examiners.** `CommitteePeopleEditor`'s
+     account dropdown (`src/components/SubmissionForms.tsx`) previously only offered `PROFESSOR`
+     accounts for these two roles (only INVITED_EXAM_COMMITTEE offered `EXTERNAL` accounts). Since
+     both roles are commonly filled by an external examiner too, split the old `EXTERNAL_ROLES` set
+     into `EXTERNAL_ONLY_ROLES` (still just INVITED_EXAM_COMMITTEE) and a new `MIXED_ROLES`
+     (CO_ADVISOR, EXAM_COMMITTEE) whose dropdown now lists every `PROFESSOR` account followed by
+     every `EXTERNAL` account. No server-side change was needed for this half — `resolvePeople`/
+     `resolvePeoplePartial` only look up an account by email, they never check its `Role`, so an
+     `EXTERNAL` account in a CO_ADVISOR/EXAM_COMMITTEE slot already resolved correctly.
+  See "Draft save vs. confirm validation" and "Committee people" in `AGENTS.md`. **Verified**:
+  `npm run build`, `npx tsc --noEmit`, and `npm run lint` all pass with no new errors (confirmed via
+  a before/after `eslint` diff on the touched files — same 68 pre-existing `any`-related errors in
+  `submissions/[id]/route.ts` before and after, none added). **Not yet clicked through in a real
+  browser** — next session with working STUDENT credentials should: save a brand-new blank proposal
+  draft with nothing filled in at all (title blank, no committee, no exam date) and confirm it
+  doesn't error and reloads with whatever was (not) entered; partially fill in just an advisor and
+  save, reload, confirm only that field persisted; and pick an EXTERNAL account for a CO_ADVISOR or
+  EXAM_COMMITTEE row and confirm it saves/resolves correctly.
+  **Built alongside another concurrent Claude Code session working in this same repo directory at
+  the same time**, which landed the "Forbidden"-on-stale-session fix in the entry right below —
+  both sessions touched `src/app/api/submissions/[id]/route.ts` but in disjoint regions (that
+  session's fix is scoped to the top of the shared `PATCH` handler around the `dbUser` lookup;
+  this work only touches the `save_proposal_draft`/`save_defense_draft` branches further down), so
+  no conflict.
+
 - **2026-09-08 — Fixed a confusing "Forbidden" error on approving a PROPOSAL/THESIS_DEFENSE step
   when the acting user's session had gone stale.** Reported as: ADMIN clicks "อนุมัติ" on a
   submission's pending ADMIN step (e.g. PROPOSAL step 2) and gets a bare `Forbidden` runtime error.

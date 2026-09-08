@@ -5,7 +5,7 @@ import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName } from "@/lib/
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
-import { validatePeople, resolvePeople, type PersonInput } from "@/lib/committee";
+import { validatePeople, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
 import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
@@ -771,71 +771,106 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (sub.submissionType !== "PROPOSAL" || sub.status !== "DRAFT" || ((sub.pendingPeople as any[] | null)?.length ?? 0) > 0)
       return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่างที่รอกรอกข้อมูล" }, { status: 400 });
 
-    const title = typeof body.title === "string" ? body.title.trim() : "";
-    if (!title) return NextResponse.json({ error: "กรุณาระบุชื่อหัวข้อวิทยานิพนธ์" }, { status: 400 });
-    if (title.length > 500) return NextResponse.json({ error: "ชื่อหัวข้อยาวเกิน 500 ตัวอักษร" }, { status: 400 });
+    const confirm = body.confirm === true;
 
-    if (!["PHD", "ME_MECH", "ME_CPS"].includes(body.program))
-      return NextResponse.json({ error: "กรุณาเลือกหลักสูตร" }, { status: 400 });
+    // A plain save (confirm: false) is allowed to be incomplete — a student may leave the tab and
+    // come back later. Only formats that are outright wrong (not merely blank) are rejected either
+    // way; "must be present" checks only apply when actually confirming into the real workflow.
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    if (title.length > 500) return NextResponse.json({ error: "ชื่อหัวข้อยาวเกิน 500 ตัวอักษร" }, { status: 400 });
+    if (confirm && !title) return NextResponse.json({ error: "กรุณาระบุชื่อหัวข้อวิทยานิพนธ์" }, { status: 400 });
+
+    const program = typeof body.program === "string" ? body.program : "";
+    if (program && !["PHD", "ME_MECH", "ME_CPS"].includes(program))
+      return NextResponse.json({ error: "หลักสูตรไม่ถูกต้อง" }, { status: 400 });
+    if (confirm && !program) return NextResponse.json({ error: "กรุณาเลือกหลักสูตร" }, { status: 400 });
 
     const studentPhone = typeof body.studentPhone === "string" ? body.studentPhone.trim() : "";
 
     const examDate = typeof body.examDate === "string" ? body.examDate.trim() : "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || isNaN(Date.parse(examDate)))
+    if (examDate && (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || isNaN(Date.parse(examDate))))
       return NextResponse.json({ error: "กรุณาระบุวันที่สอบให้ถูกต้อง" }, { status: 400 });
-    const todayBkk = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
-    if (examDate < todayBkk)
-      return NextResponse.json({ error: "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต" }, { status: 400 });
+    if (confirm) {
+      if (!examDate) return NextResponse.json({ error: "กรุณาระบุวันที่สอบ" }, { status: 400 });
+      const todayBkk = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+      if (examDate < todayBkk)
+        return NextResponse.json({ error: "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต" }, { status: 400 });
+    }
     const examTime = typeof body.examTime === "string" ? body.examTime.trim() : "";
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(examTime))
+    if (examTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(examTime))
       return NextResponse.json({ error: "กรุณาระบุเวลาสอบให้ถูกต้อง (เช่น 13:00)" }, { status: 400 });
+    if (confirm && !examTime) return NextResponse.json({ error: "กรุณาระบุเวลาสอบ" }, { status: 400 });
+
     const roomNeeded = !!body.roomNeeded;
     const parkingNeeded = !!body.parkingNeeded;
     const carPlate = typeof body.carPlate === "string" ? body.carPlate.trim() : "";
-    if (parkingNeeded && (!carPlate || carPlate.length > 50))
-      return NextResponse.json({ error: "กรุณาระบุเลขทะเบียนรถ (ไม่เกิน 50 ตัวอักษร)" }, { status: 400 });
+    if (carPlate.length > 50) return NextResponse.json({ error: "เลขทะเบียนรถยาวเกินไป" }, { status: 400 });
+    if (confirm && parkingNeeded && !carPlate)
+      return NextResponse.json({ error: "กรุณาระบุเลขทะเบียนรถ" }, { status: 400 });
 
     const studentOwnEmails = new Set(
       [session.user.email, sub.studentEmail].filter((e): e is string => !!e).map((e) => e.trim().toLowerCase())
     );
     const people: PersonInput[] = Array.isArray(body.people) ? body.people : [];
-    const peopleError = validatePeople(people, studentOwnEmails);
-    if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
 
-    const resolved = await resolvePeople(people);
-    if (!resolved.ok)
-      return NextResponse.json(
-        { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${resolved.missingEmails.join(", ")}` },
-        { status: 400 }
-      );
+    const baseData = {
+      title,
+      program: program || null,
+      studentPhone: studentPhone || null,
+      examDate: examDate || null,
+      examTime: examTime || null,
+      roomNeeded,
+      parkingNeeded,
+      carPlate: parkingNeeded ? (carPlate || null) : null,
+    };
 
-    const confirm = body.confirm === true;
+    if (!confirm) {
+      const peopleError = validatePeopleLenient(people, studentOwnEmails);
+      if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      const partial = await resolvePeoplePartial(people);
 
-    await prisma.submission.update({
-      where: { id },
-      data: {
-        title,
-        program: body.program,
-        studentPhone: studentPhone || null,
-        advisorId: resolved.advisorId,
-        headCommitteeId: resolved.headCommitteeId,
-        committeeIds: resolved.committeeIds,
-        coAdvisorIds: resolved.coAdvisorIds,
-        invitedCommitteeId: resolved.invitedCommitteeId,
-        programChairId: resolved.programChairId,
-        invitedProfName: resolved.invitedProfName,
-        invitedProfEmail: resolved.invitedProfEmail,
-        invitedProfPhone: resolved.invitedProfPhone,
-        examDate,
-        examTime,
-        roomNeeded,
-        parkingNeeded,
-        carPlate: parkingNeeded ? carPlate : null,
-        ...(confirm ? { status: "IN_PROGRESS" } : {}),
-      },
-    });
+      await prisma.submission.update({
+        where: { id },
+        data: {
+          ...baseData,
+          advisorId: partial.advisorId,
+          headCommitteeId: partial.headCommitteeId,
+          committeeIds: partial.committeeIds,
+          coAdvisorIds: partial.coAdvisorIds,
+          invitedCommitteeId: partial.invitedCommitteeId,
+          programChairId: partial.programChairId,
+          invitedProfName: partial.invitedProfName,
+          invitedProfEmail: partial.invitedProfEmail,
+          invitedProfPhone: partial.invitedProfPhone,
+        },
+      });
+    } else {
+      const peopleError = validatePeople(people, studentOwnEmails);
+      if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      const resolved = await resolvePeople(people);
+      if (!resolved.ok)
+        return NextResponse.json(
+          { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${resolved.missingEmails.join(", ")}` },
+          { status: 400 }
+        );
 
-    if (confirm) {
+      await prisma.submission.update({
+        where: { id },
+        data: {
+          ...baseData,
+          advisorId: resolved.advisorId,
+          headCommitteeId: resolved.headCommitteeId,
+          committeeIds: resolved.committeeIds,
+          coAdvisorIds: resolved.coAdvisorIds,
+          invitedCommitteeId: resolved.invitedCommitteeId,
+          programChairId: resolved.programChairId,
+          invitedProfName: resolved.invitedProfName,
+          invitedProfEmail: resolved.invitedProfEmail,
+          invitedProfPhone: resolved.invitedProfPhone,
+          status: "IN_PROGRESS",
+        },
+      });
+
       await prisma.workflowStep.createMany({
         data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId)
           .map((s) => ({ ...s, submissionId: id })),
@@ -860,64 +895,96 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (sub.submissionType !== "THESIS_DEFENSE" || sub.status !== "DRAFT" || ((sub.pendingPeople as any[] | null)?.length ?? 0) > 0)
       return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่างที่นำเข้าอัตโนมัติ" }, { status: 400 });
 
+    const confirm = body.confirm === true;
+
+    // Same relaxation as save_proposal_draft — a plain save may be incomplete; "must be present"
+    // checks only apply when confirming into the real workflow.
     const title = typeof body.title === "string" ? body.title.trim() : "";
-    if (!title) return NextResponse.json({ error: "กรุณาระบุชื่อหัวข้อวิทยานิพนธ์" }, { status: 400 });
     if (title.length > 500) return NextResponse.json({ error: "ชื่อหัวข้อยาวเกิน 500 ตัวอักษร" }, { status: 400 });
+    if (confirm && !title) return NextResponse.json({ error: "กรุณาระบุชื่อหัวข้อวิทยานิพนธ์" }, { status: 400 });
 
     const examDate = typeof body.examDate === "string" ? body.examDate.trim() : "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || isNaN(Date.parse(examDate)))
+    if (examDate && (!/^\d{4}-\d{2}-\d{2}$/.test(examDate) || isNaN(Date.parse(examDate))))
       return NextResponse.json({ error: "กรุณาระบุวันที่สอบให้ถูกต้อง" }, { status: 400 });
-    const todayBkk = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
-    if (examDate < todayBkk)
-      return NextResponse.json({ error: "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต" }, { status: 400 });
+    if (confirm) {
+      if (!examDate) return NextResponse.json({ error: "กรุณาระบุวันที่สอบ" }, { status: 400 });
+      const todayBkk = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+      if (examDate < todayBkk)
+        return NextResponse.json({ error: "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต" }, { status: 400 });
+    }
     const examTime = typeof body.examTime === "string" ? body.examTime.trim() : "";
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(examTime))
+    if (examTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(examTime))
       return NextResponse.json({ error: "กรุณาระบุเวลาสอบให้ถูกต้อง (เช่น 13:00)" }, { status: 400 });
+    if (confirm && !examTime) return NextResponse.json({ error: "กรุณาระบุเวลาสอบ" }, { status: 400 });
+
     const roomNeeded = !!body.roomNeeded;
     const parkingNeeded = !!body.parkingNeeded;
     const carPlate = typeof body.carPlate === "string" ? body.carPlate.trim() : "";
-    if (parkingNeeded && (!carPlate || carPlate.length > 50))
-      return NextResponse.json({ error: "กรุณาระบุเลขทะเบียนรถ (ไม่เกิน 50 ตัวอักษร)" }, { status: 400 });
+    if (carPlate.length > 50) return NextResponse.json({ error: "เลขทะเบียนรถยาวเกินไป" }, { status: 400 });
+    if (confirm && parkingNeeded && !carPlate)
+      return NextResponse.json({ error: "กรุณาระบุเลขทะเบียนรถ" }, { status: 400 });
 
     const studentOwnEmails = new Set(
       [session.user.email, sub.studentEmail].filter((e): e is string => !!e).map((e) => e.trim().toLowerCase())
     );
     const people: PersonInput[] = Array.isArray(body.people) ? body.people : [];
-    const peopleError = validatePeople(people, studentOwnEmails);
-    if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
 
-    const resolved = await resolvePeople(people);
-    if (!resolved.ok)
-      return NextResponse.json(
-        { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${resolved.missingEmails.join(", ")}` },
-        { status: 400 }
-      );
+    const baseData = {
+      title,
+      examDate: examDate || null,
+      examTime: examTime || null,
+      roomNeeded,
+      parkingNeeded,
+      carPlate: parkingNeeded ? (carPlate || null) : null,
+    };
 
-    const confirm = body.confirm === true;
+    if (!confirm) {
+      const peopleError = validatePeopleLenient(people, studentOwnEmails);
+      if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      const partial = await resolvePeoplePartial(people);
 
-    await prisma.submission.update({
-      where: { id },
-      data: {
-        title,
-        advisorId: resolved.advisorId,
-        headCommitteeId: resolved.headCommitteeId,
-        committeeIds: resolved.committeeIds,
-        coAdvisorIds: resolved.coAdvisorIds,
-        invitedCommitteeId: resolved.invitedCommitteeId,
-        programChairId: resolved.programChairId,
-        invitedProfName: resolved.invitedProfName,
-        invitedProfEmail: resolved.invitedProfEmail,
-        invitedProfPhone: resolved.invitedProfPhone,
-        examDate,
-        examTime,
-        roomNeeded,
-        parkingNeeded,
-        carPlate: parkingNeeded ? carPlate : null,
-        ...(confirm ? { status: "IN_PROGRESS" } : {}),
-      },
-    });
+      await prisma.submission.update({
+        where: { id },
+        data: {
+          ...baseData,
+          advisorId: partial.advisorId,
+          headCommitteeId: partial.headCommitteeId,
+          committeeIds: partial.committeeIds,
+          coAdvisorIds: partial.coAdvisorIds,
+          invitedCommitteeId: partial.invitedCommitteeId,
+          programChairId: partial.programChairId,
+          invitedProfName: partial.invitedProfName,
+          invitedProfEmail: partial.invitedProfEmail,
+          invitedProfPhone: partial.invitedProfPhone,
+        },
+      });
+    } else {
+      const peopleError = validatePeople(people, studentOwnEmails);
+      if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      const resolved = await resolvePeople(people);
+      if (!resolved.ok)
+        return NextResponse.json(
+          { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${resolved.missingEmails.join(", ")}` },
+          { status: 400 }
+        );
 
-    if (confirm) {
+      await prisma.submission.update({
+        where: { id },
+        data: {
+          ...baseData,
+          advisorId: resolved.advisorId,
+          headCommitteeId: resolved.headCommitteeId,
+          committeeIds: resolved.committeeIds,
+          coAdvisorIds: resolved.coAdvisorIds,
+          invitedCommitteeId: resolved.invitedCommitteeId,
+          programChairId: resolved.programChairId,
+          invitedProfName: resolved.invitedProfName,
+          invitedProfEmail: resolved.invitedProfEmail,
+          invitedProfPhone: resolved.invitedProfPhone,
+          status: "IN_PROGRESS",
+        },
+      });
+
       await prisma.workflowStep.createMany({
         data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId)
           .map((s) => ({ ...s, submissionId: id })),
