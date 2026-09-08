@@ -488,6 +488,25 @@ mainly for EXTERNAL accounts) were added for this. `Notification.submissionId` i
 support these submission-independent notifications — `NotificationBell` already falls back to the
 recipient's landing page when it's null.
 
+**EXTERNAL accounts were invisible in two places — fixed 2026-09-08.** (1) `GET /api/users`'s
+ADMIN branch scoped its `where` to `{ roles: { hasSome: ["ADMIN", "PROFESSOR", "STUDENT"] } }` —
+missing `"EXTERNAL"` entirely, so an approved external examiner never appeared anywhere that reads
+from `useApp().users` while logged in as ADMIN (`AdminUsersPanel`'s user list included), even
+though the account existed correctly in the DB (a fresh approval briefly appeared via the client's
+own optimistic `setUsers` append, then vanished again on the next 20s poll once the filtered GET
+response overwrote it). Fixed by adding `"EXTERNAL"` to that `hasSome` array — the non-admin branch
+already used `FACULTY_ROLES = ["PROFESSOR", "EXTERNAL"]` correctly and needed no change. (2)
+`AdminSubmissionPanel.tsx`'s submission-edit form (`src/app/dashboard/admin/[id]` → "จัดการคำร้อง"
+→ expand a row → edit) has its own separate, plain `<select>`-based committee editor (not
+`CommitteePeopleEditor`) that built every dropdown — including "กรรมการภายนอก ในระบบ (เลือก)",
+which should only ever offer `EXTERNAL` accounts — from a single `advisors` list filtered to
+`PROFESSOR` only. Added a matching `externals` list and a `mixedCommittee` (`[...advisors,
+...externals]`) list, mirroring `CommitteePeopleEditor`'s `MIXED_ROLES`: อาจารย์ที่ปรึกษาร่วม
+(CO_ADVISOR) and กรรมการสอบ (EXAM_COMMITTEE) now list both PROFESSOR and EXTERNAL accounts,
+กรรมการภายนอก ในระบบ now lists EXTERNAL accounts only (previously PROFESSOR-only, so an admin could
+never actually select an external examiner there at all), and อาจารย์ที่ปรึกษา/ประธานกรรมการสอบ
+stay PROFESSOR-only same as before.
+
 **Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
 
 **Exam logistics:** วันที่สอบ + เวลา, ห้องประชุม (yes/no), ที่จอดรถ (yes/no), เลขทะเบียนรถ.

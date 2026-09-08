@@ -451,6 +451,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const student    = allUsers.find((u) => u.id === sub.studentId);
   const advisor    = allUsers.find((u) => u.id === sub.advisorId);
   const advisors   = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
+  // CO_ADVISOR and EXAM_COMMITTEE can be filled by either an internal PROFESSOR or an external
+  // examiner (see "Committee people" in AGENTS.md); INVITED_EXAM_COMMITTEE is external-only.
+  const externals       = allUsers.filter((u) => u.roles.includes("EXTERNAL"));
+  const mixedCommittee  = [...advisors, ...externals];
   // When REJECTED, no step is treated as "current" — future pending steps aren't highlighted
   const currentOrd        = sub.status === "REJECTED"
     ? null
@@ -775,7 +779,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <EField key={i} label={`อาจารย์ที่ปรึกษาร่วม ${i + 1}`}>
                     <select value={editDraft.coAdvisorIds[i] ?? ""} onChange={(e) => updArr("coAdvisorIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+                      {mixedCommittee.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                 ))}
@@ -801,7 +805,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <EField key={i} label={`กรรมการสอบ ${i + 1}`}>
                     <select value={editDraft.committeeIds[i] ?? ""} onChange={(e) => updArr("committeeIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+                      {mixedCommittee.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                 ))}
@@ -814,7 +818,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <EField label="ในระบบ (เลือก)">
                     <select value={editDraft.invitedCommitteeId} onChange={(e) => upd("invitedCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+                      {externals.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                   <EField label="ชื่อ (ภายนอก)"><input value={editDraft.invitedProfName} onChange={(e) => upd("invitedProfName", e.target.value)} className={EDIT_INPUT_CLS} placeholder="ถ้าไม่อยู่ในระบบ" /></EField>

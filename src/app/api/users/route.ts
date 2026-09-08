@@ -34,7 +34,10 @@ export async function GET() {
     // SUPER_ADMIN's remit is the admin tier only — STUDENT/PROFESSOR accounts are ADMIN's job
     where = { roles: { hasSome: ["SUPER_ADMIN", "ADMIN"] } };
   } else if (sessionRoles.includes("ADMIN")) {
-    where = { roles: { hasSome: ["ADMIN", "PROFESSOR", "STUDENT"] } };
+    // EXTERNAL (กรรมการภายนอก) accounts are ADMIN's to manage too — see accountScope.ts and
+    // "Committee accounts must pre-exist" in AGENTS.md. Omitting it here previously made every
+    // EXTERNAL account invisible in the admin user list despite existing in the DB.
+    where = { roles: { hasSome: ["ADMIN", "PROFESSOR", "STUDENT", "EXTERNAL"] } };
   } else {
     // Non-admins get all PROFESSOR-role users plus anyone specifically linked to
     // their own submissions (committee members may exist under a different role).

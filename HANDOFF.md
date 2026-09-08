@@ -185,6 +185,38 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — Fixed EXTERNAL (กรรมการภายนอก) accounts being invisible in the admin user list and
+  in the admin submission-edit form's committee pickers.** Reported as: an approved external
+  examiner doesn't show up in either "จัดการผู้ใช้งาน" or the committee dropdowns when an admin
+  edits a submission. Two separate bugs, found by tracing both symptoms back through
+  `useApp().users`:
+  1. `GET /api/users`'s ADMIN branch (`src/app/api/users/route.ts` — scoping `where` by caller
+     role) queried `{ roles: { hasSome: ["ADMIN", "PROFESSOR", "STUDENT"] } }`, omitting
+     `"EXTERNAL"` entirely — confirmed via a direct read-only DB query that 3 real EXTERNAL
+     accounts already existed, so this was a pure display bug, not a missing-data one. A freshly
+     approved account briefly appeared (the client optimistically appends it to local state right
+     after `POST /api/users` succeeds) then vanished again on the next 20-second poll once the
+     filtered `GET` response overwrote it. Fixed by adding `"EXTERNAL"` to that array. The
+     non-admin branch (students/professors) already correctly included EXTERNAL via
+     `FACULTY_ROLES` and needed no change.
+  2. `AdminSubmissionPanel.tsx`'s own submission-edit form — a separate, older plain-`<select>`
+     committee editor (not the shared `CommitteePeopleEditor`) — built every committee dropdown,
+     including "กรรมการภายนอก ในระบบ (เลือก)" (which should only ever list EXTERNAL accounts), from
+     one `advisors` list filtered to `PROFESSOR` only. So even after fix #1 made EXTERNAL accounts
+     visible again in the user list, an admin still couldn't pick one as a submission's invited
+     external committee member from this edit form. Added `externals` and `mixedCommittee`
+     (`[...advisors, ...externals]`) lists mirroring `CommitteePeopleEditor`'s `MIXED_ROLES`
+     pattern (see the entry below this one) — CO_ADVISOR/EXAM_COMMITTEE dropdowns now offer both
+     account types, the invited-committee dropdown now offers EXTERNAL accounts only.
+  See "EXTERNAL account requests" in `AGENTS.md`. **Verified**: `npm run build`, `npx tsc --noEmit`,
+  and `npx eslint` on both touched files all pass with no new errors; directly queried the
+  production DB read-only (`prisma.user.findMany` via a throwaway script, deleted after) and
+  confirmed 3 EXTERNAL accounts exist and are exactly the ones missing from the admin UI before
+  this fix. **Not yet clicked through in a real browser** — next session with working ADMIN
+  credentials should confirm all 3 external accounts now show in "จัดการผู้ใช้งาน", and that editing
+  a submission's committee now offers them in the CO_ADVISOR/EXAM_COMMITTEE/invited-committee
+  dropdowns.
+
 - **2026-09-08 — Saving a proposal/defense draft no longer requires complete information; CO_ADVISOR
   and EXAM_COMMITTEE committee dropdowns now include external examiners too.** Two related fixes to
   the blank-draft-first proposal/defense flow (see the other 2026-09-08 entries below for that
