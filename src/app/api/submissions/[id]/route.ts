@@ -115,10 +115,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: userId } = session.user;
   const userName = formatUserName(session.user);
 
-  // Always look up roles from DB — JWT role can be stale after a role change
+  // Always look up roles from DB — JWT role can be stale after a role change. If the id encoded
+  // in the session's JWT no longer resolves to a user (e.g. the account was edited/recreated
+  // since login), fail clearly instead of silently falling back to the same stale JWT roles the
+  // DB lookup exists to bypass — that fallback previously surfaced as a confusing generic
+  // "Forbidden" on approve/reject with no indication a re-login would fix it.
   const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true } });
+  if (!dbUser)
+    return NextResponse.json({ error: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" }, { status: 401 });
   const userChairedPrograms = await getProgramChairsOfUser(userId);
-  const userRoles: string[] = dbUser?.roles as string[] ?? (session.user as any).roles ?? [session.user.role as string];
+  const userRoles: string[] = dbUser.roles as string[];
   const role: string = userRoles[0] ?? "";
 
   const sub = await getSub(id);

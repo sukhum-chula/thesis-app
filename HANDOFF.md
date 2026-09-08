@@ -185,6 +185,29 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — Fixed a confusing "Forbidden" error on approving a PROPOSAL/THESIS_DEFENSE step
+  when the acting user's session had gone stale.** Reported as: ADMIN clicks "อนุมัติ" on a
+  submission's pending ADMIN step (e.g. PROPOSAL step 2) and gets a bare `Forbidden` runtime error.
+  Root cause: `PATCH /api/submissions/[id]`'s `approve`/`reject`/etc. actions deliberately re-fetch
+  the acting user's roles fresh from the DB (`dbUser`, `src/app/api/submissions/[id]/
+  route.ts:118-125`) specifically to avoid trusting a JWT session's roles, which can go stale after
+  a role change — but when that DB lookup returned `null` (the session's JWT `id` no longer
+  resolves to a real user row, e.g. because the account was edited/recreated after the browser's
+  session was minted — plausible today given how much account-editing work shipped in the last few
+  sessions, see the entries below), the code silently fell back to `(session.user as any).roles`,
+  i.e. the exact same stale JWT data the DB lookup exists to bypass — so a genuinely-ADMIN account
+  with a stale session got a generic 403 "Forbidden" instead of any hint that re-logging in would
+  fix it. Confirmed via the user: logging out and back in resolved it immediately, matching this
+  root cause exactly. Fixed by returning a clear 401 ("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่") when
+  `dbUser` is `null`, instead of falling back at all. Checked for the same fallback pattern
+  elsewhere in the codebase (`grep` for the "JWT role can be stale" comment) — this file's own
+  `DELETE` handler has a similar DB-roles lookup but already fails closed (`dbUser?.roles ?? []`
+  → not-ADMIN → clean 403) rather than falling back to session data, so no other route needed the
+  same fix. **Verified**: `npx tsc --noEmit` shows no new type errors from the change (`npm run
+  build` itself couldn't be run in the same pass — the local dev server was holding the Next.js
+  build lock — but the type-check covers the same code path). Not yet re-verified against a real
+  stale-session repro in the browser beyond the user's own confirmation that re-login was the fix.
+
 - **2026-09-08 — `/professor-dashboard` reworked to show every submission the professor is a
   committee member on, plus a status filter (replacing the รอดำเนินการ/ประวัติ tab split).**
   Previously the page only surfaced a submission on one of two tabs: "รอดำเนินการ" (a professor-role
