@@ -185,6 +185,29 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-08 — `/professor-dashboard` reworked to show every submission the professor is a
+  committee member on, plus a status filter (replacing the รอดำเนินการ/ประวัติ tab split).**
+  Previously the page only surfaced a submission on one of two tabs: "รอดำเนินการ" (a professor-role
+  step currently PENDING and it's this user's turn) or "ประวัติ" (a professor-role step this user has
+  already APPROVED/REJECTED) — a submission where the professor sits on the committee but the active
+  step belongs to someone else, or hasn't reached a professor step yet, was invisible on both tabs,
+  even though the professor is clearly involved. Fixed by listing the full `submissions` array from
+  `useApp()` directly with no involvement filtering at all — it's already scoped correctly, since
+  `GET /api/submissions` (`src/app/api/submissions/route.ts`) builds its `where` clause from exactly
+  the same involvement set (advisor/co-advisor/head/exam committee/invited/program chair, plus the
+  program-chair-fallback `programChairFor` check) for any non-ADMIN session. Replaced the two-tab bar
+  with the same status-filter tab pattern `/admin-dashboard` already uses — ทั้งหมด/ฉบับร่าง/
+  กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ/ยกเลิกแล้ว, each with a live count badge (`STATUS_TABS` +
+  `counts`, mirroring `src/app/admin-dashboard/page.tsx`). The per-card "it's your turn"
+  (`isMyTurn`) and "you already acted" (`getMyActedStep`) logic is unchanged from the old
+  `pending`/`history` filters — just applied to every card instead of gating which tab it appears
+  on — and submissions needing this professor's action still sort first within whatever status is
+  selected. See "Professor dashboard" in `AGENTS.md`. **Verified**: `npm run build` passes clean.
+  **Not yet clicked through in a real browser** — no working PROFESSOR test credentials were
+  exercised this session; next session should confirm a submission where this professor is, say,
+  an EXAM_COMMITTEE member on a step someone else currently holds now shows up (it didn't before),
+  and that the status tab counts/filtering behave correctly.
+
 - **2026-09-08 — `ExternalCommitteeRequest` gained its own `title` column; the student-facing
   "ขอเพิ่มบัญชีกรรมการภายนอก" form and the admin approval flow both updated to match.** Previously
   this form (`StudentExternalRequests.tsx`) had a single free-text "ชื่อ-นามสกุล (พร้อมตำแหน่ง)"

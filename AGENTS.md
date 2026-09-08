@@ -648,8 +648,23 @@ icon (small solid `ROLE_GRADIENT` square, not a full-bleed banner) + role/name, 
 
 `/professor-dashboard` dropped `DashboardHeader` entirely (2026-09-06, same flattening already done
 on `/admin-dashboard`/`/super-dashboard` — see "Admin dashboard" below): its pending count is still
-visible via the existing tab-badge on the รอดำเนินการ/ประวัติ tab bar, so nothing was added back in
-its place.
+visible via the existing count badges on the status-filter tab bar (see below), so nothing was
+added back in its place.
+
+**`/professor-dashboard` (2026-09-08 — reworked from a รอดำเนินการ/ประวัติ split into a full list +
+status filter)**: shows **every** submission the professor is a committee member on (advisor/
+co-advisor/head/exam committee/invited/program chair) — this list is already exactly what
+`useApp()`'s `submissions` contains for a PROFESSOR/EXTERNAL session, since `GET /api/submissions`
+scopes the query server-side to that same involvement set (see the `where` clause built in
+`src/app/api/submissions/route.ts`). The old two-tab design only surfaced a submission once it had
+a professor-role step either currently PENDING on this user or already acted on by them — a
+submission where this professor sits on the committee but the active step belongs to someone else
+(or hasn't been reached yet) was invisible on both tabs. Replaced with the same status-filter tab
+bar pattern `/admin-dashboard` uses (ทั้งหมด/ฉบับร่าง/กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ/ยกเลิกแล้ว,
+each with a count badge). Within a status, submissions where it's currently this professor's turn
+to act sort first; each card still shows the same orange "อาจารย์ — <step>" badge when it's their
+turn and the green/red "ท่านอนุมัติแล้ว"/"ท่านปฏิเสธแล้ว" badge once they've acted, computed by the
+same per-role/committee-sequencing logic the old `pending`/`history` filters used.
 
 The header itself is a **flat white card** (`bg-white border border-gray-200 rounded-2xl`), matching
 the calm, low-chrome style of the student dashboard's cards — it was originally a full gradient hero
