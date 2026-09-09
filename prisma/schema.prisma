@@ -260,17 +260,6 @@ model Signature {
   @@map("signatures")
 }
 
-model MagicToken {
-  id         String   @id @default(cuid())
-  token      String   @unique
-  userId     String
-  redirectTo String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-
-  @@map("magic_tokens")
-}
-
 // Fixed-window rate limiting for unauthenticated endpoints (register, forgot-password).
 // DB-backed so the limit holds across serverless instances.
 model RateLimit {

@@ -78,7 +78,7 @@ export async function clearUserFromSystemSettings(userId: string): Promise<void>
 
 // Decorates already-fetched users with the computed programChairFor/isFinanceContact fields the
 // rest of the app (client-side MockUser objects, session/JWT) expects — sourced from
-// SystemSetting instead of a column. Used by GET /api/users, auth.ts, and the magic-link route.
+// SystemSetting instead of a column. Used by GET /api/users and auth.ts.
 // programChairFor is an array since one professor may chair several programs at once.
 export async function attachSystemSettings<T extends { id: string }>(
   users: T[]

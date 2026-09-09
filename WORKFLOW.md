@@ -190,7 +190,8 @@ THESIS_DEFENSE: 2→บ.3   3→บ.2   4→บ.2   5→บ.2   6→บ.2
 ## Notifications
 
 - **Step emails** fire automatically to the next responsible person every time a step advances,
-  with a one-click magic-link login straight to their submission.
+  linking to `/login` (email + passcode) — there is no auto-login link (magic-link login was
+  removed 2026-09-09).
 - **Finance emails** fire at exactly two points — PROPOSAL step 3 and THESIS_DEFENSE step 6 (both
   PROGRAM_CHAIR approvals) — with the latest finance-attachment file included.
 - **Rejection emails** use a distinct red/formal template naming the step and the reason.

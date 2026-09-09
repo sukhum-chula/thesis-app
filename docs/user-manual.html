@@ -1,0 +1,782 @@
+<title>คู่มือระบบวิทยานิพนธ์</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root{
+    --ink:#1b2430;
+    --ink-soft:#4b5768;
+    --ink-faint:#78839250;
+    --paper:#f4f6f9;
+    --surface:#ffffff;
+    --surface-sunken:#eef1f6;
+    --line:#dbe1e9;
+    --line-strong:#b9c2ce;
+    --masthead:#212e4d;
+    --masthead-ink:#101a33;
+    --masthead-fg:#eef2ff;
+    --code-bg:#111826;
+    --code-fg:#e8edfb;
+
+    --student:#2f6fed;      --student-soft:#e7f0ff;      --student-line:#b7cffb;
+    --professor:#6e4fd1;    --professor-soft:#efe9fb;    --professor-line:#cdbdf3;
+    --admin:#b9660f;        --admin-soft:#fbedde;        --admin-line:#edc493;
+    --superadmin:#3f4f63;   --superadmin-soft:#e8edf2;   --superadmin-line:#c4cedb;
+
+    --good:#1f7a52;
+    --warn:#a85a0a;
+    --bad:#b23c3c;
+
+    --shadow: 0 1px 2px rgba(20,26,40,.06), 0 8px 24px -12px rgba(20,26,40,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e7ecf5;
+      --ink-soft:#aab4c4;
+      --ink-faint:#5b667850;
+      --paper:#121620;
+      --surface:#171c27;
+      --surface-sunken:#0e1319;
+      --line:#2a3140;
+      --line-strong:#3c465a;
+      --masthead:#0e1526;
+      --masthead-ink:#080d18;
+      --masthead-fg:#eef2ff;
+      --code-bg:#0a0f1a;
+      --code-fg:#dfe7fb;
+
+      --student:#6f9dfc;      --student-soft:#182640;      --student-line:#2c4a80;
+      --professor:#a992ec;    --professor-soft:#241c3c;    --professor-line:#453586;
+      --admin:#e0983f;        --admin-soft:#2e2210;        --admin-line:#6b4a1c;
+      --superadmin:#9fb0c6;   --superadmin-soft:#232b38;   --superadmin-line:#3c4a5e;
+
+      --good:#4bbd8c;
+      --warn:#dd9a4c;
+      --bad:#e17b7b;
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 12px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e7ecf5;
+    --ink-soft:#aab4c4;
+    --ink-faint:#5b667850;
+    --paper:#121620;
+    --surface:#171c27;
+    --surface-sunken:#0e1319;
+    --line:#2a3140;
+    --line-strong:#3c465a;
+    --masthead:#0e1526;
+    --masthead-ink:#080d18;
+    --masthead-fg:#eef2ff;
+    --code-bg:#0a0f1a;
+    --code-fg:#dfe7fb;
+
+    --student:#6f9dfc;      --student-soft:#182640;      --student-line:#2c4a80;
+    --professor:#a992ec;    --professor-soft:#241c3c;    --professor-line:#453586;
+    --admin:#e0983f;        --admin-soft:#2e2210;        --admin-line:#6b4a1c;
+    --superadmin:#9fb0c6;   --superadmin-soft:#232b38;   --superadmin-line:#3c4a5e;
+
+    --good:#4bbd8c;
+    --warn:#dd9a4c;
+    --bad:#e17b7b;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 12px 28px -14px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    text-wrap:pretty;
+  }
+  h1,h2,h3{text-wrap:balance; margin:0;}
+  p{margin:0;}
+  a{color:inherit;}
+  ::selection{background:var(--student-line); color:var(--masthead-ink);}
+
+  .mono{
+    font-family:"IBM Plex Mono",ui-monospace,"Cascadia Mono",monospace;
+    letter-spacing:.01em;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    background:linear-gradient(180deg,var(--masthead),var(--masthead-ink));
+    color:var(--masthead-fg);
+    padding:30px clamp(16px,4vw,48px) 84px;
+  }
+  .masthead-top{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:24px;
+    max-width:1180px; margin:0 auto;
+  }
+  .masthead-id{display:flex; align-items:center; gap:14px;}
+  .masthead-mark{
+    width:44px; height:44px; border-radius:10px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.18);
+    display:flex; align-items:center; justify-content:center;
+    flex:none;
+  }
+  .masthead-mark svg{width:24px; height:24px;}
+  .masthead-name{font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; opacity:.68; margin-bottom:4px;}
+  .masthead h1{font-size:clamp(22px,3vw,30px); font-weight:700; line-height:1.25;}
+  .masthead-meta{
+    text-align:right; font-size:12.5px; color:rgba(238,242,255,.62); line-height:1.7;
+    font-family:"IBM Plex Mono",monospace; white-space:nowrap;
+  }
+  .masthead-sub{
+    max-width:1180px; margin:20px auto 0; padding-top:20px;
+    border-top:1px solid rgba(238,242,255,.14);
+    font-size:15px; color:rgba(238,242,255,.82); line-height:1.75; max-width:74ch;
+  }
+
+  /* ---------- tab bar (dossier tabs) ---------- */
+  .tabwrap{max-width:1180px; margin:-52px auto 0; padding:0 clamp(16px,4vw,48px);}
+  .tablist{
+    display:flex; gap:6px; list-style:none; margin:0; padding:0;
+    overflow-x:auto;
+  }
+  .tab{
+    appearance:none; border:none; cursor:pointer;
+    font-family:inherit; font-size:14.5px; font-weight:600; color:var(--ink-soft);
+    background:var(--surface-sunken);
+    border:1px solid var(--line);
+    border-bottom:none;
+    padding:13px 20px 12px;
+    border-radius:12px 12px 0 0;
+    display:flex; align-items:center; gap:9px;
+    white-space:nowrap;
+    transform:translateY(6px);
+    transition:transform .15s ease, background .15s ease, color .15s ease;
+  }
+  .tab:hover{transform:translateY(2px);}
+  .tab .dot{width:9px; height:9px; border-radius:50%; background:var(--tab-color,var(--ink-soft)); flex:none;}
+  .tab[aria-selected="true"]{
+    background:var(--surface); color:var(--ink);
+    transform:translateY(0);
+    box-shadow:var(--shadow);
+    border-color:var(--line-strong);
+  }
+  .tab:focus-visible{outline:2px solid var(--tab-color,var(--student)); outline-offset:2px;}
+  .tab .role-eyebrow{font-size:11px; font-weight:600; letter-spacing:.06em; opacity:.6; display:none;}
+
+  /* ---------- panels ---------- */
+  main{max-width:1180px; margin:0 auto; padding:0 clamp(16px,4vw,48px) 80px;}
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line-strong);
+    border-radius:0 12px 12px 12px;
+    box-shadow:var(--shadow);
+    padding:clamp(20px,3.4vw,44px);
+  }
+  .panel[hidden]{display:none;}
+
+  .panel-head{
+    display:flex; gap:20px; align-items:flex-start; justify-content:space-between;
+    padding-bottom:22px; margin-bottom:28px; border-bottom:1px solid var(--line);
+  }
+  .panel-head .who{font-size:12.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--role-color); margin-bottom:8px;}
+  .panel-head h2{font-size:clamp(21px,2.6vw,27px); font-weight:700;}
+  .panel-head p{margin-top:8px; color:var(--ink-soft); font-size:15px; max-width:60ch; line-height:1.7;}
+  .role-badge{
+    flex:none; width:56px; height:56px; border-radius:14px;
+    background:var(--role-soft); border:1px solid var(--role-line);
+    display:flex; align-items:center; justify-content:center; font-size:24px;
+  }
+
+  /* quick nav pills */
+  .toc{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:34px;}
+  .toc a{
+    font-size:13px; font-weight:600; text-decoration:none;
+    padding:7px 13px; border-radius:999px;
+    background:var(--surface-sunken); border:1px solid var(--line);
+    color:var(--ink-soft);
+    transition:background .12s ease, color .12s ease, border-color .12s ease;
+  }
+  .toc a:hover{background:var(--role-soft); border-color:var(--role-line); color:var(--ink);}
+  .toc a .n{font-family:"IBM Plex Mono",monospace; color:var(--role-color); margin-right:6px;}
+
+  /* section */
+  section.block{margin-bottom:46px; scroll-margin-top:24px;}
+  section.block:last-child{margin-bottom:8px;}
+  .block-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+  .block-tag{
+    font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600;
+    color:var(--code-fg); background:var(--code-bg);
+    padding:3px 8px; border-radius:5px; flex:none;
+  }
+  .block h3{font-size:19px; font-weight:700;}
+  .block-intro{color:var(--ink-soft); font-size:15px; line-height:1.75; max-width:70ch; margin:10px 0 18px;}
+
+  /* step list */
+  ol.steps{list-style:none; margin:0 0 18px; padding:0; counter-reset:step;}
+  ol.steps > li{
+    counter-increment:step;
+    display:grid; grid-template-columns:34px 1fr; gap:14px;
+    padding:14px 0; border-top:1px solid var(--line);
+  }
+  ol.steps > li:first-child{border-top:none; padding-top:0;}
+  ol.steps > li::before{
+    content:counter(step);
+    font-family:"IBM Plex Mono",monospace; font-size:13px; font-weight:600;
+    color:var(--role-color); background:var(--role-soft); border:1px solid var(--role-line);
+    width:30px; height:30px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .steps strong{font-weight:600;}
+  .steps .sd{margin-top:3px; color:var(--ink-soft); font-size:14.5px; line-height:1.7;}
+  .steps .btn{
+    display:inline-block; font-family:"Sarabun"; font-size:13.5px; font-weight:600;
+    background:var(--role-soft); color:var(--role-color); border:1px solid var(--role-line);
+    padding:2px 9px; border-radius:6px; margin:0 2px;
+  }
+
+  code.f{
+    font-family:"IBM Plex Mono",monospace; font-size:12.5px; font-weight:600;
+    background:var(--surface-sunken); border:1px solid var(--line);
+    padding:1px 6px; border-radius:5px; color:var(--ink);
+  }
+
+  /* callouts */
+  .note, .warn-box{
+    display:grid; grid-template-columns:20px 1fr; gap:12px;
+    font-size:14px; line-height:1.7; padding:13px 16px; border-radius:10px; margin:16px 0;
+  }
+  .note{background:var(--role-soft); border:1px solid var(--role-line); color:var(--ink);}
+  .note b, .warn-box b{display:block; font-size:12.5px; letter-spacing:.05em; text-transform:uppercase; margin-bottom:2px;}
+  .note b{color:var(--role-color);}
+  .warn-box{background:color-mix(in srgb, var(--bad) 12%, var(--surface)); border:1px solid color-mix(in srgb, var(--bad) 40%, var(--surface));}
+  .warn-box b{color:var(--bad);}
+  .note svg, .warn-box svg{width:18px; height:18px; margin-top:1px;}
+
+  /* image placeholder figure */
+  figure.shot{margin:20px 0 26px;}
+  .shot-frame{
+    position:relative;
+    border:2px dashed var(--line-strong);
+    border-radius:12px;
+    background:
+      repeating-linear-gradient(135deg, var(--surface-sunken) 0 10px, var(--surface) 10px 20px);
+    min-height:190px;
+    display:flex; align-items:center; justify-content:center;
+    padding:22px;
+  }
+  .shot-frame .tag{
+    position:absolute; top:-11px; left:16px;
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; font-weight:600;
+    background:var(--code-bg); color:var(--code-fg);
+    padding:3px 9px; border-radius:6px;
+  }
+  .shot-inner{text-align:center; max-width:44ch;}
+  .shot-inner svg{width:34px; height:34px; color:var(--line-strong); margin-bottom:10px;}
+  .shot-inner .lbl{font-size:13px; font-weight:700; letter-spacing:.04em; color:var(--ink-soft); text-transform:uppercase;}
+  figcaption{margin-top:9px; font-size:13.5px; color:var(--ink-soft); line-height:1.6;}
+  figcaption b{color:var(--ink); font-weight:600;}
+
+  .shots-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px;}
+  .shots-row figure.shot{margin:0;}
+  .shots-row .shot-frame{min-height:150px;}
+
+  table.spec{width:100%; border-collapse:collapse; margin:14px 0 20px; font-size:14px;}
+  table.spec th, table.spec td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top;}
+  table.spec th{font-weight:700; color:var(--ink-soft); font-size:12.5px; letter-spacing:.04em; text-transform:uppercase;}
+  table.spec tr:last-child td{border-bottom:none;}
+  .spec-wrap{overflow-x:auto;}
+
+  .taglist{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 18px;}
+  .taglist span{
+    font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600;
+    background:var(--surface-sunken); border:1px solid var(--line); color:var(--ink-soft);
+    padding:3px 8px; border-radius:6px;
+  }
+
+  footer{
+    max-width:1180px; margin:0 auto; padding:0 clamp(16px,4vw,48px) 60px;
+    color:var(--ink-faint); font-size:12.5px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+
+  @media (max-width:640px){
+    .masthead-meta{display:none;}
+    .role-badge{display:none;}
+    .panel-head{flex-direction:column;}
+    ol.steps > li{grid-template-columns:26px 1fr;}
+  }
+</style>
+
+<div class="masthead">
+  <div class="masthead-top">
+    <div class="masthead-id">
+      <div class="masthead-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#eef2ff" stroke-width="1.6"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H15l4 4v13.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 3 20.5v-16Z"/><path d="M15 3v4h4"/><path d="M7 12h9M7 15.5h9M7 8.5h4"/></svg>
+      </div>
+      <div>
+        <div class="masthead-name">ระบบจัดการวิทยานิพนธ์</div>
+        <h1>คู่มือการใช้งานระบบ แยกตามบทบาท</h1>
+      </div>
+    </div>
+    <div class="masthead-meta">ฉบับปรับปรุง 2026-09-09<br>ทุกจอภาพในคู่มือใช้ภาษาไทยตามระบบจริง</div>
+  </div>
+  <p class="masthead-sub">คู่มือนี้อธิบายขั้นตอนการใช้งานของผู้ใช้ทั้ง 4 กลุ่มในระบบ ได้แก่ นิสิต, อาจารย์/กรรมการ, เจ้าหน้าที่ภาควิชา และผู้ดูแลระบบสูงสุด — เลือกแท็บบทบาทของท่านด้านล่างเพื่อเริ่มอ่าน ตำแหน่งที่มีกรอบเส้นประคือจุดที่จะแทรกภาพหน้าจอประกอบในฉบับถัดไป</p>
+</div>
+
+<div class="tabwrap">
+  <ul class="tablist" role="tablist" aria-label="เลือกบทบาทผู้ใช้งาน">
+    <li><button class="tab" role="tab" id="tab-btn-student" aria-controls="tab-student" aria-selected="true" data-role="student" style="--tab-color:var(--student)"><span class="dot"></span>นิสิต</button></li>
+    <li><button class="tab" role="tab" id="tab-btn-professor" aria-controls="tab-professor" aria-selected="false" data-role="professor" style="--tab-color:var(--professor)"><span class="dot"></span>อาจารย์ / กรรมการ</button></li>
+    <li><button class="tab" role="tab" id="tab-btn-admin" aria-controls="tab-admin" aria-selected="false" data-role="admin" style="--tab-color:var(--admin)"><span class="dot"></span>เจ้าหน้าที่ภาควิชา</button></li>
+    <li><button class="tab" role="tab" id="tab-btn-superadmin" aria-controls="tab-superadmin" aria-selected="false" data-role="superadmin" style="--tab-color:var(--superadmin)"><span class="dot"></span>ผู้ดูแลระบบสูงสุด</button></li>
+  </ul>
+</div>
+
+<main>
+
+  <!-- ============================================================ STUDENT ============================================================ -->
+  <section class="panel" id="tab-student" role="tabpanel" aria-labelledby="tab-btn-student" style="--role-color:var(--student); --role-soft:var(--student-soft); --role-line:var(--student-line)">
+    <div class="panel-head">
+      <div>
+        <div class="who">บทบาทที่ 1 · นิสิต</div>
+        <h2>คู่มือนิสิต — ยื่นคำร้อง ติดตามสถานะ และอัปโหลดเอกสาร</h2>
+        <p>นิสิตเริ่มต้นด้วยการยื่น <b>คำร้องขอสอบโครงร่างวิทยานิพนธ์</b> เสมอ เมื่อโครงร่างเสร็จสิ้นแล้วจึงยื่น <b>คำร้องขอสอบวิทยานิพนธ์</b> ต่อได้ ทุกขั้นตอนดำเนินการได้จากหน้าเดียวคือ "หน้าหลักนิสิต" โดยไม่ต้องออกจากหน้าจอ</p>
+      </div>
+      <div class="role-badge">🎓</div>
+    </div>
+
+    <ul class="toc">
+      <li><a href="#s-login"><span class="n">01</span>เข้าสู่ระบบ</a></li>
+      <li><a href="#s-home"><span class="n">02</span>หน้าหลักนิสิต</a></li>
+      <li><a href="#s-proposal"><span class="n">03</span>ยื่นคำร้องขอสอบโครงร่าง</a></li>
+      <li><a href="#s-upload"><span class="n">04</span>ติดตามสถานะ &amp; อัปโหลดเอกสาร</a></li>
+      <li><a href="#s-reject"><span class="n">05</span>เมื่อถูกปฏิเสธ</a></li>
+      <li><a href="#s-cancel"><span class="n">06</span>ขอยกเลิกคำร้อง</a></li>
+      <li><a href="#s-defense"><span class="n">07</span>ยื่นคำร้องขอสอบวิทยานิพนธ์</a></li>
+      <li><a href="#s-external"><span class="n">08</span>ขอสร้างบัญชีกรรมการภายนอก</a></li>
+    </ul>
+
+    <section class="block" id="s-login">
+      <div class="block-head"><span class="block-tag">01</span><h3>เข้าสู่ระบบครั้งแรก</h3></div>
+      <p class="block-intro">นิสิตไม่สามารถสมัครบัญชีเองได้ — เจ้าหน้าที่ภาควิชาเป็นผู้สร้างบัญชีให้ล่วงหน้าด้วยอีเมลและรหัสนิสิตของท่าน แล้วส่ง "รหัสเข้าใช้งาน" ให้ทางอีเมลที่ลงทะเบียนไว้</p>
+      <ol class="steps">
+        <li><div><strong>เปิดอีเมลต้อนรับจากระบบ</strong><div class="sd">อีเมลจะมีรหัสเข้าใช้งานของท่านและลิงก์ไปยังหน้าเข้าสู่ระบบ — ใช้คู่กับอีเมลที่ลงทะเบียนไว้เพื่อเข้าสู่ระบบ</div></div></li>
+        <li><div><strong>เข้าสู่ระบบด้วยอีเมล + รหัสเข้าใช้งาน</strong> ที่หน้า Login</div></li>
+        <li><div><strong>ระบบพาไปยังหน้าหลักนิสิตโดยอัตโนมัติ</strong> (<code class="f">/student-dashboard</code>) ทุกครั้งที่เข้าสู่ระบบสำเร็จ</div></li>
+      </ol>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>ข้อควรทราบ</b>นิสิตไม่สามารถตั้งหรือเปลี่ยนรหัสเข้าใช้งานได้ด้วยตนเอง หากลืมรหัส ให้ติดต่อเจ้าหน้าที่ภาควิชาเพื่อรีเซ็ตให้</div></div>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 1.1</span>
+          <div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><div class="lbl">ภาพหน้าจอ</div></div>
+        </div>
+        <figcaption><b>หน้าจอเข้าสู่ระบบ (Login)</b> — ช่องกรอกอีเมลและรหัสเข้าใช้งาน พร้อมข้อความอธิบายว่าไม่มีการสมัครสมาชิกด้วยตนเอง</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="s-home">
+      <div class="block-head"><span class="block-tag">02</span><h3>หน้าหลักนิสิต</h3></div>
+      <p class="block-intro">หน้าหลักแบ่งเป็น 3 แท็บ: <span class="btn">สอบโครงร่าง</span> <span class="btn">สอบวิทยานิพนธ์</span> <span class="btn">กรรมการภายนอก</span> — ทุกการดำเนินการ (อัปโหลด ลงนามยืนยัน ขอยกเลิก) ทำได้จากในหน้านี้โดยตรง ไม่ต้องคลิกเข้าไปหน้าอื่น</p>
+      <div class="shots-row">
+        <figure class="shot"><div class="shot-frame"><span class="tag">รูปที่ 1.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div><figcaption><b>แถบแท็บ 3 แท็บ</b> บนหน้าหลักนิสิต พร้อมแถบด้านบนแสดงชื่อ-อีเมลผู้ใช้งานตรงกลาง</figcaption></figure>
+        <figure class="shot"><div class="shot-frame"><span class="tag">รูปที่ 1.3</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div><figcaption><b>การ์ด "ความคืบหน้าปัจจุบัน"</b> แสดงแถบขั้นตอนทั้งหมดของคำร้องที่กำลังดำเนินการอยู่</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="block" id="s-proposal">
+      <div class="block-head"><span class="block-tag">03</span><h3>ยื่นคำร้องขอสอบโครงร่างวิทยานิพนธ์</h3></div>
+      <p class="block-intro">นิสิตมีคำร้องโครงร่างที่ยังไม่ยกเลิกได้เพียง 1 ฉบับในเวลาเดียวกัน สามารถบันทึกร่างไว้ก่อนแล้วกลับมาแก้ไขต่อได้โดยไม่ต้องกรอกให้ครบในครั้งเดียว</p>
+      <ol class="steps">
+        <li><div><strong>เปิดแท็บ "สอบโครงร่าง"</strong><div class="sd">หากยังไม่มีคำร้อง ระบบจะแสดงแบบฟอร์มเปล่าให้ดูล่วงหน้า (ปิดการกรอกไว้) พร้อมปุ่ม <span class="btn">+ สร้างร่างคำร้อง</span> มุมขวาบน</div></div></li>
+        <li><div><strong>กด "สร้างร่างคำร้อง"</strong><div class="sd">ระบบสร้างคำร้องสถานะ "ฉบับร่าง" ให้ทันที พร้อมข้อมูลนิสิต (ชื่อ/รหัสนิสิต/อีเมล) กรอกอัตโนมัติจากบัญชีของท่าน</div></div></li>
+        <li><div><strong>กรอกชื่อเรื่องและเลือกหลักสูตร</strong></div></li>
+        <li><div><strong>เลือกคณะกรรมการจากรายชื่อบัญชีที่มีอยู่แล้วในระบบ</strong> — เลือก "บทบาท" แล้วเลือก "รายชื่อ" ทีละแถว ได้แก่ อาจารย์ที่ปรึกษา (1 คน), อาจารย์ที่ปรึกษาร่วม (ถ้ามี), ประธานกรรมการสอบ (1 คน), กรรมการสอบ (อย่างน้อย 1 คน), กรรมการภายนอก (อย่างน้อย 1 คน) — <b>ไม่มีช่องกรอกชื่อ/อีเมลเอง</b> ทุกคนต้องมีบัญชีอยู่แล้วในระบบ<div class="sd">ลากไอคอน ⠿ ด้านหน้าแต่ละแถวเพื่อจัดลำดับ — ลำดับที่จัดไว้คือลำดับการลงนามจริงของกรรมการที่มีหลายคน</div></div></li>
+        <li><div><strong>ประธานหลักสูตรถูกกำหนดให้อัตโนมัติ</strong><div class="sd">ระบบจะแสดงชื่อประธานหลักสูตรของหลักสูตรที่เลือกไว้แบบอ่านอย่างเดียว ไม่ต้องเลือกเอง หากยังไม่มีผู้ได้รับมอบหมาย ระบบจะแจ้งเตือนและไม่ให้ยืนยันคำร้อง</div></div></li>
+        <li><div><strong>กรอกกำหนดการสอบ</strong> วันที่ เวลา (เลือกชั่วโมง/นาทีจากรายการ) การใช้ห้องประชุมและที่จอดรถ</div></li>
+        <li><div><strong>เลือกการบันทึก</strong><div class="sd"><span class="btn">บันทึกฉบับร่าง</span> — บันทึกเท่าที่กรอกไว้ได้ทันที แม้ยังกรอกไม่ครบ เพื่อกลับมาทำต่อภายหลัง<br><span class="btn">ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์</span> — ต้องกรอกครบทุกช่องที่จำเป็นและติ๊กยืนยันความถูกต้องก่อน กดแล้วคำร้องเข้าสู่กระบวนการจริงทันที (11 ขั้นตอน) และแก้ไขคณะกรรมการเองไม่ได้อีก</div></div></li>
+      </ol>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>หาไม่พบชื่อกรรมการภายนอกที่ต้องการ?</b>ไปที่แท็บ "กรรมการภายนอก" เพื่อยื่นคำขอสร้างบัญชีใหม่ แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกชื่อนั้นได้ที่นี่ — ดูหัวข้อ 08</div></div>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 1.4</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>แบบฟอร์มคำร้องขอสอบโครงร่าง (ฉบับร่าง)</b> — แสดงแถวเลือกคณะกรรมการพร้อมไอคอนลากจัดลำดับ และช่องประธานหลักสูตรแบบอ่านอย่างเดียว</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="s-upload">
+      <div class="block-head"><span class="block-tag">04</span><h3>ติดตามสถานะและอัปโหลดเอกสาร</h3></div>
+      <p class="block-intro">หลังยืนยันคำร้องแล้ว การ์ด "ความคืบหน้าปัจจุบัน" จะแสดงแถบขั้นตอนทั้งหมด (WorkflowTimeline) — ขั้นตอนของนิสิตจะเริ่มค้างที่สถานะ "รอดำเนินการ" จนกว่าจะอัปโหลดเอกสารที่กำหนดครบและกดยืนยันส่ง</p>
+      <table class="spec"><thead><tr><th>ขั้นตอน</th><th>เอกสารที่ต้องอัปโหลด</th></tr></thead>
+        <tbody>
+          <tr><td>ขั้นตอนที่ 1 (โครงร่าง)</td><td><span class="taglist"><span>BW1A</span><span>BW1B</span><span>FINANCE_ATTACH</span></span></td></tr>
+          <tr><td>ขั้นตอนที่ 4 (โครงร่าง)</td><td><span class="taglist"><span>B1C</span><span>B1D</span></span></td></tr>
+          <tr><td>ขั้นตอนที่ 1 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>B2</span><span>B3</span><span>FINANCE_ATTACH</span></span></td></tr>
+          <tr><td>ขั้นตอนที่ 9 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>SIGNED</span></span> — แบบฟอร์มที่เจ้าหน้าที่คืนมาให้กรอก+ลงนาม แล้วอัปโหลดกลับ</td></tr>
+          <tr><td>ขั้นตอนที่ 16 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>B4</span><span>THESIS</span></span> — เล่มวิทยานิพนธ์จากระบบ e-thesis พร้อมบาร์โค้ด</td></tr>
+        </tbody>
+      </table>
+      <ol class="steps">
+        <li><div><strong>เลือกไฟล์ในช่องอัปโหลดของเอกสารแต่ละประเภท</strong><div class="sd">แต่ละประเภทเอกสารมี 1 ช่องเสมอ — อัปโหลดใหม่จะแทนที่เวอร์ชันล่าสุด ส่วนไฟล์เก่าจะย้ายไปเก็บไว้ใน "ประวัติ" ให้ดูย้อนหลังได้</div></div></li>
+        <li><div><strong>กดยืนยัน/ส่งคำร้อง</strong> เมื่อครบตามตารางข้างต้น ระบบจึงจะยอมให้ขั้นตอนขยับต่อไปยังผู้ตรวจคนถัดไป</div></li>
+        <li><div><strong>ติดตามผ่านแถบขั้นตอน</strong><div class="sd">ไอคอนนาฬิกาสีน้ำเงินหมายถึงขั้นตอนกำลังดำเนินการ เครื่องหมายถูกสีเขียวหมายถึงผ่านแล้ว</div></div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 1.5</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>ช่องอัปโหลดเอกสารพร้อมสถานะ</b> — ป้ายรหัสฟอร์ม (เช่น BW1A) คำอธิบาย และชิปสถานะ "อัปโหลดแล้ว/ยังไม่ได้เลือกไฟล์" ต่อ 1 ช่อง</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="s-reject">
+      <div class="block-head"><span class="block-tag">05</span><h3>เมื่อคำร้องถูกปฏิเสธ</h3></div>
+      <p class="block-intro">หากผู้ตรวจคนใดคนหนึ่งกด "ปฏิเสธ" คำร้องจะค้างอยู่ที่ขั้นตอนเดิม (ไม่ย้อนกลับ) พร้อมเหตุผลที่แนบมา</p>
+      <ol class="steps">
+        <li><div><strong>อ่านเหตุผลที่แสดงในแบนเนอร์สีแดง</strong> บนหน้าหลักนิสิต</div></li>
+        <li><div><strong>แก้ไข/อัปโหลดเอกสารใหม่ตามที่ผู้ตรวจแจ้ง</strong></div></li>
+        <li><div><strong>กดปุ่ม "ยืนยันการแก้ไข" เพื่อส่งกลับให้ผู้ตรวจคนเดิมพิจารณาใหม่</strong><div class="sd">ขั้นตอนนี้จะรีเซ็ตกลับเป็น "รอดำเนินการ" ให้ผู้ตรวจคนเดิมอีกครั้ง</div></div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 1.6</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>แบนเนอร์แจ้งเหตุผลการปฏิเสธ</b> พร้อมปุ่ม "ยืนยันการแก้ไข" สำหรับส่งคำร้องกลับเข้าสู่การพิจารณา</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="s-cancel">
+      <div class="block-head"><span class="block-tag">06</span><h3>ขอยกเลิกคำร้อง</h3></div>
+      <p class="block-intro">การยกเลิกไม่ใช่การกดแล้วยกเลิกทันที — เป็นเพียงการ "ขอ" ยกเลิก เจ้าหน้าที่ภาควิชาต้องอนุมัติก่อนจึงจะมีผลจริง</p>
+      <ol class="steps">
+        <li><div><strong>กดปุ่ม "ขอยกเลิกคำร้องนี้"</strong> แล้วยืนยันในหน้าต่างยืนยัน</div></li>
+        <li><div><strong>คำร้องจะแสดงสถานะ "รออนุมัติยกเลิก"</strong><div class="sd">ระหว่างนี้ทุกการดำเนินการบนคำร้อง (อัปโหลด/ลงนาม) จะถูกล็อกไว้ชั่วคราวจนกว่าเจ้าหน้าที่จะตัดสินใจ</div></div></li>
+        <li><div><strong>รอผลการอนุมัติหรือปฏิเสธคำขอยกเลิกจากเจ้าหน้าที่</strong> — จะได้รับแจ้งเตือนทั้งสองกรณี</div></li>
+      </ol>
+      <div class="warn-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div><b>ผลกระทบต่อคำร้องสอบวิทยานิพนธ์</b>หากยกเลิกคำร้องโครงร่างที่มีคำร้องสอบวิทยานิพนธ์เชื่อมโยงอยู่และยังไม่เสร็จสิ้น คำร้องสอบวิทยานิพนธ์นั้นจะถูกยกเลิกตามไปด้วย</div></div>
+    </section>
+
+    <section class="block" id="s-defense">
+      <div class="block-head"><span class="block-tag">07</span><h3>ยื่นคำร้องขอสอบวิทยานิพนธ์</h3></div>
+      <p class="block-intro">ยื่นได้ต่อเมื่อคำร้องขอสอบโครงร่างมีสถานะ "เสร็จสิ้น" แล้วเท่านั้น และยังไม่มีคำร้องสอบวิทยานิพนธ์ที่ค้างอยู่</p>
+      <ol class="steps">
+        <li><div><strong>เปิดแท็บ "สอบวิทยานิพนธ์"</strong><div class="sd">ระบบจะสร้างฉบับร่างให้อัตโนมัติทันที พร้อมคัดลอกคณะกรรมการทั้งชุดมาจากคำร้องโครงร่างที่เสร็จสิ้นแล้ว (แก้ไขต่อได้อิสระ ไม่กระทบคำร้องโครงร่างเดิม)</div></div></li>
+        <li><div><strong>ตรวจสอบ/แก้ไขชื่อเรื่องและคณะกรรมการ</strong> ก่อนยืนยัน</div></li>
+        <li><div><strong>กรอกกำหนดการสอบวิทยานิพนธ์ใหม่</strong></div></li>
+        <li><div><strong>เลือก "บันทึกฉบับร่าง" หรือ "ยืนยัน — ขอสอบวิทยานิพนธ์"</strong> เช่นเดียวกับขั้นตอนคำร้องโครงร่าง — ยืนยันแล้วจะเริ่มกระบวนการ 22 ขั้นตอน</div></div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 1.7</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 4h9a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6"/><path d="M9 4 5 8m4-4v4H5"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>หน้าฉบับร่างคำร้องสอบวิทยานิพนธ์</b> — แสดงคณะกรรมการที่คัดลอกมาจากคำร้องโครงร่างและช่องกำหนดการสอบที่ยังว่างรอกรอก</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="s-external">
+      <div class="block-head"><span class="block-tag">08</span><h3>ขอสร้างบัญชีกรรมการภายนอก</h3></div>
+      <p class="block-intro">ใช้เมื่อกรรมการภายนอก (กรรมการที่ไม่ใช่อาจารย์ในภาควิชา) ที่ต้องการยังไม่มีชื่อในรายการเลือกของแบบฟอร์ม</p>
+      <ol class="steps">
+        <li><div><strong>เปิดแท็บ "กรรมการภายนอก"</strong> บนหน้าหลักนิสิต</div></li>
+        <li><div><strong>กรอกคำนำหน้าชื่อ ชื่อ-นามสกุล อีเมล หน่วยงานสังกัด และเบอร์โทร</strong> ของกรรมการท่านนั้น</div></li>
+        <li><div><strong>ส่งคำขอ</strong> แล้วรอเจ้าหน้าที่ภาควิชาอนุมัติ — สถานะคำขอ (รอดำเนินการ/อนุมัติแล้ว/ปฏิเสธ) จะแสดงในแท็บเดียวกันนี้</div></li>
+        <li><div><strong>เมื่อได้รับแจ้งว่าอนุมัติแล้ว</strong> กลับไปที่แบบฟอร์มคำร้องแล้วจะพบชื่อกรรมการท่านนั้นในรายการเลือกได้ทันที</div></li>
+      </ol>
+    </section>
+  </section>
+
+  <!-- ============================================================ PROFESSOR ============================================================ -->
+  <section class="panel" id="tab-professor" role="tabpanel" aria-labelledby="tab-btn-professor" hidden style="--role-color:var(--professor); --role-soft:var(--professor-soft); --role-line:var(--professor-line)">
+    <div class="panel-head">
+      <div>
+        <div class="who">บทบาทที่ 2 · อาจารย์ / กรรมการภายนอก</div>
+        <h2>คู่มืออาจารย์ที่ปรึกษาและกรรมการสอบ</h2>
+        <p>ครอบคลุมบัญชี <b>อาจารย์ในภาควิชา</b> และ <b>กรรมการภายนอก</b> ซึ่งใช้งานหน้าจอชุดเดียวกันทุกประการ — บทบาทที่ทำหน้าที่ในคำร้องแต่ละฉบับ (อาจารย์ที่ปรึกษา, อาจารย์ที่ปรึกษาร่วม, ประธานกรรมการสอบ, กรรมการสอบ, กรรมการภายนอก, ประธานหลักสูตร) จะถูกกำหนดไว้ในตัวคำร้องแต่ละฉบับแล้ว</p>
+      </div>
+      <div class="role-badge">🧑‍🏫</div>
+    </div>
+
+    <ul class="toc">
+      <li><a href="#p-login"><span class="n">01</span>เข้าสู่ระบบ</a></li>
+      <li><a href="#p-home"><span class="n">02</span>หน้าหลักอาจารย์</a></li>
+      <li><a href="#p-sign1"><span class="n">03</span>การลงนามอนุมัติ (คนเดียว)</a></li>
+      <li><a href="#p-sign2"><span class="n">04</span>การลงนามแบบมีลำดับ (หลายคน)</a></li>
+      <li><a href="#p-reject"><span class="n">05</span>การปฏิเสธคำร้อง</a></li>
+      <li><a href="#p-download"><span class="n">06</span>ดาวน์โหลดเอกสารเพื่อลงนาม</a></li>
+    </ul>
+
+    <section class="block" id="p-login">
+      <div class="block-head"><span class="block-tag">01</span><h3>เข้าสู่ระบบ</h3></div>
+      <p class="block-intro">บัญชีสร้างโดยเจ้าหน้าที่ภาควิชาเท่านั้น เข้าสู่ระบบด้วยอีเมล + รหัสเข้าใช้งานที่ได้รับทางอีเมล ทุกอีเมลแจ้งเตือนขั้นตอนใหม่จะมีลิงก์ไปยังหน้าเข้าสู่ระบบแนบมาด้วยเสมอ</p>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 2.1</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>อีเมลแจ้งเตือนขั้นตอนใหม่</b> พร้อมลิงก์ไปยังหน้าเข้าสู่ระบบแบบ plain text และคำเตือนให้เข้าสู่ระบบด้วยอีเมล+รหัสเข้าใช้งานของตนเอง</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="p-home">
+      <div class="block-head"><span class="block-tag">02</span><h3>หน้าหลักอาจารย์</h3></div>
+      <p class="block-intro">แสดงคำร้อง<b>ทุกฉบับ</b>ที่ท่านมีชื่ออยู่ในคณะกรรมการ ไม่ว่าจะถึงคิวของท่านแล้วหรือยัง พร้อมแท็บกรองสถานะ: ทั้งหมด / ฉบับร่าง / กำลังดำเนินการ / เสร็จสิ้น / ถูกปฏิเสธ / ยกเลิกแล้ว (แต่ละแท็บมีตัวเลขจำนวนกำกับ)</p>
+      <ol class="steps">
+        <li><div><strong>สังเกตป้ายสีส้ม "อาจารย์ — ขั้นตอน ..."</strong> บนการ์ดคำร้อง — หมายถึงถึงคิวของท่านแล้ว ต้องดำเนินการ</div></li>
+        <li><div><strong>สังเกตป้ายสีเขียว/แดง "ท่านอนุมัติแล้ว" / "ท่านปฏิเสธแล้ว"</strong> — หมายถึงท่านดำเนินการในขั้นตอนของท่านไปแล้ว</div></li>
+        <li><div><strong>คลิกการ์ดคำร้องเพื่อเปิดหน้ารายละเอียด</strong> และดำเนินการลงนาม/ปฏิเสธ</div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 2.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>หน้าหลักอาจารย์</b> — แถบแท็บสถานะพร้อมตัวเลขนับ และรายการคำร้องพร้อมป้ายบอกสถานะการดำเนินการของอาจารย์เอง</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="p-sign1">
+      <div class="block-head"><span class="block-tag">03</span><h3>การลงนามอนุมัติ (ผู้อนุมัติคนเดียวต่อขั้นตอน)</h3></div>
+      <p class="block-intro">ใช้กับขั้นตอนที่มีผู้รับผิดชอบคนเดียว เช่น อาจารย์ที่ปรึกษา, ประธานกรรมการสอบ, ประธานหลักสูตร</p>
+      <ol class="steps">
+        <li><div><strong>เปิดคำร้องที่ถึงคิวของท่าน</strong></div></li>
+        <li><div><strong>ตรวจสอบเอกสารที่แนบมาของขั้นตอนนั้น</strong> (ระบบกรองให้เห็นเฉพาะเอกสารที่เกี่ยวข้องกับขั้นตอนของท่าน)</div></li>
+        <li><div><strong>กด "อนุมัติ / ลงนาม"</strong> เพื่อส่งต่อไปยังผู้รับผิดชอบขั้นตอนถัดไป</div></li>
+      </ol>
+    </section>
+
+    <section class="block" id="p-sign2">
+      <div class="block-head"><span class="block-tag">04</span><h3>การลงนามแบบมีลำดับ (คณะกรรมการหลายคน)</h3></div>
+      <p class="block-intro">ใช้กับ อาจารย์ที่ปรึกษาร่วม, กรรมการสอบ และกรรมการภายนอก ซึ่งอาจมีได้มากกว่า 1 คน — ทุกคนต้องลงนามตามลำดับที่ถูกจัดไว้ (เรียงจากบนลงล่างตามที่นิสิตกำหนดไว้ตอนยื่นคำร้อง) ขั้นตอนจะขยับต่อก็ต่อเมื่อทุกคนในลำดับลงนามครบแล้วเท่านั้น</p>
+      <ol class="steps">
+        <li><div><strong>ตรวจสอบว่าถึงลำดับของท่านหรือยัง</strong><div class="sd">หน้าจอจะแสดงรายชื่อกรรมการทั้งหมดในขั้นตอนนั้น พร้อมสถานะของแต่ละคน (ยังไม่ถึงคิว / ถึงคิวแล้ว / ลงนามแล้ว)</div></div></li>
+        <li><div><strong>เมื่อถึงคิว กด "อนุมัติ / ลงนาม" เช่นเดียวกับผู้อนุมัติคนเดียว</strong></div></li>
+        <li><div><strong>ระบบจะส่งต่อให้กรรมการลำดับถัดไปโดยอัตโนมัติ</strong> จนครบทุกคนจึงขยับไปขั้นตอนถัดไปของคำร้อง</div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 2.3</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="8" r="2.4"/><circle cx="17" cy="8" r="2.4"/><path d="M3 19c.5-3 2-4.5 4-4.5s3.5 1.5 4 4.5M13 19c.5-3 2-4.5 4-4.5s3.5 1.5 4 4.5"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>แผงลงนามของคณะกรรมการหลายคน (CommitteeSignPanel)</b> — รายชื่อกรรมการเรียงตามลำดับ พร้อมสถานะการลงนามของแต่ละคน</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="p-reject">
+      <div class="block-head"><span class="block-tag">05</span><h3>การปฏิเสธคำร้อง</h3></div>
+      <ol class="steps">
+        <li><div><strong>กด "ปฏิเสธ"</strong> ซึ่งอยู่ในแผงลงนามเดียวกัน (ไม่มีปุ่ม "ส่งกลับ" แยกต่างหากสำหรับอาจารย์ — การส่งกลับขั้นตอนก่อนหน้าทำได้โดยเจ้าหน้าที่ภาควิชาเท่านั้น)</div></div></li>
+        <li><div><strong>ระบุเหตุผลการปฏิเสธ</strong> (แนะนำให้ระบุเสมอเพื่อให้นิสิตแก้ไขได้ตรงจุด)</div></li>
+        <li><div><strong>คำร้องจะค้างอยู่ที่ขั้นตอนของท่าน</strong> จนกว่านิสิตจะแก้ไขและกด "ยืนยันการแก้ไข" ส่งกลับมาให้ท่านพิจารณาอีกครั้ง</div></div></li>
+      </ol>
+    </section>
+
+    <section class="block" id="p-download">
+      <div class="block-head"><span class="block-tag">06</span><h3>ดาวน์โหลดเอกสารเพื่อลงนาม</h3></div>
+      <p class="block-intro">เอกสารบางประเภทต้องพิมพ์ออกมาลงนามจริงแล้วอัปโหลดกลับ (เช่น แบบรายงานการเสนอผลงานฯ)</p>
+      <ol class="steps">
+        <li><div><strong>กด "ดาวน์โหลดเอกสารเพื่อลงนาม"</strong> ในแผงลงนาม — ระบบจะดาวน์โหลดไฟล์ล่าสุดของเอกสารที่เกี่ยวข้องกับขั้นตอนนั้นให้ทันที</div></div></li>
+        <li><div><strong>พิมพ์ ลงนาม แล้วสแกนกลับเป็นไฟล์</strong></div></li>
+        <li><div><strong>อัปโหลดไฟล์ที่ลงนามแล้วกลับเข้าช่องเดิม</strong> ก่อนกด "อนุมัติ / ลงนาม"</div></div></li>
+      </ol>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>เอกสารทั้งหมดเป็นไฟล์ส่วนตัว</b>ไม่มีลิงก์สาธารณะ ทุกครั้งที่คลิกดู/ดาวน์โหลด ระบบจะออกลิงก์ชั่วคราวอายุ 1 ชั่วโมงให้เฉพาะผู้เกี่ยวข้องกับคำร้องนั้นเท่านั้น</div></div>
+    </section>
+  </section>
+
+  <!-- ============================================================ ADMIN ============================================================ -->
+  <section class="panel" id="tab-admin" role="tabpanel" aria-labelledby="tab-btn-admin" hidden style="--role-color:var(--admin); --role-soft:var(--admin-soft); --role-line:var(--admin-line)">
+    <div class="panel-head">
+      <div>
+        <div class="who">บทบาทที่ 3 · เจ้าหน้าที่ภาควิชา (พี่โบ้)</div>
+        <h2>คู่มือเจ้าหน้าที่ภาควิชา</h2>
+        <p>เจ้าหน้าที่ภาควิชาเป็นผู้ดูแลกระบวนการคำร้องทั้งหมดแต่เพียงผู้เดียว และเป็นผู้จัดการบัญชีผู้ใช้งานของ นิสิต / อาจารย์ / เจ้าหน้าที่ด้วยกันเอง หน้าหลักแบ่งเป็น 3 แท็บ: <b>จัดการคำร้อง</b> · <b>จัดการผู้ใช้งาน</b> · <b>ตั้งค่าระบบ</b></p>
+      </div>
+      <div class="role-badge">🗂️</div>
+    </div>
+
+    <ul class="toc">
+      <li><a href="#a-home"><span class="n">01</span>หน้าหลักและงานที่ต้องดำเนินการ</a></li>
+      <li><a href="#a-actions"><span class="n">02</span>อนุมัติ / ปฏิเสธ / ส่งกลับคำร้อง</a></li>
+      <li><a href="#a-cancel"><span class="n">03</span>อนุมัติ/ปฏิเสธคำขอยกเลิก</a></li>
+      <li><a href="#a-relay"><span class="n">04</span>ขั้นตอนรับ-ส่งเอกสารกับคณะ</a></li>
+      <li><a href="#a-users"><span class="n">05</span>จัดการผู้ใช้งาน</a></li>
+      <li><a href="#a-accounts"><span class="n">06</span>สร้างบัญชี &amp; อนุมัติคำขอกรรมการภายนอก</a></li>
+      <li><a href="#a-rank"><span class="n">07</span>จัดลำดับผู้ใช้งาน (รหัสลำดับ)</a></li>
+      <li><a href="#a-settings"><span class="n">08</span>ตั้งค่าระบบ</a></li>
+    </ul>
+
+    <section class="block" id="a-home">
+      <div class="block-head"><span class="block-tag">01</span><h3>หน้าหลักและกล่อง "งานที่ต้องดำเนินการ"</h3></div>
+      <p class="block-intro">แท็บ "จัดการคำร้อง" (ค่าเริ่มต้น) แสดงกล่องสีส้ม "งานที่ต้องดำเนินการ" ไล่ตามลำดับความสำคัญ ตามด้วยตัวกรองประเภท คำค้นหา และแท็บสถานะ แล้วจึงเป็นรายการคำร้องทั้งหมด</p>
+      <ol class="steps">
+        <li><div><strong>คำขอยกเลิก</strong> จะอยู่บนสุดของกล่องงานเสมอ</div></li>
+        <li><div><strong>ขั้นตอนที่รอเจ้าหน้าที่อนุมัติ</strong> เรียงถัดมา</div></li>
+        <li><div><strong>งานอัปโหลดเอกสารการเงิน</strong> (ขั้นตอนที่ 4 ของโครงร่าง) เรียงเป็นลำดับสุดท้าย</div></li>
+        <li><div><strong>คลิกการ์ดคำร้องในรายการ</strong> เพื่อขยายแผงดำเนินการทั้งหมดในบรรทัดเดียวกัน (ไม่ต้องเปิดหน้าใหม่) — คำร้องที่ค้างนานเกิน 7 วันจะมีป้าย "ค้างมา X วัน" กำกับให้เห็นชัด</div></div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 3.1</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>หน้าหลักเจ้าหน้าที่ภาควิชา</b> — 3 แท็บด้านบน กล่องงานสีส้ม และรายการคำร้องพร้อมป้ายค้างวันและแถบความคืบหน้า</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="a-actions">
+      <div class="block-head"><span class="block-tag">02</span><h3>อนุมัติ / ปฏิเสธ / ส่งกลับขั้นตอนก่อนหน้า</h3></div>
+      <ol class="steps">
+        <li><div><strong>ขยายการ์ดคำร้องที่ถึงคิวของเจ้าหน้าที่</strong> (เช่น ขั้นตอนที่ 2, 10 ของโครงร่าง)</div></li>
+        <li><div><strong>ตรวจเอกสารแนบ แล้วกด "อนุมัติ"</strong><div class="sd">ปุ่มจะล็อกและแสดง "กำลังดำเนินการ..." ทันทีที่กด ป้องกันการกดซ้ำระหว่างรอระบบตอบกลับ</div></div></li>
+        <li><div><strong>กด "ปฏิเสธ" พร้อมระบุเหตุผล</strong> หากพบข้อผิดพลาด — <b>การปฏิเสธของเจ้าหน้าที่ต้องระบุเหตุผลเสมอ</b> ต่างจากบทบาทอื่นที่ไม่บังคับ</div></div></li>
+        <li><div><strong>ใช้ปุ่ม "ส่งกลับ" เมื่อจำเป็นต้องย้อนขั้นตอนก่อนหน้าจริง ๆ</strong><div class="sd">ต่างจากปฏิเสธ — ส่งกลับจะย้อนคำร้องไปยังบทบาทของขั้นตอนก่อนหน้าโดยตรง เป็นสิทธิ์เฉพาะเจ้าหน้าที่ภาควิชาเท่านั้น</div></div></li>
+      </ol>
+    </section>
+
+    <section class="block" id="a-cancel">
+      <div class="block-head"><span class="block-tag">03</span><h3>อนุมัติ / ปฏิเสธคำขอยกเลิกจากนิสิต</h3></div>
+      <ol class="steps">
+        <li><div><strong>เปิดคำร้องที่มีป้าย "ขอยกเลิก"</strong> จากกล่องงานหรือรายการคำร้อง</div></li>
+        <li><div><strong>กด "ยอมรับการยกเลิก"</strong> เพื่อยกเลิกคำร้องจริง (จะยกเลิกคำร้องสอบวิทยานิพนธ์ที่เชื่อมโยงกันด้วย หากยังไม่เสร็จสิ้น)</div></div></li>
+        <li><div><strong>หรือกด "ปฏิเสธการยกเลิก"</strong> เพื่อให้คำร้องดำเนินการต่อตามปกติ</div></div></li>
+      </ol>
+    </section>
+
+    <section class="block" id="a-relay">
+      <div class="block-head"><span class="block-tag">04</span><h3>ขั้นตอนรับ-ส่งเอกสารกับคณะ (สอบวิทยานิพนธ์ ขั้น 7-8)</h3></div>
+      <ol class="steps">
+        <li><div><strong>ขั้นตอนที่ 7 — รวบรวม บ.2 + บ.3 ส่งให้คณะ</strong> แล้วกดอนุมัติเพื่อยืนยันว่าส่งแล้ว</div></li>
+        <li><div><strong>ขั้นตอนที่ 8 — เมื่อได้รับเอกสารคืนจากคณะ</strong> อัปโหลดให้ครบทั้ง 4 ประเภท: <span class="taglist"><span>SIGNED</span><span>EXAM_RESULT</span><span>INVITE_LETTER</span><span>FINANCE_DOC</span></span> ก่อนจึงจะกดอนุมัติต่อได้ (ระบบบังคับให้ครบก่อนเสมอ)</div></div></li>
+        <li><div><strong>กดอนุมัติ</strong> เพื่อส่งต่อเอกสารให้นิสิตและแจ้งเชิญกรรมการทุกท่านทางอีเมลโดยอัตโนมัติ</div></div></li>
+      </ol>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>ค่าเงิน</b>สำหรับขั้นตอนที่ 4 ของคำร้องโครงร่าง เจ้าหน้าที่ต้องอัปโหลดเอกสารการเงิน (FINANCE_DOC) ผ่านการ์ดสีเหลืองในกล่องงานเช่นกัน ก่อนที่นิสิตจะสามารถส่งขั้นตอนนั้นต่อได้</div></div>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 3.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>รายการตรวจสอบเอกสารขั้นตอนที่ 8</b> — สถานะครบ/ไม่ครบของเอกสารทั้ง 4 ประเภทก่อนกดอนุมัติ</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="a-users">
+      <div class="block-head"><span class="block-tag">05</span><h3>จัดการผู้ใช้งาน</h3></div>
+      <p class="block-intro">แท็บ "จัดการผู้ใช้งาน" ครอบคลุมบัญชี นิสิต, อาจารย์, กรรมการภายนอก และเจ้าหน้าที่ด้วยกันเอง</p>
+      <ol class="steps">
+        <li><div><strong>กรองด้วยปุ่มบทบาท</strong> เจ้าหน้าที่ภาควิชา / อาจารย์ / กรรมการภายนอก / นิสิต</div></li>
+        <li><div><strong>ค้นหาด้วยชื่อ อีเมล หรือรหัสนิสิต</strong> ในช่องค้นหา</div></li>
+        <li><div><strong>ติ๊ก "มีคำร้องที่ยังไม่ถูกยกเลิก"</strong> เพื่อกรองเฉพาะบัญชีที่มีคำร้องค้างอยู่จริง</div></div></li>
+        <li><div><strong>คลิกตัวเลขสถานะคำร้องของแต่ละคนเพื่อดูรายการคำร้องที่เกี่ยวข้อง</strong></div></li>
+        <li><div><strong>ใช้ปุ่ม "แก้ไข" / "รหัสเข้าใช้งาน" / "ลบ" ท้ายแถว</strong> เพื่อแก้ข้อมูล รีเซ็ตรหัส หรือลบบัญชี<div class="sd">บัญชีที่เคยมีประวัติคำร้อง/อัปโหลด/ลงนามมาก่อน จะลบไม่ได้ ระบบจะแจ้งเหตุผลชัดเจน</div></div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 3.3</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3"/><path d="M3 19c.6-3.4 2.6-5 6-5s5.4 1.6 6 5"/><path d="M17 8h4M19 6v4"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>แถวผู้ใช้งานหนึ่งราย</b> — ชื่อ อีเมล ป้ายบทบาท กล่องสถานะคำร้อง 3 ตัวเลข และปุ่มแก้ไข/รีเซ็ตรหัส/ลบ</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="a-accounts">
+      <div class="block-head"><span class="block-tag">06</span><h3>สร้างบัญชีใหม่ &amp; อนุมัติกรรมการที่รอสร้างบัญชี</h3></div>
+      <p class="block-intro">ทุกบัญชีในระบบสร้างผ่านหน้าต่าง "เพิ่มผู้ใช้งาน" หน้าต่างเดียวกัน ไม่ว่าจะเป็นบัญชีใหม่ทั่วไป, กรรมการที่นิสิตพิมพ์ชื่อไว้ในคำร้องแต่ยังไม่มีบัญชี, หรือกรรมการภายนอกที่นิสิตยื่นคำขอมา</p>
+      <ol class="steps">
+        <li><div><strong>การ์ดสีเหลือง (กรรมการที่รอสร้างบัญชี)</strong> และ <strong>คำขอกรรมการภายนอก</strong> จะแสดงเป็นการ์ดอยู่บนสุดของรายการผู้ใช้งานเสมอ</div></li>
+        <li><div><strong>กด "เพิ่มผู้ใช้" บนการ์ด</strong> เพื่อเปิดหน้าต่างที่กรอกชื่อ/อีเมล/บทบาทมาให้ล่วงหน้าแล้ว</div></li>
+        <li><div><strong>ตรวจสอบข้อมูล เลือกคำนำหน้าชื่อ แล้วกำหนดรหัสเข้าใช้งาน</strong><div class="sd">พิมพ์รหัสเองได้ หรือกด "สุ่มรหัส" ให้ระบบสร้างให้ (รูปแบบ A00a00)</div></div></li>
+        <li><div><strong>กดยืนยันสร้างบัญชี</strong><div class="sd">ระบบจะส่งอีเมลต้อนรับพร้อมรหัสเข้าใช้งานให้บัญชีใหม่ทันที และแจ้งเตือนนิสิตที่คำร้องเคยติดค้างเพราะรอบัญชีนี้ ระบบจะแจ้งชัดเจนหากอีเมลส่งไม่สำเร็จ เพื่อให้เจ้าหน้าที่แจ้งรหัสด้วยช่องทางอื่นแทน</div></div></li>
+        <li><div><strong>สำหรับกรรมการภายนอกที่นิสิตร้องขอมา</strong> อาจกด "ปฏิเสธ" แทนได้ พร้อมระบุเหตุผล ระบบจะแจ้งนิสิตอัตโนมัติ</div></div></li>
+      </ol>
+      <div class="warn-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div><b>เมื่อคำร้องรอบัญชีอยู่ในสถานะ "ฉบับร่าง"</strong>เมื่อสร้างบัญชีครบทุกคนในคำร้องแล้ว นิสิตต้องกลับมากด "ดำเนินการต่อ" ด้วยตนเอง ระบบจะไม่เริ่มกระบวนการให้อัตโนมัติ</div></div>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 3.4</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>หน้าต่าง "เพิ่มผู้ใช้งาน"</b> พร้อมช่องคำนำหน้าชื่อและช่องรหัสเข้าใช้งานคู่กับปุ่ม "สุ่มรหัส"</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="a-rank">
+      <div class="block-head"><span class="block-tag">07</span><h3>จัดลำดับผู้ใช้งาน (รหัสลำดับ)</h3></div>
+      <p class="block-intro">ผู้ใช้งานแต่ละกลุ่มบทบาทจะมีรหัสลำดับกำกับ (เช่น B007 สำหรับอาจารย์ลำดับที่ 7) มองเห็นได้เฉพาะเจ้าหน้าที่ภาควิชาเท่านั้น ใช้สำหรับจัดลำดับการแสดงผลภายใน</p>
+      <ol class="steps">
+        <li><div><strong>กรองให้เหลือบทบาทเดียว</strong> (ไม่เลือก "ทั้งหมด") และล้างช่องค้นหา/ติ๊กกรองให้ว่าง เพื่อเปิดใช้งานการลากจัดลำดับ</div></li>
+        <li><div><strong>ลากแถวขึ้น-ลงด้วยไอคอนจับ (⠿)</strong> ที่ปรากฏด้านซ้ายของแต่ละแถว</div></li>
+        <li><div><strong>ปล่อยแถวในตำแหน่งที่ต้องการ</strong><div class="sd">ระบบจะคำนวณรหัสลำดับใหม่ให้ทั้งกลุ่มทันที และบันทึกลงฐานข้อมูล</div></div></li>
+      </ol>
+    </section>
+
+    <section class="block" id="a-settings">
+      <div class="block-head"><span class="block-tag">08</span><h3>ตั้งค่าระบบ — ประธานหลักสูตรและผู้ติดต่อการเงิน</h3></div>
+      <p class="block-intro">แท็บ "ตั้งค่าระบบ" กำหนดค่าสำรอง 2 อย่างที่ใช้เมื่อคำร้องไม่ได้ระบุไว้เอง</p>
+      <ol class="steps">
+        <li><div><strong>เลือกอาจารย์ประจำแต่ละหลักสูตร</strong> (ปริญญาเอก / ปริญญาโท-เครื่องกล / ปริญญาโท-ระบบกายภาพไซเบอร์) จากรายการดรอปดาวน์ 3 ช่อง<div class="sd">อาจารย์ 1 ท่านเป็นประธานหลักสูตรได้มากกว่า 1 หลักสูตรพร้อมกัน</div></div></li>
+        <li><div><strong>เลือกเจ้าหน้าที่ที่เป็นผู้ติดต่อฝ่ายการเงิน</strong> จากรายการเจ้าหน้าที่ภาควิชาทั้งหมด — อีเมลแจ้งเตือนฝ่ายการเงินจะถูกส่งไปยังบัญชีนี้โดยตรง</div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 3.5</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>แท็บตั้งค่าระบบ</b> — ดรอปดาวน์ประธานหลักสูตร 3 หลักสูตร และดรอปดาวน์ผู้ติดต่อฝ่ายการเงิน 1 ช่อง</figcaption>
+      </figure>
+    </section>
+  </section>
+
+  <!-- ============================================================ SUPER ADMIN ============================================================ -->
+  <section class="panel" id="tab-superadmin" role="tabpanel" aria-labelledby="tab-btn-superadmin" hidden style="--role-color:var(--superadmin); --role-soft:var(--superadmin-soft); --role-line:var(--superadmin-line)">
+    <div class="panel-head">
+      <div>
+        <div class="who">บทบาทที่ 4 · ผู้ดูแลระบบสูงสุด</div>
+        <h2>คู่มือผู้ดูแลระบบสูงสุด</h2>
+        <p>บทบาทนี้จำกัดเฉพาะการบริหารบัญชีระดับ <b>ผู้ดูแลระบบสูงสุด</b> และ <b>เจ้าหน้าที่ภาควิชา</b> เท่านั้น พร้อมมุมมองภาพรวมระบบแบบอ่านอย่างเดียว — <b>ไม่มีสิทธิ์เข้าถึงกระบวนการคำร้องใด ๆ ทั้งสิ้น</b> (อนุมัติ/ปฏิเสธ/แก้ไข/อัปโหลด ทำไม่ได้)</p>
+      </div>
+      <div class="role-badge">🛡️</div>
+    </div>
+
+    <ul class="toc">
+      <li><a href="#sa-scope"><span class="n">01</span>ขอบเขตสิทธิ์การใช้งาน</a></li>
+      <li><a href="#sa-manage"><span class="n">02</span>จัดการบัญชีผู้ดูแลระบบ</a></li>
+      <li><a href="#sa-overview"><span class="n">03</span>ภาพรวมระบบ (อ่านอย่างเดียว)</a></li>
+    </ul>
+
+    <section class="block" id="sa-scope">
+      <div class="block-head"><span class="block-tag">01</span><h3>ขอบเขตสิทธิ์การใช้งาน</h3></div>
+      <p class="block-intro">เข้าสู่ระบบด้วยอีเมล + รหัสเข้าใช้งานเช่นเดียวกับบทบาทอื่น ระบบจะพาไปยัง <code class="f">/super-dashboard</code> เสมอ</p>
+      <table class="spec"><thead><tr><th>ทำได้</th><th>ทำไม่ได้</th></tr></thead>
+        <tbody>
+          <tr><td>สร้าง/แก้ไข/ลบบัญชีระดับ <b>ผู้ดูแลระบบสูงสุด</b> และ <b>เจ้าหน้าที่ภาควิชา</b>, รีเซ็ตรหัสเข้าใช้งานของบัญชีเหล่านี้</td><td>สร้าง/แก้ไข/ลบบัญชี นิสิต หรือ อาจารย์ — เป็นสิทธิ์ของเจ้าหน้าที่ภาควิชาเท่านั้น</td></tr>
+          <tr><td>ดูรายชื่อผู้ใช้งานทั้งหมดในระบบ และรายการคำร้องทั้งหมด (อ่านอย่างเดียว)</td><td>เปิดดูรายละเอียดคำร้องรายฉบับ, อนุมัติ, ปฏิเสธ, ส่งกลับ, อัปโหลดเอกสาร หรือดำเนินการใด ๆ กับคำร้อง</td></tr>
+        </tbody>
+      </table>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>เหตุผล</b>การแบ่งแยกนี้ทำขึ้นโดยตั้งใจ เพื่อให้บัญชีระดับสูงสุดไม่ยุ่งเกี่ยวกับงานประจำวันของกระบวนการอนุมัติวิทยานิพนธ์เลย</div></div>
+    </section>
+
+    <section class="block" id="sa-manage">
+      <div class="block-head"><span class="block-tag">02</span><h3>จัดการบัญชีผู้ดูแลระบบ</h3></div>
+      <ol class="steps">
+        <li><div><strong>เปิดการ์ด "จัดการผู้ดูแลระบบ" บนหน้าหลัก</strong></div></li>
+        <li><div><strong>กด "เพิ่มผู้ดูแลระบบ" เพื่อสร้างบัญชีใหม่</strong><div class="sd">กรอกชื่อ คำนำหน้าชื่อ อีเมล เลือกบทบาท (ผู้ดูแลระบบสูงสุด/เจ้าหน้าที่ภาควิชา) และกำหนดรหัสเข้าใช้งาน (พิมพ์เองหรือกด "สุ่มรหัส")</div></div></li>
+        <li><div><strong>ใช้ปุ่มรีเซ็ตรหัสเข้าใช้งานหรือปุ่มลบท้ายแถว</strong> เพื่อจัดการบัญชีที่มีอยู่</div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 4.1</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>แบบฟอร์มเพิ่มผู้ดูแลระบบ/เจ้าหน้าที่ภาควิชา</b> พร้อมตัวเลือกบทบาทและช่องกำหนดรหัสเข้าใช้งาน</figcaption>
+      </figure>
+    </section>
+
+    <section class="block" id="sa-overview">
+      <div class="block-head"><span class="block-tag">03</span><h3>ภาพรวมระบบ (อ่านอย่างเดียว)</h3></div>
+      <ol class="steps">
+        <li><div><strong>"รายชื่อผู้ใช้งานทั้งหมด"</strong> แสดงทุกบัญชีในระบบ จัดกลุ่มตามบทบาท ใช้สำหรับตรวจสอบภาพรวมเท่านั้น ไม่มีปุ่มดำเนินการใด ๆ บนบัญชีที่ไม่ใช่ระดับผู้ดูแล</div></li>
+        <li><div><strong>"รายการคำร้องทั้งหมด"</strong> แสดงทุกคำร้องในระบบพร้อมสถานะ แต่ไม่มีลิงก์เข้าไปหน้ารายละเอียด</div></li>
+      </ol>
+      <figure class="shot">
+        <div class="shot-frame"><span class="tag">รูปที่ 4.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V5a1 1 0 0 1 1-1h9l6 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M14 4v6h6"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <figcaption><b>รายการคำร้องทั้งหมดในระบบ</b> มุมมองอ่านอย่างเดียว ไม่มีปุ่มดำเนินการใด ๆ</figcaption>
+      </figure>
+    </section>
+  </section>
+
+</main>
+
+<footer>
+  <span>ระบบจัดการวิทยานิพนธ์ — ภาควิชาวิศวกรรมเครื่องกล คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย</span>
+  <span>ฉบับร่างสำหรับตรวจทาน · ภาพประกอบทั้งหมดยังเป็นตำแหน่งว่าง รอแทนที่ด้วยภาพหน้าจอจริง</span>
+</footer>
+
+<script>
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var panels = {};
+  tabs.forEach(function(t){ panels[t.dataset.role] = document.getElementById('tab-' + t.dataset.role); });
+
+  function activate(role, focus){
+    tabs.forEach(function(t){
+      var on = t.dataset.role === role;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      panels[t.dataset.role].hidden = !on;
+      if(on && focus) t.focus();
+    });
+    try{ history.replaceState(null, '', '#' + role); }catch(e){}
+  }
+
+  tabs.forEach(function(t, i){
+    t.addEventListener('click', function(){ activate(t.dataset.role, false); });
+    t.addEventListener('keydown', function(e){
+      if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
+        e.preventDefault();
+        var next = e.key === 'ArrowRight' ? (i + 1) % tabs.length : (i - 1 + tabs.length) % tabs.length;
+        activate(tabs[next].dataset.role, true);
+      }
+    });
+  });
+
+  var initial = (location.hash || '').replace('#', '');
+  if(panels[initial]) activate(initial, false);
+})();
+</script>

@@ -6,12 +6,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Project: ระบบจัดการวิทยานิพนธ์ (Thesis Management System)
 
-A role-based thesis approval workflow app. **Fully live** — Next.js 16 App Router, Prisma ORM → Supabase PostgreSQL, NextAuth v5 (credentials + magic-link login), file uploads to Supabase Storage. UI is in Thai.
+A role-based thesis approval workflow app. **Fully live** — Next.js 16 App Router, Prisma ORM → Supabase PostgreSQL, NextAuth v5 (credentials login), file uploads to Supabase Storage. UI is in Thai.
 
 ## Stack & deployment
 - **DB**: Prisma + `@prisma/adapter-pg` → Supabase PostgreSQL. Client in `src/lib/prisma.ts` (singleton always cached on `globalThis` — both dev and Vercel production).
-- **Auth**: NextAuth v5, credentials (email + passcode, bcrypt against `User.passcodeHash`) plus one-time magic links in emails. `src/lib/auth.ts`. Login email is trimmed + lowercased before lookup. There is no self-registration and no self-service password reset — see "Account creation & passcodes" below.
-- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a **per-user magic-link URL** (`/api/auth/magic?t=<token>`, `src/lib/email.ts:171-184`) rendered as plain link text (no styled button) that auto-logs them in and deep-links to their specific submission page; the token is not consumed on use (SafeLinks prefetch safety) and expires after 48h. Falls back to a plain `/login` link if token creation fails. The email body also mentions signing in with email+passcode as an alternative, which still works regardless.
+- **Auth**: NextAuth v5, credentials only (email + passcode, bcrypt against `User.passcodeHash`). `src/lib/auth.ts`. Login email is trimmed + lowercased before lookup. There is no self-registration and no self-service password reset — see "Account creation & passcodes" below. (Magic-link auto-login, `/api/auth/magic`, was removed 2026-09-09 — see "Magic-link login removed" below.)
+- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a plain link text (no styled button) to `/login`, plus a reminder to sign in with their email + passcode — there is no auto-login link (magic-link login was removed 2026-09-09; it never expired quickly enough and was never single-use, so a forwarded/leaked notification email let anyone log in as that user for up to 48h with no passcode).
 - **Storage**: Supabase Storage bucket `thesis-files` — **private**, not publicly readable. `POST /api/upload` stores the object's storage path (not a public URL) on `FormUpload.fileUrl`; previews/downloads resolve a 1h signed URL on demand via `GET /api/upload/[uploadId]/signed-url` (gated by the same submission-involvement check used elsewhere in the API). See `src/lib/supabase.ts`. Do not store or serve a public URL directly — the bucket was briefly public before 2026-09-04 and every uploaded document was reachable by anyone with the link; that was a bug, not the design.
 - **Deploy**: Vercel (`thesis-app` project, account `sukhums-4319`), auto-deploys on push to `main` (GitHub: `sukhum-chula/thesis-app`).
 
@@ -145,8 +145,8 @@ names, `sendWelcomeEmail`/`sendPasscodeResetEmail`/`sendFinanceEmail`/`sendExamR
 `WorkflowStep.actedByName`/committee-sign-action snapshots taken at approve/reject time
 (`submissions/[id]/route.ts`, `submissions/[id]/sign/route.ts`). The logged-in user's own title
 flows through the same NextAuth session/JWT pipeline as `roles`/`studentId` (`src/lib/auth.ts`,
-`src/types/next-auth.d.ts`, plus the two routes that mint a session JWT by hand instead of going
-through NextAuth's callbacks — `api/auth/magic` and `api/auth/demo`) into `AppContext`'s `user`.
+`src/types/next-auth.d.ts`, plus `api/auth/demo`, which mints a session JWT by hand instead of going
+through NextAuth's callbacks) into `AppContext`'s `user`.
 
 **Deliberately not touched** — historical denormalized text snapshots that have no parallel title
 column to go with them, so fixing this properly would mean new schema columns, not a display-layer
@@ -177,7 +177,7 @@ carrying too much system-configuration state). All reads/writes go through
   delete, so a deleted account never leaves a dangling reference.
 - `attachSystemSettings(users)` — decorates a list of DB user rows with computed
   `programChairFor: string[]` / `isFinanceContact: boolean` fields for the API response; used by
-  `GET /api/users`, `PATCH /api/users/[id]`, `auth.ts`'s `authorize()`, and the magic-link route.
+  `GET /api/users`, `PATCH /api/users/[id]`, and `auth.ts`'s `authorize()`.
 
 **Rows are never deleted, only nulled.** Clearing an assignment (or deleting the account that held
 it) sets `userId: null` on that key's row rather than removing it — the key (`programChair:PHD`,

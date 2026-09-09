@@ -1,5 +1,4 @@
 import nodemailer from "nodemailer";
-import { randomBytes } from "crypto";
 import { prisma } from "./prisma";
 import { ROLE_LABELS, formatUserName } from "./utils";
 import { getSignedUrl } from "./supabase";
@@ -67,7 +66,7 @@ async function sendMail(opts: {
 
 function getAppUrl(): string {
   // Strip trailing slashes — NEXTAUTH_URL with a trailing "/" produced
-  // "https://host//api/auth/magic" links that mail filters flag as malformed
+  // "https://host//login" links that mail filters flag as malformed
   const url =
     process.env.NEXTAUTH_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
@@ -167,35 +166,14 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
 
   for (const recipient of recipients) {
     const base = getAppUrl();
-    const destinationPath =
-      role === "ADMIN"   ? `/dashboard/admin/${sub.id}` :
-      role === "STUDENT" ? `/dashboard/student/${sub.id}` :
-                           `/dashboard/professor/${sub.id}`;
-
-    // Generate a one-click magic link: auto-logs recipient in and lands on the submission.
-    // Token is NOT consumed on use (SafeLinks prefetch safety) — expires after 48h.
-    let magicLink = `${base}/login`; // fallback if token creation fails
-    try {
-      const tokenValue = randomBytes(32).toString("hex");
-      await prisma.magicToken.create({
-        data: {
-          token:      tokenValue,
-          userId:     recipient.id,
-          redirectTo: destinationPath,
-          expiresAt:  new Date(Date.now() + 48 * 60 * 60 * 1000),
-        },
-      });
-      magicLink = `${base}/api/auth/magic?t=${tokenValue}`;
-    } catch (e) {
-      console.error("[email/step] Failed to create magic token for", recipient.email, e);
-    }
+    const loginLink = `${base}/login`;
 
     const subject = isRejection
       ? `[ระบบจัดการวิทยานิพนธ์] คำร้องถูกปฏิเสธ — ${sub.title}`
       : `[ระบบจัดการวิทยานิพนธ์] ${stepName} — ${sub.title}`;
     const html = isRejection
-      ? buildRejectedHtml(recipient.name, recipient.email, roleLabel, stepName, sub.title, studentDisplay, magicLink, rejectionNote)
-      : buildHtml(recipient.name, recipient.email, roleLabel, stepName, sub.title, studentDisplay, magicLink);
+      ? buildRejectedHtml(recipient.name, recipient.email, roleLabel, stepName, sub.title, studentDisplay, loginLink, rejectionNote)
+      : buildHtml(recipient.name, recipient.email, roleLabel, stepName, sub.title, studentDisplay, loginLink);
     const { error } = await sendMail({
       to: recipient.email,
       subject,
@@ -235,7 +213,7 @@ function buildHtml(
   stepName: string,
   thesisTitle: string,
   studentName: string,
-  magicLink: string,
+  loginLink: string,
 ): string {
   const rName   = escapeHtml(recipientName);
   const rEmail  = escapeHtml(recipientEmail);
@@ -274,7 +252,7 @@ function buildHtml(
       </table>
 
       <p style="color:#374151;margin:24px 0;">
-        ท่านสามารถเข้าสู่ระบบเพื่อดูคำร้องได้ที่ <a href="${magicLink}" style="color:#1d4ed8;word-break:break-all;">${magicLink}</a><br><br>
+        ท่านสามารถเข้าสู่ระบบเพื่อดูคำร้องได้ที่ <a href="${loginLink}" style="color:#1d4ed8;word-break:break-all;">${loginLink}</a><br><br>
         <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมล ${rEmail} และรหัสเข้าใช้งานของท่าน — หากลืมรหัสเข้าใช้งาน กรุณาติดต่อเจ้าหน้าที่ภาควิชาเพื่อขอรหัสใหม่</span>
       </p>
 
@@ -296,7 +274,7 @@ function buildRejectedHtml(
   stepName: string,
   thesisTitle: string,
   studentName: string,
-  magicLink: string,
+  loginLink: string,
   rejectionNote?: string,
 ): string {
   const rName  = escapeHtml(recipientName);
@@ -338,7 +316,7 @@ function buildRejectedHtml(
       </table>
 
       <p style="color:#374151;margin:24px 0;">
-        ท่านสามารถเข้าสู่ระบบเพื่อดูคำร้องได้ที่ <a href="${magicLink}" style="color:#1d4ed8;word-break:break-all;">${magicLink}</a><br><br>
+        ท่านสามารถเข้าสู่ระบบเพื่อดูคำร้องได้ที่ <a href="${loginLink}" style="color:#1d4ed8;word-break:break-all;">${loginLink}</a><br><br>
         <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมล ${rEmail} และรหัสเข้าใช้งานของท่าน — หากลืมรหัสเข้าใช้งาน กรุณาติดต่อเจ้าหน้าที่ภาควิชาเพื่อขอรหัสใหม่</span>
       </p>
 
@@ -721,7 +699,7 @@ export interface ExamReminderEmailData {
 }
 
 export async function sendExamReminderEmail(data: ExamReminderEmailData): Promise<void> {
-  const magicLink = `${getAppUrl()}${data.redirectTo}`;
+  const reminderLink = `${getAppUrl()}${data.redirectTo}`;
   const is7 = data.daysUntil === 7;
   const subject = is7
     ? `[แจ้งเตือน] เหลือ 7 วันก่อนวันสอบ — ${data.thesisTitle}`
@@ -730,7 +708,7 @@ export async function sendExamReminderEmail(data: ExamReminderEmailData): Promis
   const { error } = await sendMail({
     to: data.recipientEmail,
     subject,
-    html: buildExamReminderHtml(data, magicLink),
+    html: buildExamReminderHtml(data, reminderLink),
   });
 
   if (error) {
@@ -740,7 +718,7 @@ export async function sendExamReminderEmail(data: ExamReminderEmailData): Promis
   }
 }
 
-function buildExamReminderHtml(data: ExamReminderEmailData, magicLink: string): string {
+function buildExamReminderHtml(data: ExamReminderEmailData, reminderLink: string): string {
   const is7    = data.daysUntil === 7;
   const rName  = escapeHtml(data.recipientName);
   const tTitle = escapeHtml(data.thesisTitle);
@@ -783,7 +761,7 @@ function buildExamReminderHtml(data: ExamReminderEmailData, magicLink: string): 
       </table>
 
       <p style="color:#374151;margin:24px 0;">
-        ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบสถานะได้ที่ <a href="${magicLink}" style="color:#1d4ed8;word-break:break-all;">${magicLink}</a><br>
+        ท่านสามารถเข้าสู่ระบบเพื่อตรวจสอบสถานะได้ที่ <a href="${reminderLink}" style="color:#1d4ed8;word-break:break-all;">${reminderLink}</a><br>
         <span style="color:#6b7280;font-size:13px;">เข้าสู่ระบบด้วยอีเมลและรหัสเข้าใช้งานของท่าน</span>
       </p>
 
