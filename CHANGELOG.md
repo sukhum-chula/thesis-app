@@ -7,6 +7,19 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-09
 
+- **Removed dead code and unused dependencies**, following a project-wide consistency/old-design
+  audit (see `HANDOFF.md`). Deleted: `scripts/assign-passcodes-no-email.ts` (an untracked,
+  already-run one-off script); `src/lib/rateLimit.ts` and the `RateLimit` Prisma model (orphaned
+  since self-registration/forgot-password were removed — the `rate_limits` table itself is still
+  live and not yet dropped); the unused `STEP_NAMES` export in `src/lib/utils.ts`; and, with the
+  project owner's explicit go-ahead, all 9 `/dashboard/<contextual-role>` route pairs (`advisor`,
+  `co-advisor`, `dept-staff`, `exam-committee`, `faculty-dean`, `graduate-school`,
+  `head-exam-committee`, `invited-exam-committee`, `program-chair`) — leftovers from the original
+  pre-account-model 2026-06-02 mockup — along with the `/demo` testing page, `/api/auth/demo`, and
+  the now-orphaned `RolePendingList` component they depended on, in favor of the already-documented
+  `/demo-users` picker. Also removed 5 unused npm dependencies (`zod`, `react-hook-form`,
+  `@hookform/resolvers`, `@auth/prisma-adapter`, `playwright`). `npm run build`/`tsc --noEmit`/
+  `eslint` all re-verified clean after every step (same pre-existing lint baseline, no regressions).
 - **Removed magic-link auto-login entirely**, at the project owner's request, after flagging that
   the token was never single-use and never expired quickly (48h, deliberately not consumed on
   click for Office365 SafeLinks prefetch safety) — a forwarded or leaked notification email let

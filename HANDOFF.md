@@ -67,8 +67,9 @@ there, not duplicated here. Quick reminders specific to this deployment:
   `VERCEL_URL` fallback resolves correctly per-deployment.
 - `FINANCE_EMAIL` (`hare081987@gmail.com`) is the confirmed fallback recipient — the real primary
   path is the ADMIN designated as finance contact via "ตั้งค่าระบบ" (see `AGENTS.md`).
-- Leave `DEMO_MODE` / `NEXT_PUBLIC_DEMO_MODE` unset in production — they expose `/demo` and the
-  passwordless `/api/auth/demo` login.
+- Leave `NEXT_PUBLIC_DEMO_MODE` unset in production — it exposes the demo reset-tools card in
+  `AdminUsersPanel`. (`DEMO_MODE` and `/demo`/`/api/auth/demo`, an older passwordless per-role login
+  page, were removed entirely 2026-09-09 — see below.)
 - `NEXT_PUBLIC_*` values are inlined at build time — changing one needs a redeploy, not just a
   restart.
 
@@ -126,49 +127,42 @@ Roughly in priority order:
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against
    the local dev server (same production DB) — worth a quick pass on the actual deployed URL after
    the next push.
+7. **Drop the now-orphaned `rate_limits` and `magic_tokens` tables** from the live DB — their Prisma
+   models are gone from the schema (see below), but the tables themselves haven't been dropped yet;
+   this is a real destructive action against production, so do it deliberately (one-off pooler
+   script, confirm row counts are 0/don't matter first) rather than as a drive-by.
 
-### Documentation/repo hygiene found during a 2026-09-09 consistency pass (not urgent, not yet acted on)
+### Dead code/scripts removed 2026-09-09 (following the consistency pass above)
 
-- `CLAUDE.md`'s architecture map is missing several now-real files: `src/lib/accountScope.ts`
-  (load-bearing, already documented in `AGENTS.md`), `config.ts`, `fileStore.ts`, `rateLimit.ts`,
-  `translations.ts`; several `src/components/` entries (`ProposalDraftReview`, `UserProfileHeader`,
-  `StudentExternalRequests`, `NotificationBell`, `DashboardHeader`, `PasscodeField`,
-  `UserDetailPanel`, `RolePendingList`, `StatusBadge`, `Providers`, `LanguageToggle`); and entire
-  API route families (`api/admin/*`, `api/external-requests/*`, `api/super-admin/*`,
-  `api/submissions/auto-draft-proposal`). Worth a refresh pass next time you're touching that file.
-- `scripts/assign-passcodes-no-email.ts` is an untracked, unreferenced one-off script (a real,
-  already-run passcode reset for 12 professors whose welcome email hit the Gmail quota). Per the
-  migration-script convention above, it should have been deleted after running. Contains real
-  internal email addresses — don't commit it, just delete it once you've confirmed it's no longer
-  needed.
-- `src/lib/rateLimit.ts` and the `RateLimit` Prisma model are orphaned — zero importers anywhere in
-  `src/app`. They were only ever used by self-registration/forgot-password, both removed entirely
-  (see "Account creation & passcodes" in `AGENTS.md`). Not previously caught by the dead-code audit
-  below.
-- `src/lib/utils.ts`'s `STEP_NAMES` export (an alias for `PROPOSAL_STEP_NAMES`) has zero importers —
-  the "always use `getStepName()`" convention is honored everywhere already.
-- **Old-design leftover, reported separately in this same pass, not yet cleaned up**: 9
-  `/dashboard/<contextual-role>` route pairs (`advisor`, `co-advisor`, `dept-staff`,
+All of the following were reported first, then removed the same day with the project owner's
+go-ahead (build/`tsc`/`eslint` re-verified clean after each step, same baseline lint count as
+before):
+
+- `scripts/assign-passcodes-no-email.ts` — untracked, already-run one-off passcode-reset script.
+- `src/lib/rateLimit.ts` + the `RateLimit` Prisma model (`rate_limits` table) — orphaned since
+  self-registration/forgot-password were removed. The schema model is gone; the live `rate_limits`
+  table itself hasn't been dropped yet (same "orphaned table, not yet dropped" state as
+  `magic_tokens` — see the 2026-09-09 magic-link removal in `CHANGELOG.md` — drop both together via
+  the usual one-off pooler-script convention when someone confirms).
+- `src/lib/utils.ts`'s unused `STEP_NAMES` export.
+- **All 9 `/dashboard/<contextual-role>` route pairs** (`advisor`, `co-advisor`, `dept-staff`,
   `exam-committee`, `faculty-dean`, `graduate-school`, `head-exam-committee`,
-  `invited-exam-committee`, `program-chair`) are untouched leftovers from the original 2026-06-02
-  mockup commit, from before the app had a real account model. 5 of the 9 are still reachable via
-  the `/demo` testing flow (`DEMO_MODE`-gated, off in production); the other 4
-  (`co-advisor`/`dept-staff`/`faculty-dean`/`graduate-school`) have zero references anywhere. They
-  render safely (they reuse the same real, current `RolePendingList`/`RoleSubmissionDetail`
-  components, no stale data shapes, no security hole), but they're dead weight and contradict
-  `AGENTS.md` (which says Faculty Dean/Graduate School have no login at all). Low-risk cleanup
-  whenever someone wants to do it: remove all 9 route pairs together with `/demo` and
-  `/api/auth/demo` (which are the only things keeping 5 of the 9 technically linked), in favor of
-  the documented `/demo-users` picker.
-- Confirmed still accurate and unchanged: the dead-dependency list (`playwright`, `zod`,
-  `react-hook-form`, `@hookform/resolvers`, `@auth/prisma-adapter`, `pg`/`@types/pg` all unused but
-  present in `package.json`; `xlsx` is correctly kept, used by `scripts/make-wordlist.js`/
-  `import-wordlist.js`), `src/lib/workflow.ts` (dead mock-build stub), and `docs/ARCHITECTURE.md`/
-  `docs/RECIPES.md` (describe the pre-database, localStorage-only mockup — ignore them, per
-  `CLAUDE.md`).
+  `invited-exam-committee`, `program-chair`) — leftovers from the pre-account-model 2026-06-02
+  mockup commit. Removed together with `/demo` and `/api/auth/demo` (the old passwordless per-role
+  test-login flow that kept 5 of the 9 technically reachable) in favor of the documented
+  `/demo-users` picker, and the now-orphaned `RolePendingList` component those routes used.
+- 5 unused npm dependencies: `zod`, `react-hook-form`, `@hookform/resolvers`, `@auth/prisma-adapter`,
+  `playwright` (removed from `package.json`, `npm install` re-run to sync the lockfile). `pg`/
+  `@types/pg` were deliberately left — redundant (already pulled in transitively by
+  `@prisma/adapter-pg`) but harmless, not worth the churn.
 
-None of the above has been removed — this is a report for a deliberate cleanup pass, not something
-that broke.
+**Still not removed, left for a deliberate later pass:**
+- `CLAUDE.md`'s architecture map is still missing several now-real files (`src/lib/accountScope.ts`,
+  `config.ts`, `fileStore.ts`, `translations.ts`; several `src/components/` entries; the
+  `api/admin/*`/`api/external-requests/*`/`api/super-admin/*`/`api/submissions/auto-draft-proposal`
+  route families) — a documentation refresh, not a code change.
+- `src/lib/workflow.ts` (dead mock-build stub) and `docs/ARCHITECTURE.md`/`docs/RECIPES.md`
+  (pre-database mockup docs) — confirmed still accurate/still stale respectively, left alone.
 
 ---
 

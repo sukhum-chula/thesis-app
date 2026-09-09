@@ -333,9 +333,6 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   22: "กรรมการภายนอกลงนามปกวิทยานิพนธ์",
 };
 
-// Legacy alias so old import sites compile (old 8/27-step subs fall back to role label)
-export const STEP_NAMES: Record<number, string> = PROPOSAL_STEP_NAMES;
-
 export function getStepName(stepOrder: number, submissionType?: string | null): string {
   const map = submissionType === "THESIS_DEFENSE" ? THESIS_STEP_NAMES : PROPOSAL_STEP_NAMES;
   return map[stepOrder] ?? "";

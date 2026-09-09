@@ -38,8 +38,7 @@ FINANCE_EMAIL         # fallback recipient for finance notifications — only us
 CRON_SECRET           # guards /api/cron/exam-reminders; unset makes the endpoint publicly callable.
                       # Vercel's own Cron scheduler (see vercel.json) sends the matching Bearer header
                       # automatically when this is set in the project.
-DEMO_MODE             # "true" enables /api/auth/demo passwordless login; unset in production
-NEXT_PUBLIC_DEMO_MODE # "true" enables the /demo page; unset in production
+NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPanel; unset in production
 ```
 
 ---
@@ -145,8 +144,7 @@ names, `sendWelcomeEmail`/`sendPasscodeResetEmail`/`sendFinanceEmail`/`sendExamR
 `WorkflowStep.actedByName`/committee-sign-action snapshots taken at approve/reject time
 (`submissions/[id]/route.ts`, `submissions/[id]/sign/route.ts`). The logged-in user's own title
 flows through the same NextAuth session/JWT pipeline as `roles`/`studentId` (`src/lib/auth.ts`,
-`src/types/next-auth.d.ts`, plus `api/auth/demo`, which mints a session JWT by hand instead of going
-through NextAuth's callbacks) into `AppContext`'s `user`.
+`src/types/next-auth.d.ts`) into `AppContext`'s `user`.
 
 **Deliberately not touched** — historical denormalized text snapshots that have no parallel title
 column to go with them, so fixing this properly would mean new schema columns, not a display-layer

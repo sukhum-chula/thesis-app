@@ -260,16 +260,6 @@ model Signature {
   @@map("signatures")
 }
 
-// Fixed-window rate limiting for unauthenticated endpoints (register, forgot-password).
-// DB-backed so the limit holds across serverless instances.
-model RateLimit {
-  key     String   @id
-  count   Int      @default(0)
-  resetAt DateTime
-
-  @@map("rate_limits")
-}
-
 model Notification {
   id        String   @id @default(cuid())
   type      String
