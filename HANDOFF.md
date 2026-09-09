@@ -196,6 +196,30 @@ dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
 
+- **2026-09-09 — Fixed the ADMIN submission-detail approve/reject/return-to-prev buttons giving no
+  feedback while a request was in flight, letting a double-click send a duplicate request that
+  failed with an error.** Reported by the project owner: "whenever admin click accept something,
+  there is no sign that the system is already responding, thus the admin press the accept button
+  again, and the system show the error." Root cause: `AdminSubmissionPanel.tsx`'s main action panel
+  (the "ดำเนินการ" card shown when it's ADMIN's turn on a PENDING step — e.g. PROPOSAL steps 2/10,
+  THESIS_DEFENSE's relay step 7) called `approveCurrentStep`/`rejectCurrentStep`/`returnToPrevStep`
+  directly from each button's `onClick` with no `await`, no busy/disabled state, and no error
+  handling — unlike every sibling action surface in the same file (`ThesisFacultyUploadPanel`,
+  `ProposalFinanceUploadPanel`, the accept/decline-cancel buttons, `StepCard`'s override controls),
+  which all already disable + show a "กำลังบันทึก.../กำลังดำเนินการ..." label while their own
+  request is in flight. A slow request left the button clickable with no visual change, so a second
+  click fired a duplicate PATCH that failed server-side once the first had already advanced the
+  step, and that rejection was never caught — it just surfaced however an unhandled promise
+  rejection happens to for that user, with no toast. Fixed by adding one `actionBusy` state shared
+  by all three actions in that panel: each button now disables immediately on click, the approve
+  button shows a spinIcon + "กำลังดำเนินการ...", and a failure now shows a toast
+  (`toUserErrorMessage`) instead of failing silently — matching the pattern already used everywhere
+  else in this file. **Verified**: `npx tsc --noEmit` clean; `npx eslint` on the touched file shows
+  only pre-existing errors on lines this change didn't touch; `npm run build` passes clean. **Not
+  yet clicked through in a real browser** — next session with working ADMIN credentials should
+  confirm the button visibly locks on click and that a normal single approve/reject/return still
+  completes and updates the step as before.
+
 - **2026-09-09 — New admin-only "rank code" feature: A001/B002/C003/D004 per role group,
   drag-to-reorder in AdminUsersPanel.** Requested directly by the project owner: a string that
   ranks each user, visible only to ADMIN, never directly editable, that renumbers automatically
@@ -237,11 +261,30 @@ dated), this section is meant to be edited in place.
   sessions' changes were together, which passed clean. The dev server was restarted (schema change +
   regenerated Prisma client, per the usual stale-client gotcha) with the project owner's explicit
   approval, and confirmed healthy afterward (`GET /api/users` → 401 unauthenticated, `/login` → 200).
-  **Not yet clicked through in a real browser** — no working ADMIN credentials were exercised this
-  session; next session should confirm: the rank badge appears only for an ADMIN session (not
-  SUPER_ADMIN, not any other role), filtering to a single role plus clearing search/checkbox reveals
-  the drag handles, dragging a row actually persists a new order that survives a page reload, and a
-  409 is returned (and surfaces sanely in the UI) if two admins reorder the same group at once.
+  **Committed and pushed to `origin/main`** (bundled with the other two sessions' work in one
+  commit) — Vercel auto-deployed cleanly (build ~41s, Ready), and the deployed URL was smoke-checked
+  (`/login` → 200, `/api/users` → 401 unauthenticated).
+  **Verified live in the browser** (same day, follow-up pass) against the local dev server (real
+  prod DB) logged in as ADMIN `sukhum.s+suphap@cp.eng.chula.ac.th`: the rank badge and gray/blue
+  hint text render correctly; filtering to each of the 4 role pills (เจ้าหน้าที่ภาควิชา 2 /
+  อาจารย์ 33 / กรรมการภายนอก 3 / นิสิต 4) showed dense, correctly-prefixed codes with no gaps or
+  duplicates (`A001`-`A002`, `B001`-`B033`, `C001`-`C003`, `D001`-`D004`); dragging one ADMIN row
+  onto the other via synthetic `DragEvent`s (native HTML5 drag-and-drop can't be driven by plain
+  mouse-move automation, so `dragstart`/`dragenter`/`dragover`/`drop` were dispatched directly)
+  swapped `A001`/`A002` and **survived a full page reload**, confirming the reorder is persisted
+  server-side and not just optimistic client state; reverted the swap back to the original order
+  afterward. Also confirmed the "ทั้งหมด" (all) view keeps its original default sort (academic
+  rank / studentId / alphabetical) independent of each user's rank code — e.g. STUDENT rows stayed
+  ordered by studentId ascending while showing `D002`/`D004`/`D003`/`D001` non-sequentially,
+  proving the two orderings are correctly decoupled. **Still unverified**: the rank badge being
+  absent for a non-ADMIN session (only checked by code/server-side gating, not by actually logging
+  in as SUPER_ADMIN/PROFESSOR/STUDENT), and the 409-on-concurrent-reorder path.
+  **Also hit and fixed, mid-session**: running `rm -rf .next && npx next build` for a verification
+  build while the dev server was still running corrupted its live manifests (`Cannot find module
+  '../chunks/ssr/[turbopack]_runtime.js'`, `ENOENT ... routes-manifest.json`) and 500'd `/login` for
+  the project owner, who was actively using it at the time — fixed by killing the dev server,
+  clearing `.next/` again, and restarting; don't run a production build against a live `.next/`
+  directory a dev server is still serving from.
 
 - **2026-09-09 — Fixed the same misreported-email-result bug in the passcode-reset and
   login-email-change flows** (found by checking whether the "add user" bug below existed elsewhere

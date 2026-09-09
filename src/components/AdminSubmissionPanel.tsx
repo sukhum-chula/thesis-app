@@ -424,6 +424,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const [approveNotes, setApproveNotes] = useState("");
   const [actionMode,   setActionMode]   = useState<"reject" | "return" | null>(null);
   const [actionNotes,  setActionNotes]  = useState("");
+  const [actionBusy,   setActionBusy]   = useState(false);
 
   const [editMode, setEditMode] = useState(false);
   const [editDraft, setEditDraft] = useState({
@@ -550,6 +551,47 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       onDeleted?.();
     } catch (err) {
       showToast(toUserErrorMessage(err, "ลบไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    }
+  }
+
+  async function handleApproveStep() {
+    if (!sub || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await approveCurrentStep(sub.id, approveNotes || undefined);
+      setApproveNotes("");
+    } catch (err) {
+      showToast(toUserErrorMessage(err, "อนุมัติไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleRejectStep() {
+    if (!sub || actionBusy || !actionNotes.trim()) return;
+    setActionBusy(true);
+    try {
+      await rejectCurrentStep(sub.id, actionNotes.trim());
+      setActionMode(null);
+      setActionNotes("");
+    } catch (err) {
+      showToast(toUserErrorMessage(err, "ปฏิเสธไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleReturnToPrev() {
+    if (!sub || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await returnToPrevStep(sub.id, actionNotes.trim() || undefined);
+      setActionMode(null);
+      setActionNotes("");
+    } catch (err) {
+      showToast(toUserErrorMessage(err, "ส่งกลับไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -1003,11 +1045,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
                     <button
-                      onClick={() => { approveCurrentStep(sub.id, approveNotes || undefined); setApproveNotes(""); }}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition"
+                      onClick={handleApproveStep}
+                      disabled={actionBusy}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <CheckCircle2 className="w-5 h-5" />
-                      อนุมัติ
+                      {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                      {actionBusy ? "กำลังดำเนินการ..." : "อนุมัติ"}
                     </button>
                   </div>
                 )}
@@ -1025,13 +1068,19 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     />
                     <div className="flex gap-2">
                       <button
-                        disabled={!actionNotes.trim()}
-                        onClick={() => { rejectCurrentStep(sub.id, actionNotes.trim()); setActionMode(null); setActionNotes(""); }}
+                        disabled={!actionNotes.trim() || actionBusy}
+                        onClick={handleRejectStep}
                         className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed text-sm"
                       >
-                        ยืนยันปฏิเสธ
+                        {actionBusy ? "กำลังดำเนินการ..." : "ยืนยันปฏิเสธ"}
                       </button>
-                      <button onClick={() => { setActionMode(null); setActionNotes(""); }} className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition text-sm">ยกเลิก</button>
+                      <button
+                        disabled={actionBusy}
+                        onClick={() => { setActionMode(null); setActionNotes(""); }}
+                        className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        ยกเลิก
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1049,12 +1098,19 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     />
                     <div className="flex gap-2">
                       <button
-                        onClick={() => { returnToPrevStep(sub.id, actionNotes.trim() || undefined); setActionMode(null); setActionNotes(""); }}
-                        className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition text-sm"
+                        disabled={actionBusy}
+                        onClick={handleReturnToPrev}
+                        className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        ยืนยันส่งกลับ
+                        {actionBusy ? "กำลังดำเนินการ..." : "ยืนยันส่งกลับ"}
                       </button>
-                      <button onClick={() => { setActionMode(null); setActionNotes(""); }} className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition text-sm">ยกเลิก</button>
+                      <button
+                        disabled={actionBusy}
+                        onClick={() => { setActionMode(null); setActionNotes(""); }}
+                        className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        ยกเลิก
+                      </button>
                     </div>
                   </div>
                 )}
