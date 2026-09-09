@@ -22,6 +22,10 @@ export interface MockUser {
   isFinanceContact?: boolean;
   affiliation?: string | null;
   phone?: string | null;
+  // Admin-only display order code ("A001"/"B002"/"C003"/"D004") — only present when the viewer
+  // is ADMIN (see GET /api/users). Never sent to any other viewer, never directly editable —
+  // changed only by an ADMIN dragging a row in AdminUsersPanel's user list.
+  rankCode?: string | null;
 }
 
 export interface MockExternalRequest {
@@ -108,12 +112,8 @@ export interface MockSubmission {
   headCommitteeId?: string;
   committeeIds?: string[];
   coAdvisorIds?: string[];
-  invitedCommitteeId?: string;
+  invitedCommitteeIds?: string[];
   programChairId?: string;
-  invitedProfName?: string;
-  invitedProfAffiliation?: string;
-  invitedProfEmail?: string;
-  invitedProfPhone?: string;
   examDate?: string;
   examTime?: string;
   roomNeeded?: boolean;

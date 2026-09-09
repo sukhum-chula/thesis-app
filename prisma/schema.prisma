@@ -98,6 +98,13 @@ model User {
   // a submission displays its invited committee member. Harmless/unused for other roles.
   affiliation String?
   phone       String?
+  // Admin-settable display-order within this user's role group (ADMIN/PROFESSOR/EXTERNAL/
+  // STUDENT) — used to compute the "A001"/"B002"/"C003"/"D004" rank code shown only to ADMIN
+  // viewers (see computeRankCodes() in src/lib/utils.ts). Null means "not yet ranked" — sorts
+  // after every explicitly-ranked user in its group. Never set directly; only changed by an
+  // ADMIN dragging a row up/down in AdminUsersPanel's user list (POST /api/admin/users/reorder),
+  // which renumbers the whole affected group.
+  rankOrder    Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -177,16 +184,11 @@ model Submission {
   studentEmail    String?
   studentPhone    String?
 
-  headCommitteeId    String?
-  committeeIds       String[]
-  coAdvisorIds       String[]
-  invitedCommitteeId String?
-  programChairId     String?
-
-  invitedProfName        String?
-  invitedProfAffiliation String?
-  invitedProfEmail       String?
-  invitedProfPhone       String?
+  headCommitteeId     String?
+  committeeIds        String[]
+  coAdvisorIds        String[]
+  invitedCommitteeIds String[]
+  programChairId      String?
 
   examDate      String?
   examTime      String?

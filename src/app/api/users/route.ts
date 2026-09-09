@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canGrantRole } from "@/lib/accountScope";
-import { generatePassword, isValidPasscode, isValidThaiPhone, NAME_TITLES, formatUserName } from "@/lib/utils";
+import { generatePassword, isValidPasscode, isValidThaiPhone, NAME_TITLES, formatUserName, computeRankCodes } from "@/lib/utils";
 import { sendWelcomeEmail } from "@/lib/email";
 import { attachSystemSettings } from "@/lib/systemSettings";
 
@@ -16,6 +16,7 @@ function mapUser(u: any) {
     isFinanceContact: u.isFinanceContact ?? false,
     affiliation: u.affiliation ?? null,
     phone: u.phone ?? null,
+    rankCode: u.rankCode ?? null,
   };
 }
 
@@ -28,6 +29,9 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sessionRoles: string[] = (session.user as any).roles ?? [session.user.role];
+  // Rank codes (A001/B002/...) are an ADMIN-only concept — SUPER_ADMIN's own user list (admin-tier
+  // accounts only) and every other caller never see them, per "do not show these to other users".
+  const isAdminCaller = sessionRoles.includes("ADMIN") && !sessionRoles.includes("SUPER_ADMIN");
 
   let where: any;
   if (sessionRoles.includes("SUPER_ADMIN")) {
@@ -44,16 +48,16 @@ export async function GET() {
     const userId = (session.user as any).id;
     const subs = await prisma.submission.findMany({
       where: { studentId: userId },
-      select: { advisorId: true, headCommitteeId: true, committeeIds: true, coAdvisorIds: true, invitedCommitteeId: true, programChairId: true },
+      select: { advisorId: true, headCommitteeId: true, committeeIds: true, coAdvisorIds: true, invitedCommitteeIds: true, programChairId: true },
     });
     const linkedIds = new Set<string>();
     for (const s of subs) {
       if (s.advisorId)         linkedIds.add(s.advisorId);
       if (s.headCommitteeId)   linkedIds.add(s.headCommitteeId);
-      if (s.invitedCommitteeId) linkedIds.add(s.invitedCommitteeId);
       if ((s as any).programChairId) linkedIds.add((s as any).programChairId);
       for (const id of s.committeeIds ?? [])  linkedIds.add(id);
       for (const id of s.coAdvisorIds ?? [])  linkedIds.add(id);
+      for (const id of s.invitedCommitteeIds ?? []) linkedIds.add(id);
     }
     where = linkedIds.size > 0
       ? { OR: [{ roles: { hasSome: FACULTY_ROLES as any[] } }, { id: { in: [...linkedIds] } }] }
@@ -62,7 +66,13 @@ export async function GET() {
 
   const users = await prisma.user.findMany({ where, orderBy: { name: "asc" } });
   const decorated = await attachSystemSettings(users);
-  return NextResponse.json(decorated.map(mapUser));
+  const withRank = isAdminCaller
+    ? (() => {
+        const codes = computeRankCodes(users);
+        return decorated.map((u) => ({ ...u, rankCode: codes.get(u.id) ?? null }));
+      })()
+    : decorated;
+  return NextResponse.json(withRank.map(mapUser));
 }
 
 export async function POST(req: NextRequest) {

@@ -19,11 +19,7 @@ export interface SubmissionFormData {
   headCommitteeId?: string;
   committeeIds?: string[];
   coAdvisorIds?: string[];
-  invitedCommitteeId?: string;
-  invitedProfName?: string;
-  invitedProfAffiliation?: string;
-  invitedProfEmail?: string;
-  invitedProfPhone?: string;
+  invitedCommitteeIds?: string[];
   people?: { name: string; email: string; role: string; phone?: string }[];
   examDate?: string;
   examTime?: string;
@@ -111,9 +107,14 @@ interface AppContextType {
     // Set when this account creation is approving a student's ExternalCommitteeRequest —
     // links the two records server-side and notifies the requesting student.
     externalRequestId?: string;
-  }) => Promise<void>;
-  superAdminResetPasscode: (userId: string, passcode?: string) => Promise<void>;
-  adminUpdateUserInfo: (userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) => Promise<void>;
+  }) => Promise<{ emailSent: boolean }>;
+  superAdminResetPasscode: (userId: string, passcode?: string) => Promise<{ emailSent: boolean }>;
+  adminUpdateUserInfo: (userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) => Promise<{ emailChangeNoticesSent?: boolean }>;
+  // Persists a full drag-and-drop reorder of one role group (ADMIN/PROFESSOR/EXTERNAL/STUDENT) —
+  // orderedIds must be exactly that group's current members, in the new order. Recomputes every
+  // affected user's rank code (A001/B002/...) server-side; see "add some string to rank the user"
+  // feature in AdminUsersPanel.
+  adminReorderUsers: (role: Role, orderedIds: string[]) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
   adminSetFinanceContact: (userId: string | null) => Promise<void>;
   submitExternalRequest: (data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
@@ -330,11 +331,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case "STUDENT":               return sub.studentId === user.id;
       case "ADVISOR":               return (sub as any).advisorId === user.id;
       case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
-      case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
       case "PROGRAM_CHAIR":
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
       case "CO_ADVISOR":
-      case "EXAM_COMMITTEE": {
+      case "EXAM_COMMITTEE":
+      case "INVITED_EXAM_COMMITTEE": {
         if (!step.committeeMembers?.includes(user.id)) return false;
         if ((step.committeeActions ?? []).some((a) => a.userId === user.id)) return false;
         // Only the next unsigned member can act (sequential)
@@ -359,11 +360,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case "STUDENT":               return sub.studentId === user.id;
         case "ADVISOR":               return (sub as any).advisorId === user.id;
         case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
-        case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
         case "PROGRAM_CHAIR":
           return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
         case "CO_ADVISOR":
-        case "EXAM_COMMITTEE": {
+        case "EXAM_COMMITTEE":
+        case "INVITED_EXAM_COMMITTEE": {
           if (!step.committeeMembers?.includes(user.id)) return false;
           if ((step.committeeActions ?? []).some((a) => a.userId === user.id)) return false;
           const members = step.committeeMembers ?? [];
@@ -430,22 +431,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function superAdminAddUser(userData: Parameters<AppContextType["superAdminAddUser"]>[0]) {
-    const newUser = await api<MockUser>("/api/users", "POST", userData);
+    const newUser = await api<MockUser & { emailSent: boolean }>("/api/users", "POST", userData);
     setUsers((prev) => [...prev, newUser]);
     // Approving a request updates its status server-side — refetch so the review queue drops it.
     if (userData.externalRequestId) {
       const reqs = await api<MockExternalRequest[]>("/api/external-requests");
       setExternalRequests(reqs);
     }
+    return { emailSent: newUser.emailSent };
   }
 
   async function superAdminResetPasscode(userId: string, passcode?: string) {
-    await api(`/api/users/${userId}`, "PATCH", { resetPasscode: true, passcode });
+    const updated = await api<MockUser & { passcodeEmailSent?: boolean }>(`/api/users/${userId}`, "PATCH", { resetPasscode: true, passcode });
+    setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
+    return { emailSent: updated.passcodeEmailSent ?? false };
   }
 
   async function adminUpdateUserInfo(userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) {
-    const updated = await api<MockUser>(`/api/users/${userId}`, "PATCH", updates);
+    const updated = await api<MockUser & { emailChangeNoticesSent?: boolean }>(`/api/users/${userId}`, "PATCH", updates);
     setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
+    return { emailChangeNoticesSent: updated.emailChangeNoticesSent };
+  }
+
+  async function adminReorderUsers(role: Role, orderedIds: string[]) {
+    await api("/api/admin/users/reorder", "POST", { role, orderedIds });
+    await refresh(); // recomputes every user's rank code (A001/B002/...) in that group
   }
 
   async function adminSetProgramChair(program: ProgramType, userId: string | null) {
@@ -492,7 +502,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminSetProgramChair, adminSetFinanceContact,
+      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact,
       submitExternalRequest, rejectExternalRequest,
     }}>
       {children}

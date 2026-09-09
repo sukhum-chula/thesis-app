@@ -42,7 +42,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     || ((sub.coAdvisorIds ?? []) as string[]).includes(user.id)
     || ((sub as any).headCommitteeId === user.id)
     || ((sub.committeeIds ?? []) as string[]).includes(user.id)
-    || ((sub as any).invitedCommitteeId === user.id)
+    || ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id)
     || ((sub as any).programChairId === user.id);
 
   if (!authorized) {
@@ -66,9 +66,9 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       case "STUDENT":               return sub.studentId === user.id;
       case "ADVISOR":               return (sub as any).advisorId === user.id;
       case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
-      case "INVITED_EXAM_COMMITTEE":return (sub as any).invitedCommitteeId === user.id;
       case "CO_ADVISOR":            return ((sub.coAdvisorIds ?? []) as string[]).includes(user.id);
       case "EXAM_COMMITTEE":        return ((sub.committeeIds ?? []) as string[]).includes(user.id);
+      case "INVITED_EXAM_COMMITTEE":return ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id);
       case "PROGRAM_CHAIR":
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
       default:                      return user.roles.includes(currentStep.role as any);
@@ -182,15 +182,14 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
                   .join(", ")}
               />
             )}
-            {(sub.invitedProfName || sub.invitedCommitteeId) && (
+            {sub.invitedCommitteeIds && sub.invitedCommitteeIds.length > 0 && (
               <InfoRow
                 label="กรรมการภายนอก"
-                value={sub.invitedProfName ?? (() => { const u = allUsers.find((u) => u.id === sub.invitedCommitteeId); return u ? formatUserName(u) : (sub.invitedCommitteeId ?? ""); })()}
+                value={sub.invitedCommitteeIds
+                  .map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; })
+                  .join(", ")}
               />
             )}
-            {sub.invitedProfAffiliation && <InfoRow label="สังกัดกรรมการภายนอก" value={sub.invitedProfAffiliation} />}
-            {sub.invitedProfEmail && <InfoRow label="อีเมลกรรมการภายนอก" value={sub.invitedProfEmail} />}
-            {sub.invitedProfPhone && <InfoRow label="เบอร์โทรกรรมการภายนอก" value={sub.invitedProfPhone} />}
           </div>
         </div>
       )}
@@ -339,18 +338,18 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
             </div>
           )}
 
-          {/* Action — committee steps (EXAM_COMMITTEE and CO_ADVISOR) use sequential multi-member panel */}
-          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR") && (
+          {/* Action — committee steps (EXAM_COMMITTEE, CO_ADVISOR, INVITED_EXAM_COMMITTEE) use sequential multi-member panel */}
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR" || currentStep?.role === "INVITED_EXAM_COMMITTEE") && (
             <CommitteeSignPanel
               submissionId={sub.id}
               step={currentStep}
               formsToShow={formsToShow}
-              title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : undefined}
+              title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : currentStep.role === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอก" : undefined}
               onSuccess={() => router.push(backPath)}
             />
           )}
 
-          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && currentStep?.role !== "INVITED_EXAM_COMMITTEE" && (
             <SignatureButton
               submissionId={sub.id}
               formsToShow={formsToShow}

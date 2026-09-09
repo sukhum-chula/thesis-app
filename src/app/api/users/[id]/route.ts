@@ -106,27 +106,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const user = await prisma.user.update({ where: { id }, data });
 
+  // Both the passcode reset and the email change above already took effect regardless of what
+  // follows — a mail failure here must never roll back or block the account update, only be
+  // reported back so the admin knows to relay the new passcode / re-notify some other way.
+  let passcodeEmailSent: boolean | undefined;
   if (newPasscode) {
-    await sendPasscodeResetEmail({
+    const { sent } = await sendPasscodeResetEmail({
       userId: user.id,
       name: formatUserName(user),
       email: user.email,
       passcode: newPasscode,
       role: user.roles[0] ?? "",
     });
+    passcodeEmailSent = sent;
   }
 
+  let emailChangeNoticesSent: boolean | undefined;
   if (emailChange) {
-    await sendEmailChangedNotice({
+    const { oldSent, newSent } = await sendEmailChangedNotice({
       userId: user.id,
       name: formatUserName(user),
       oldEmail: emailChange.oldEmail,
       newEmail: emailChange.newEmail,
     });
+    emailChangeNoticesSent = oldSent && newSent;
   }
 
   const [decorated] = await attachSystemSettings([user]);
-  return NextResponse.json(mapUser(decorated));
+  return NextResponse.json({ ...mapUser(decorated), passcodeEmailSent, emailChangeNoticesSent });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

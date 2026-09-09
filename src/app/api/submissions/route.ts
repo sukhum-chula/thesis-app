@@ -46,7 +46,7 @@ export async function GET() {
       { coAdvisorIds: { hasSome: [userId] } },
       { committeeIds: { hasSome: [userId] } },
       { headCommitteeId: userId },
-      { invitedCommitteeId: userId },
+      { invitedCommitteeIds: { hasSome: [userId] } },
       { programChairId: userId },
     ];
     if (chairedPrograms.length) or.push({ program: { in: chairedPrograms } });
@@ -221,14 +221,10 @@ export async function POST(req: NextRequest) {
         headCommitteeId: resolved.headCommitteeId,
         committeeIds: resolved.committeeIds,
         coAdvisorIds: resolved.coAdvisorIds,
-        invitedCommitteeId: resolved.invitedCommitteeId,
+        invitedCommitteeIds: resolved.invitedCommitteeIds,
         programChairId: resolved.programChairId,
-        invitedProfName: resolved.invitedProfName,
-        invitedProfAffiliation: null,
-        invitedProfEmail: resolved.invitedProfEmail,
-        invitedProfPhone: resolved.invitedProfPhone,
         workflowSteps: {
-          create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId),
+          create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds),
         },
       },
       include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },

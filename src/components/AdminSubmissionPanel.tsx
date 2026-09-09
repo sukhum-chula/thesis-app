@@ -432,12 +432,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     coAdvisorIds: ["", "", ""] as string[],
     headCommitteeId: "",
     committeeIds: ["", "", ""] as string[],
-    invitedCommitteeId: "", invitedProfName: "", invitedProfEmail: "",
-    invitedProfAffiliation: "", invitedProfPhone: "",
+    invitedCommitteeIds: ["", "", ""] as string[],
     examDate: "", examTime: "", roomNeeded: false, parkingNeeded: false, carPlate: "",
   });
   const upd = (key: string, val: unknown) => setEditDraft((p) => ({ ...p, [key]: val }));
-  const updArr = (key: "coAdvisorIds" | "committeeIds", i: number, val: string) =>
+  const updArr = (key: "coAdvisorIds" | "committeeIds" | "invitedCommitteeIds", i: number, val: string) =>
     setEditDraft((p) => { const a = [...p[key]]; a[i] = val; return { ...p, [key]: a }; });
   const [confirmDel,  setConfirmDel]  = useState(false);
   const [activeTab,   setActiveTab]   = useState<"steps" | "timeline">("steps");
@@ -509,11 +508,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       coAdvisorIds:        [...(sub.coAdvisorIds    ?? []), "", "", ""].slice(0, 3),
       headCommitteeId:     sub.headCommitteeId      ?? "",
       committeeIds:        [...(sub.committeeIds    ?? []), "", "", ""].slice(0, 3),
-      invitedCommitteeId:  sub.invitedCommitteeId   ?? "",
-      invitedProfName:     sub.invitedProfName      ?? "",
-      invitedProfEmail:    sub.invitedProfEmail     ?? "",
-      invitedProfAffiliation: sub.invitedProfAffiliation ?? "",
-      invitedProfPhone:    sub.invitedProfPhone     ?? "",
+      invitedCommitteeIds: [...(sub.invitedCommitteeIds ?? []), "", "", ""].slice(0, 3),
       examDate:            sub.examDate             ?? "",
       examTime:            sub.examTime             ?? "",
       roomNeeded:          sub.roomNeeded           ?? false,
@@ -537,11 +532,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       programChairId:      resolvedProgramChair?.id        || null,
       headCommitteeId:     editDraft.headCommitteeId      || null,
       committeeIds:        editDraft.committeeIds.filter(Boolean),
-      invitedCommitteeId:  editDraft.invitedCommitteeId   || null,
-      invitedProfName:     editDraft.invitedProfName      || null,
-      invitedProfEmail:    editDraft.invitedProfEmail     || null,
-      invitedProfAffiliation: editDraft.invitedProfAffiliation || null,
-      invitedProfPhone:    editDraft.invitedProfPhone     || null,
+      invitedCommitteeIds: editDraft.invitedCommitteeIds.filter(Boolean),
       examDate:            editDraft.examDate             || null,
       examTime:            editDraft.examTime             || null,
       roomNeeded:          editDraft.roomNeeded,
@@ -695,7 +686,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 </div>
               </div>
             )}
-            {(advisor || sub.headCommitteeId || (sub.coAdvisorIds?.length ?? 0) > 0 || (sub.committeeIds?.length ?? 0) > 0 || sub.invitedProfName || sub.invitedCommitteeId) && (
+            {(advisor || sub.headCommitteeId || (sub.coAdvisorIds?.length ?? 0) > 0 || (sub.committeeIds?.length ?? 0) > 0 || (sub.invitedCommitteeIds?.length ?? 0) > 0) && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-sm text-gray-400"><Users className="w-3.5 h-3.5" />คณะกรรมการและผู้เกี่ยวข้อง</div>
                 <div className="space-y-1.5">
@@ -705,28 +696,21 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     { label: "ประธานหลักสูตร",       ids: (sub as any).programChairId ? [(sub as any).programChairId] : [] },
                     { label: "ประธานกรรมการสอบ",    ids: sub.headCommitteeId ? [sub.headCommitteeId] : [] },
                     { label: "กรรมการสอบ",           ids: sub.committeeIds ?? [] },
+                    { label: "กรรมการภายนอก",        ids: sub.invitedCommitteeIds ?? [] },
                   ] as { label: string; ids: string[] }[]).flatMap(({ label, ids }) =>
                     ids.map((uid, i) => {
                       const u = allUsers.find((x) => x.id === uid);
                       return (
                         <div key={`${label}-${uid}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1 border-b border-gray-50 last:border-0">
                           <p className="text-xs text-gray-400 w-32 shrink-0">{ids.length > 1 ? `${label} ${i + 1}` : label}</p>
-                          <p className="text-sm font-medium text-gray-800">{u ? formatUserName(u) : uid}</p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {u ? formatUserName(u) : uid}
+                            {u?.affiliation && <span className="text-gray-400 font-normal"> · {u.affiliation}</span>}
+                          </p>
                           {u?.email && <a href={`mailto:${u.email}`} className="text-xs text-blue-500 hover:underline">{u.email}</a>}
                         </div>
                       );
                     })
-                  )}
-                  {(sub.invitedProfName || sub.invitedCommitteeId) && (
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1">
-                      <p className="text-xs text-gray-400 w-32 shrink-0">กรรมการภายนอก</p>
-                      <p className="text-sm font-medium text-gray-800">
-                        {sub.invitedProfName ?? (() => { const u = allUsers.find((u) => u.id === sub.invitedCommitteeId); return u ? formatUserName(u) : sub.invitedCommitteeId; })()}
-                        {sub.invitedProfAffiliation && <span className="text-gray-400 font-normal"> · {sub.invitedProfAffiliation}</span>}
-                      </p>
-                      {sub.invitedProfEmail && <a href={`mailto:${sub.invitedProfEmail}`} className="text-xs text-blue-500 hover:underline">{sub.invitedProfEmail}</a>}
-                      {sub.invitedProfPhone && <span className="text-xs text-gray-500">📞 {sub.invitedProfPhone}</span>}
-                    </div>
                   )}
                 </div>
               </div>
@@ -811,20 +795,18 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 ))}
               </div>
 
-              {/* Invited external committee */}
+              {/* Invited external committee — up to 3, sign sequentially in list order */}
               <div className="border border-gray-200 rounded-xl p-3 space-y-2 bg-gray-50">
                 <p className="text-xs font-medium text-gray-500">กรรมการภายนอก</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <EField label="ในระบบ (เลือก)">
-                    <select value={editDraft.invitedCommitteeId} onChange={(e) => upd("invitedCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>
-                      <option value="">— ไม่ระบุ —</option>
-                      {externals.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
-                    </select>
-                  </EField>
-                  <EField label="ชื่อ (ภายนอก)"><input value={editDraft.invitedProfName} onChange={(e) => upd("invitedProfName", e.target.value)} className={EDIT_INPUT_CLS} placeholder="ถ้าไม่อยู่ในระบบ" /></EField>
-                  <EField label="อีเมล"><input type="email" value={editDraft.invitedProfEmail} onChange={(e) => upd("invitedProfEmail", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                  <EField label="สังกัด"><input value={editDraft.invitedProfAffiliation} onChange={(e) => upd("invitedProfAffiliation", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                  <EField label="เบอร์โทร"><input value={editDraft.invitedProfPhone} onChange={(e) => upd("invitedProfPhone", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
+                  {[0, 1, 2].map((i) => (
+                    <EField key={i} label={`กรรมการภายนอก ${i + 1}`}>
+                      <select value={editDraft.invitedCommitteeIds[i] ?? ""} onChange={(e) => updArr("invitedCommitteeIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
+                        <option value="">— ไม่ระบุ —</option>
+                        {externals.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+                      </select>
+                    </EField>
+                  ))}
                 </div>
               </div>
             </div>
@@ -922,7 +904,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 else if (step.role === "ADVISOR") assignedName = advisor ? formatUserName(advisor) : null;
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.headCommitteeId); assignedName = u ? formatUserName(u) : null; }
-                else if (step.role === "INVITED_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.invitedCommitteeId); assignedName = u ? formatUserName(u) : (sub.invitedProfName ?? null); }
+                else if (step.role === "INVITED_EXAM_COMMITTEE") assignedName = (sub.invitedCommitteeIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "PROGRAM_CHAIR") {
                   const u = allUsers.find((u) => u.id === (sub as any).programChairId)
                     ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
@@ -930,8 +912,8 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 }
 
                 // Committee sign breakdown
-                const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR")
-                  ? (step.committeeMembers?.length ? step.committeeMembers : (step.role === "CO_ADVISOR" ? (sub.coAdvisorIds ?? []) : (sub.committeeIds ?? []))).map((uid) => {
+                const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR" || step.role === "INVITED_EXAM_COMMITTEE")
+                  ? (step.committeeMembers?.length ? step.committeeMembers : (step.role === "CO_ADVISOR" ? (sub.coAdvisorIds ?? []) : step.role === "INVITED_EXAM_COMMITTEE" ? (sub.invitedCommitteeIds ?? []) : (sub.committeeIds ?? []))).map((uid) => {
                       const u = allUsers.find((u) => u.id === uid);
                       const action = step.committeeActions?.find((a) => a.userId === uid);
                       const stepApproved = step.status === "APPROVED";

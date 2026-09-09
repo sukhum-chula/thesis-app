@@ -88,13 +88,17 @@ interface StepEmailOptions {
     advisorId?: string | null;
     headCommitteeId?: string | null;
     committeeIds?: string[];
-    invitedCommitteeId?: string | null;
+    invitedCommitteeIds?: string[];
     programChairId?: string | null;
     program?: string | null;
   };
   stepName: string;
-  /** For EXAM_COMMITTEE chain-sign: send email to only this specific member instead of all */
+  /** For EXAM_COMMITTEE/CO_ADVISOR/INVITED_EXAM_COMMITTEE chain-sign: send email to only this
+   *  specific member instead of the default (first member). */
   specificMemberId?: string;
+  /** Broadcast to every member of a multi-member role instead of just one (e.g. the invitation
+   *  letter sent to every invited external committee member, not just whoever signs first). */
+  allMembers?: boolean;
 }
 
 interface Recipient {
@@ -118,21 +122,24 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
     } else if (role === "HEAD_EXAM_COMMITTEE" && sub.headCommitteeId) {
       const u = await prisma.user.findUnique({ where: { id: sub.headCommitteeId } });
       if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
-    } else if (role === "EXAM_COMMITTEE" || role === "CO_ADVISOR") {
-      if (options.specificMemberId) {
+    } else if (role === "EXAM_COMMITTEE" || role === "CO_ADVISOR" || role === "INVITED_EXAM_COMMITTEE") {
+      const ids: string[] =
+        role === "EXAM_COMMITTEE" ? (sub.committeeIds ?? []) :
+        role === "CO_ADVISOR"     ? ((sub as any).coAdvisorIds ?? []) :
+                                     (sub.invitedCommitteeIds ?? []);
+      if (options.allMembers) {
+        const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } } }) : [];
+        recipients = users.map((u) => ({ id: u.id, name: formatUserName(u), email: u.email }));
+      } else if (options.specificMemberId) {
         const u = await prisma.user.findUnique({ where: { id: options.specificMemberId } });
         if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
       } else {
         // Fallback: first member only
-        const ids: string[] = role === "EXAM_COMMITTEE" ? (sub.committeeIds ?? []) : ((sub as any).coAdvisorIds ?? []);
         if (ids[0]) {
           const u = await prisma.user.findUnique({ where: { id: ids[0] } });
           if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
         }
       }
-    } else if (role === "INVITED_EXAM_COMMITTEE" && sub.invitedCommitteeId) {
-      const u = await prisma.user.findUnique({ where: { id: sub.invitedCommitteeId } });
-      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else if (role === "PROGRAM_CHAIR") {
       // Per-submission chair (assigned by the student) with per-program admin-designated fallback
       const u = sub.programChairId
@@ -417,7 +424,7 @@ export interface PasscodeResetEmailData {
   role: string;
 }
 
-export async function sendPasscodeResetEmail(data: PasscodeResetEmailData): Promise<void> {
+export async function sendPasscodeResetEmail(data: PasscodeResetEmailData): Promise<{ sent: boolean }> {
   const loginLink = `${getAppUrl()}/login`;
   const { error } = await sendMail({
     to: data.email,
@@ -427,9 +434,10 @@ export async function sendPasscodeResetEmail(data: PasscodeResetEmailData): Prom
 
   if (error) {
     console.error(`[email/passcode-reset] Send error (${data.email}):`, error.message);
-  } else {
-    console.log(`[email/passcode-reset] Sent to ${data.email}`);
+    return { sent: false };
   }
+  console.log(`[email/passcode-reset] Sent to ${data.email}`);
+  return { sent: true };
 }
 
 function buildPasscodeResetHtml(name: string, email: string, passcode: string, loginLink: string): string {
@@ -476,7 +484,7 @@ export interface EmailChangedNoticeData {
   newEmail: string;
 }
 
-export async function sendEmailChangedNotice(data: EmailChangedNoticeData): Promise<void> {
+export async function sendEmailChangedNotice(data: EmailChangedNoticeData): Promise<{ oldSent: boolean; newSent: boolean }> {
   const { name, oldEmail, newEmail } = data;
   const loginLink = `${getAppUrl()}/login`;
 
@@ -504,6 +512,8 @@ export async function sendEmailChangedNotice(data: EmailChangedNoticeData): Prom
   } else {
     console.log(`[email/email-changed] New-address notice sent to ${newEmail}`);
   }
+
+  return { oldSent: !oldResult.error, newSent: !newResult.error };
 }
 
 function buildEmailChangedOldHtml(name: string, oldEmail: string, newEmail: string): string {
@@ -571,10 +581,7 @@ export interface FinanceEmailData {
   advisorName?: string;
   headCommitteeName?: string;
   committeeNames?: string[];
-  invitedProfName?: string;
-  invitedProfAffiliation?: string;
-  invitedProfEmail?: string;
-  invitedProfPhone?: string;
+  invitedProfs?: { name: string; affiliation?: string; email?: string; phone?: string }[];
   examDate?: string;
   examTime?: string;
   roomNeeded?: boolean;
@@ -598,8 +605,7 @@ export async function sendFinanceEmail(data: FinanceEmailData): Promise<void> {
   const {
     studentName, studentCode, studentEmail, studentPhone,
     program, thesisTitle, submissionId,
-    advisorName, headCommitteeName, committeeNames,
-    invitedProfName, invitedProfAffiliation, invitedProfEmail, invitedProfPhone,
+    advisorName, headCommitteeName, committeeNames, invitedProfs,
     examDate, examTime, roomNeeded, parkingNeeded, carPlate,
     financeAttachUrl, financeAttachName, emailSubject,
   } = data;
@@ -625,7 +631,9 @@ export async function sendFinanceEmail(data: FinanceEmailData): Promise<void> {
     ...(committeeNames ?? []).map((name, i) =>
       `<tr style="${i % 2 === 0 ? "background:#f9fafb;" : ""}"><td style="padding:10px 14px;font-weight:600;color:#6b7280;">กรรมการสอบ ${i + 1}</td><td style="padding:10px 14px;color:#111827;">${escapeHtml(name)}</td></tr>`
     ),
-    invitedProfName ? `<tr><td style="padding:10px 14px;font-weight:600;color:#6b7280;">กรรมการภายนอก</td><td style="padding:10px 14px;color:#111827;">${escapeHtml(invitedProfName)}${invitedProfAffiliation ? ` (${escapeHtml(invitedProfAffiliation)})` : ""}${invitedProfEmail ? `<br><span style="color:#6b7280;font-size:13px;">📧 ${escapeHtml(invitedProfEmail)}</span>` : ""}${invitedProfPhone ? `<br><span style="color:#6b7280;font-size:13px;">📞 ${escapeHtml(invitedProfPhone)}</span>` : ""}</td></tr>` : "",
+    ...(invitedProfs ?? []).map((p, i) =>
+      `<tr><td style="padding:10px 14px;font-weight:600;color:#6b7280;">กรรมการภายนอก${(invitedProfs?.length ?? 0) > 1 ? ` ${i + 1}` : ""}</td><td style="padding:10px 14px;color:#111827;">${escapeHtml(p.name)}${p.affiliation ? ` (${escapeHtml(p.affiliation)})` : ""}${p.email ? `<br><span style="color:#6b7280;font-size:13px;">📧 ${escapeHtml(p.email)}</span>` : ""}${p.phone ? `<br><span style="color:#6b7280;font-size:13px;">📞 ${escapeHtml(p.phone)}</span>` : ""}</td></tr>`
+    ),
   ].filter(Boolean).join("\n");
 
   const { error } = await sendMail({

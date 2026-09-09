@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ upl
     (sub.coAdvisorIds as string[]).includes(userId) ||
     (sub.committeeIds as string[]).includes(userId) ||
     sub.headCommitteeId === userId ||
-    sub.invitedCommitteeId === userId ||
+    (sub.invitedCommitteeIds as string[]).includes(userId) ||
     (sub as any).programChairId === userId;
   if (!isPrivileged && !isInvolved)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

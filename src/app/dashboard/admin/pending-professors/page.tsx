@@ -79,7 +79,7 @@ export default function PendingProfessorsPage() {
     try {
       // Same route as the regular "เพิ่มผู้ใช้" flow — the server notifies any student whose
       // draft this email was blocking, regardless of which screen created the account.
-      await superAdminAddUser({
+      const { emailSent } = await superAdminAddUser({
         title: (form.title || null) as NameTitle | null,
         name: form.name.trim(),
         email: req.email,
@@ -87,7 +87,12 @@ export default function PendingProfessorsPage() {
         roles: ["PROFESSOR"],
         passcode: form.passcode.trim(),
       });
-      showToast(`สร้างบัญชีให้ ${form.name.trim()} แล้ว`, "success");
+      showToast(
+        emailSent
+          ? `สร้างบัญชีให้ ${form.name.trim()} แล้ว`
+          : `สร้างบัญชีให้ ${form.name.trim()} แล้ว — แต่ส่งอีเมลแจ้งรหัสเข้าใช้งานไม่สำเร็จ กรุณาแจ้งรหัสให้ด้วยวิธีอื่น`,
+        emailSent ? "success" : "error"
+      );
       setOpenEmail(null);
     } catch (err) {
       showToast(toUserErrorMessage(err, "สร้างบัญชีไม่สำเร็จ"), "error");

@@ -49,7 +49,7 @@ export function validatePeople(people: PersonInput[], studentOwnEmails: Set<stri
   if (count("ADVISOR") !== 1) return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
   if (count("HEAD_EXAM_COMMITTEE") !== 1) return "ต้องระบุประธานกรรมการสอบ 1 คน";
   if (count("EXAM_COMMITTEE") < 1) return "ต้องระบุกรรมการสอบอย่างน้อย 1 คน";
-  if (count("INVITED_EXAM_COMMITTEE") !== 1) return "ต้องระบุกรรมการภายนอก 1 คน";
+  if (count("INVITED_EXAM_COMMITTEE") < 1) return "ต้องระบุกรรมการภายนอกอย่างน้อย 1 คน";
   return null;
 }
 
@@ -82,10 +82,7 @@ export type ResolvedCommittee = {
   programChairId: string;
   coAdvisorIds: string[];
   committeeIds: string[];
-  invitedCommitteeId: string;
-  invitedProfName: string;
-  invitedProfEmail: string;
-  invitedProfPhone: string | null;
+  invitedCommitteeIds: string[];
 };
 
 /** Resolves a validated people[] array against existing accounts — never creates one.
@@ -103,7 +100,7 @@ export async function resolvePeople(
   const idOf = (p: PersonInput) => idByEmail.get(p.email!.trim().toLowerCase())!;
   const coAdvisorIds = [...new Set(people.filter((p) => p.role === "CO_ADVISOR").map(idOf))];
   const committeeIds = [...new Set(people.filter((p) => p.role === "EXAM_COMMITTEE").map(idOf))];
-  const invited = people.find((p) => p.role === "INVITED_EXAM_COMMITTEE")!;
+  const invitedCommitteeIds = [...new Set(people.filter((p) => p.role === "INVITED_EXAM_COMMITTEE").map(idOf))];
 
   return {
     ok: true,
@@ -112,10 +109,7 @@ export async function resolvePeople(
     programChairId: idOf(people.find((p) => p.role === "PROGRAM_CHAIR")!),
     coAdvisorIds,
     committeeIds,
-    invitedCommitteeId: idOf(invited),
-    invitedProfName: invited.name!.trim(),
-    invitedProfEmail: invited.email!.trim().toLowerCase(),
-    invitedProfPhone: invited.phone?.trim() || null,
+    invitedCommitteeIds,
   };
 }
 
@@ -125,10 +119,7 @@ export type PartialResolvedCommittee = {
   programChairId: string | null;
   coAdvisorIds: string[];
   committeeIds: string[];
-  invitedCommitteeId: string | null;
-  invitedProfName: string | null;
-  invitedProfEmail: string | null;
-  invitedProfPhone: string | null;
+  invitedCommitteeIds: string[];
 };
 
 /** Lenient counterpart to resolvePeople() for saving an in-progress draft — unlike resolvePeople(),
@@ -149,7 +140,6 @@ export async function resolvePeoplePartial(people: PersonInput[]): Promise<Parti
   const advisor = resolvable.find((p) => p.role === "ADVISOR");
   const head    = resolvable.find((p) => p.role === "HEAD_EXAM_COMMITTEE");
   const chair   = resolvable.find((p) => p.role === "PROGRAM_CHAIR");
-  const invited = resolvable.find((p) => p.role === "INVITED_EXAM_COMMITTEE");
 
   return {
     advisorId: advisor ? idOf(advisor) : null,
@@ -157,9 +147,6 @@ export async function resolvePeoplePartial(people: PersonInput[]): Promise<Parti
     programChairId: chair ? idOf(chair) : null,
     coAdvisorIds: [...new Set(resolvable.filter((p) => p.role === "CO_ADVISOR").map(idOf))],
     committeeIds: [...new Set(resolvable.filter((p) => p.role === "EXAM_COMMITTEE").map(idOf))],
-    invitedCommitteeId: invited ? idOf(invited) : null,
-    invitedProfName: invited?.name?.trim() || null,
-    invitedProfEmail: invited?.email?.trim().toLowerCase() || null,
-    invitedProfPhone: invited?.phone?.trim() || null,
+    invitedCommitteeIds: [...new Set(resolvable.filter((p) => p.role === "INVITED_EXAM_COMMITTEE").map(idOf))],
   };
 }

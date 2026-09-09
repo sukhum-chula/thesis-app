@@ -83,11 +83,14 @@ export function UserProfileHeader({
       if (editStudentId.trim() !== (user?.studentId ?? "")) updates.studentId = editStudentId.trim();
       if (emailChanged) updates.email = editEmail.trim().toLowerCase();
       if (Object.keys(updates).length === 0) { setEditOpen(false); return; }
-      await adminUpdateUserInfo(uid, updates);
-      showToast(
-        emailChanged ? "แก้ไขข้อมูลสำเร็จ — ส่งอีเมลแจ้งทั้งที่อยู่เดิมและใหม่แล้ว" : "แก้ไขข้อมูลสำเร็จ",
-        "success"
-      );
+      const { emailChangeNoticesSent } = await adminUpdateUserInfo(uid, updates);
+      if (!emailChanged) {
+        showToast("แก้ไขข้อมูลสำเร็จ", "success");
+      } else if (emailChangeNoticesSent) {
+        showToast("แก้ไขข้อมูลสำเร็จ — ส่งอีเมลแจ้งทั้งที่อยู่เดิมและใหม่แล้ว", "success");
+      } else {
+        showToast("แก้ไขข้อมูลสำเร็จ — แต่ส่งอีเมลแจ้งการเปลี่ยนอีเมลไม่สำเร็จ กรุณาแจ้งผู้ใช้ด้วยวิธีอื่น", "error");
+      }
       setEditOpen(false);
     } catch (err: any) {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
@@ -119,8 +122,13 @@ export function UserProfileHeader({
     }
     setPwSaving(true);
     try {
-      await superAdminResetPasscode(uid, pwPasscode.trim());
-      showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว", "success");
+      const { emailSent } = await superAdminResetPasscode(uid, pwPasscode.trim());
+      showToast(
+        emailSent
+          ? "ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว"
+          : "ออกรหัสเข้าใช้งานใหม่แล้ว — แต่ส่งอีเมลแจ้งไม่สำเร็จ กรุณาแจ้งรหัสให้ผู้ใช้ด้วยวิธีอื่น",
+        emailSent ? "success" : "error"
+      );
       setPwOpen(false);
     } catch (err: any) {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
@@ -130,8 +138,12 @@ export function UserProfileHeader({
   }
 
   return (
-    <div className={`bg-white rounded-2xl border border-gray-200 px-6 pt-6 pb-3 space-y-4 ${accent ?? ""}`} onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-stretch gap-4">
+    <div className={`bg-white rounded-2xl border border-gray-200 px-4 sm:px-6 pt-6 pb-3 space-y-4 ${accent ?? ""}`} onClick={(e) => e.stopPropagation()}>
+      {/* Below xl, the status box + action buttons no longer fit next to identity without
+          crushing the name/email down to an unreadable sliver — they drop to their own
+          full-width row (and wrap between themselves if needed) until there's enough room
+          (xl:1280px+) to dock everything on one line. */}
+      <div className="flex flex-col xl:flex-row xl:items-stretch gap-4">
         {/* Avatar + identity — grows to fill remaining space */}
         <div className="flex items-center gap-4 min-w-0 flex-1">
           <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0">
@@ -141,12 +153,22 @@ export function UserProfileHeader({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900 leading-snug">{formatUserName(user)}</h1>
-              <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full">
+              <h1 className="text-2xl font-bold text-gray-900 leading-snug break-words">{formatUserName(user)}</h1>
+              <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full whitespace-nowrap">
                 {user.roles.map((r) => ROLE_LABELS[r]).join(" / ")}
               </span>
+              {/* Admin-only rank code (A001/B002/...) — see RANK_PREFIX in src/lib/utils.ts.
+                  Display only: never editable here, only via drag-reorder in AdminUsersPanel. */}
+              {viewer.roles.includes("ADMIN") && user.rankCode && (
+                <span
+                  title="ลำดับผู้ใช้งาน (มองเห็นเฉพาะเจ้าหน้าที่ภาควิชา) — จัดลำดับได้โดยการลากในหน้ารายชื่อผู้ใช้งาน"
+                  className="text-sm font-mono font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-full whitespace-nowrap"
+                >
+                  {user.rankCode}
+                </span>
+              )}
             </div>
-            <p className="text-gray-500 mt-0.5">{user.email}</p>
+            <p className="text-gray-500 mt-0.5 break-words">{user.email}</p>
             {user.studentId && (
               <p className="text-sm text-gray-400 mt-0.5">รหัสนิสิต: {user.studentId}</p>
             )}
@@ -154,63 +176,66 @@ export function UserProfileHeader({
           </div>
         </div>
 
-        {/* Submission status counts — right-aligned, right before the button stack; with the
-            row's items-stretch, this box automatically matches the 3-button stack's height
-            (buttons + their gaps), no manual height math needed */}
-        {onToggleExpand ? (
-          <button
-            type="button"
-            onClick={onToggleExpand}
-            title="ดูคำร้องที่เกี่ยวข้อง"
-            className="hidden md:flex items-center justify-center gap-10 shrink-0 px-8 rounded-2xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition"
-          >
-            <CompactStat value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
-            <CompactStat value={completed} label="เสร็จสิ้น"       color="text-green-700" />
-            <CompactStat value={rejected}  label="ถูกปฏิเสธ"      color="text-red-500" />
-            <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
-          </button>
-        ) : (
-          <div className="hidden md:flex items-center justify-center gap-10 shrink-0 px-8 rounded-2xl border border-gray-100 bg-gray-50">
-            <CompactStat value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
-            <CompactStat value={completed} label="เสร็จสิ้น"       color="text-green-700" />
-            <CompactStat value={rejected}  label="ถูกปฏิเสธ"      color="text-red-500" />
-          </div>
-        )}
+        {/* Submission status counts + account-management buttons, side by side and wrapping as
+            needed below xl; docked to the right of identity (with items-stretch height-matching)
+            once the viewport is wide enough for both to sit on one line at their natural size. */}
+        <div className="flex flex-wrap items-stretch gap-3 xl:gap-4 xl:shrink-0">
+          {onToggleExpand ? (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              title="ดูคำร้องที่เกี่ยวข้อง"
+              className="flex items-center justify-center gap-4 sm:gap-6 xl:gap-10 shrink-0 px-4 sm:px-6 xl:px-8 rounded-2xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition"
+            >
+              <CompactStat value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
+              <CompactStat value={completed} label="เสร็จสิ้น"       color="text-green-700" />
+              <CompactStat value={rejected}  label="ถูกปฏิเสธ"      color="text-red-500" />
+              <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            </button>
+          ) : (
+            <div className="flex items-center justify-center gap-4 sm:gap-6 xl:gap-10 shrink-0 px-4 sm:px-6 xl:px-8 rounded-2xl border border-gray-100 bg-gray-50">
+              <CompactStat value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
+              <CompactStat value={completed} label="เสร็จสิ้น"       color="text-green-700" />
+              <CompactStat value={rejected}  label="ถูกปฏิเสธ"      color="text-red-500" />
+            </div>
+          )}
 
-        {/* Account-management buttons */}
-        {canManageTarget && (
-          <div className="flex flex-col items-end justify-center gap-2 shrink-0">
-            <button
-              onClick={openEdit}
-              className="w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-              title="แก้ไขชื่อ / อีเมล / รหัสนิสิต"
-            >
-              <Pencil className="w-4 h-4" />
-              แก้ไข
-            </button>
-            <button
-              onClick={openResetPasscode}
-              className="w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
-              title="รีเซ็ตรหัสเข้าใช้งาน"
-            >
-              <KeyRound className="w-4 h-4" />
-              รหัสเข้าใช้งาน
-            </button>
-            {/* Always occupies its slot (even for your own account, where you can't delete
-                yourself) so every card's button stack — and the stats box stretched to match
-                it — stays the same height. */}
-            <button
-              onClick={() => setConfirmDelete(true)}
-              disabled={viewer.id === user.id}
-              tabIndex={viewer.id === user.id ? -1 : 0}
-              className={`w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition ${viewer.id === user.id ? "invisible" : ""}`}
-              title="ลบผู้ใช้งาน"
-            >
-              <Trash2 className="w-4 h-4" />
-              ลบ
-            </button>
-          </div>
-        )}
+          {/* Account-management buttons — an equal-width row until xl, then a fixed-width
+              (w-40) column so it height-matches the stats box next to it via items-stretch. */}
+          {canManageTarget && (
+            <div className="flex flex-1 xl:flex-none xl:flex-col items-stretch xl:items-end justify-center gap-2 min-w-[220px] xl:min-w-0">
+              <button
+                onClick={openEdit}
+                className="flex-1 xl:flex-none xl:w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
+                title="แก้ไขชื่อ / อีเมล / รหัสนิสิต"
+              >
+                <Pencil className="w-4 h-4" />
+                แก้ไข
+              </button>
+              <button
+                onClick={openResetPasscode}
+                className="flex-1 xl:flex-none xl:w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition"
+                title="รีเซ็ตรหัสเข้าใช้งาน"
+              >
+                <KeyRound className="w-4 h-4" />
+                รหัสเข้าใช้งาน
+              </button>
+              {/* Always occupies its slot (even for your own account, where you can't delete
+                  yourself) so every card's button stack — and the stats box stretched to match
+                  it — stays the same height. */}
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={viewer.id === user.id}
+                tabIndex={viewer.id === user.id ? -1 : 0}
+                className={`flex-1 xl:flex-none xl:w-40 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition ${viewer.id === user.id ? "invisible" : ""}`}
+                title="ลบผู้ใช้งาน"
+              >
+                <Trash2 className="w-4 h-4" />
+                ลบ
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {confirmDelete && (
@@ -230,26 +255,6 @@ export function UserProfileHeader({
               ยกเลิก
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Quick stats — compact row, mobile-only fallback for the one docked between name and buttons */}
-      {onToggleExpand ? (
-        <button
-          type="button"
-          onClick={onToggleExpand}
-          className="flex md:hidden items-center justify-center gap-6 pt-3 pb-1 border-t border-gray-100 w-full rounded-xl hover:bg-gray-50 transition"
-        >
-          <CompactStat value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
-          <CompactStat value={completed} label="เสร็จสิ้น"       color="text-green-700" />
-          <CompactStat value={rejected}  label="ถูกปฏิเสธ"      color="text-red-500" />
-          <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </button>
-      ) : (
-        <div className="flex md:hidden items-center justify-center gap-6 pt-3 border-t border-gray-100">
-          <CompactStat value={inProg}    label="กำลังดำเนินการ" color="text-blue-700" />
-          <CompactStat value={completed} label="เสร็จสิ้น"       color="text-green-700" />
-          <CompactStat value={rejected}  label="ถูกปฏิเสธ"      color="text-red-500" />
         </div>
       )}
 
@@ -402,7 +407,7 @@ export function UserProfileHeader({
 function CompactStat({ value, label, color }: { value: number; label: string; color: string }) {
   return (
     <div className="flex flex-col items-center gap-1.5 leading-none">
-      <p className={`text-4xl font-bold ${color}`}>{value}</p>
+      <p className={`text-2xl xl:text-4xl font-bold ${color}`}>{value}</p>
       <p className="text-sm text-gray-500 whitespace-nowrap">{label}</p>
     </div>
   );

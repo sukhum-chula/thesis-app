@@ -53,7 +53,7 @@ const ROLE_REQUIREMENTS: { role: string; label: string; min: number; max: number
   { role: "ADVISOR",                label: "อาจารย์ที่ปรึกษา",   min: 1, max: 1 },
   { role: "HEAD_EXAM_COMMITTEE",    label: "ประธานกรรมการสอบ",  min: 1, max: 1 },
   { role: "EXAM_COMMITTEE",         label: "กรรมการสอบ",         min: 1, max: null },
-  { role: "INVITED_EXAM_COMMITTEE", label: "กรรมการภายนอก",      min: 1, max: 1 },
+  { role: "INVITED_EXAM_COMMITTEE", label: "กรรมการภายนอก",      min: 1, max: null },
 ];
 
 /** The single PROFESSOR designated as ประธานหลักสูตร for a program (User.programChairFor) —
@@ -119,7 +119,7 @@ export function validatePeopleClient(people: Person[], ownEmails: string[]): str
   if (count("ADVISOR") !== 1)                return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
   if (count("HEAD_EXAM_COMMITTEE") !== 1)    return "ต้องระบุประธานกรรมการสอบ 1 คน";
   if (count("EXAM_COMMITTEE") < 1)           return "ต้องระบุกรรมการสอบอย่างน้อย 1 คน";
-  if (count("INVITED_EXAM_COMMITTEE") !== 1) return "ต้องระบุกรรมการภายนอก 1 คน";
+  if (count("INVITED_EXAM_COMMITTEE") < 1)   return "ต้องระบุกรรมการภายนอกอย่างน้อย 1 คน";
   return null;
 }
 
@@ -290,12 +290,14 @@ export function ProposalForm({
           </Section>
 
           <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
-            <div className="text-xs text-gray-500 -mt-1">
+            <div className="text-xs text-gray-500 -mt-1 space-y-1">
               <p>
                 เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านจากรายชื่อในระบบเท่านั้น — ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
-                ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
-                (อาจารย์ที่ปรึกษาร่วมเพิ่มได้ตามต้องการ)
               </p>
+              <p>
+                หากไม่พบชื่อกรรมการภายนอก นิสิตสามารถยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
+              </p>
+              <p>(อาจารย์ที่ปรึกษาร่วมเพิ่มได้ตามต้องการ)</p>
             </div>
             <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
           </Section>
@@ -355,14 +357,7 @@ export function buildPeopleFromSubmission(
   for (const id of p.coAdvisorIds ?? []) result.push({ name: nameOf(id), email: emailOf(id), role: "CO_ADVISOR", phone: "" });
   if (p.headCommitteeId) result.push({ name: nameOf(p.headCommitteeId), email: emailOf(p.headCommitteeId), role: "HEAD_EXAM_COMMITTEE", phone: "" });
   for (const id of p.committeeIds ?? []) result.push({ name: nameOf(id), email: emailOf(id), role: "EXAM_COMMITTEE", phone: "" });
-  if (p.invitedCommitteeId || p.invitedProfName) {
-    result.push({
-      name: p.invitedProfName || nameOf(p.invitedCommitteeId),
-      email: p.invitedProfEmail || emailOf(p.invitedCommitteeId),
-      role: "INVITED_EXAM_COMMITTEE",
-      phone: p.invitedProfPhone || "",
-    });
-  }
+  for (const id of p.invitedCommitteeIds ?? []) result.push({ name: nameOf(id), email: emailOf(id), role: "INVITED_EXAM_COMMITTEE", phone: "" });
   // PROGRAM_CHAIR is deliberately excluded — it's never an editable row, see resolveProgramChair().
   return result.length ? result : [emptyPerson()];
 }
@@ -871,12 +866,6 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
                     ))}
                   </select>
                 </div>
-                {canBeExternal && (
-                  <p className="text-xs text-sky-700 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
-                    ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
-                    แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกได้ที่นี่
-                  </p>
-                )}
               </div>
 
               {people.length > 1 && (

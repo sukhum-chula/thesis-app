@@ -33,7 +33,7 @@ export function SubmissionInfoPanel({
 
   const hasAnyInfo =
     sub.studentFullName || sub.examDate || sub.program || sub.headCommitteeId || sub.advisorId ||
-    (sub.committeeIds?.length ?? 0) > 0 || (sub.coAdvisorIds?.length ?? 0) > 0 || sub.invitedCommitteeId;
+    (sub.committeeIds?.length ?? 0) > 0 || (sub.coAdvisorIds?.length ?? 0) > 0 || (sub.invitedCommitteeIds?.length ?? 0) > 0;
   if (!hasAnyInfo) return null;
 
   return (
@@ -53,7 +53,7 @@ export function SubmissionInfoPanel({
       )}
 
       {/* คณะกรรมการ */}
-      {(advisor || sub.headCommitteeId || (sub.coAdvisorIds?.length ?? 0) > 0 || (sub.committeeIds?.length ?? 0) > 0 || sub.invitedProfName || sub.invitedCommitteeId) && (
+      {(advisor || sub.headCommitteeId || (sub.coAdvisorIds?.length ?? 0) > 0 || (sub.committeeIds?.length ?? 0) > 0 || (sub.invitedCommitteeIds?.length ?? 0) > 0) && (
         <div className="space-y-3">
           <div className="flex items-center gap-1.5 text-sm text-gray-400"><Users className="w-3.5 h-3.5" />คณะกรรมการ</div>
           <div className="space-y-2">
@@ -84,16 +84,11 @@ export function SubmissionInfoPanel({
                 </div>
               </div>
             )}
-            {(sub.invitedProfName || sub.invitedCommitteeId) && (
-              <div className="pt-1 space-y-2">
-                <InfoRow
-                  label="กรรมการภายนอก"
-                  value={sub.invitedProfName ?? (() => { const u = users.find((u) => u.id === sub.invitedCommitteeId); return u ? formatUserName(u) : sub.invitedCommitteeId!; })()}
-                />
-                {sub.invitedProfAffiliation && <InfoRow label="สังกัด" value={sub.invitedProfAffiliation} />}
-                {sub.invitedProfEmail && <InfoRow label="อีเมลกรรมการภายนอก" value={sub.invitedProfEmail} />}
-                {sub.invitedProfPhone && <InfoRow label="เบอร์โทรกรรมการภายนอก" value={sub.invitedProfPhone} />}
-              </div>
+            {(sub.invitedCommitteeIds?.length ?? 0) > 0 && (
+              <InfoRow
+                label="กรรมการภายนอก"
+                value={(sub.invitedCommitteeIds ?? []).map((uid) => { const u = users.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ")}
+              />
             )}
           </div>
         </div>

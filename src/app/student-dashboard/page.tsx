@@ -37,9 +37,9 @@ function isAutoDraftProposal(sub: MockSubmission): boolean {
 // Full step list shown before any submission exists — no committee assigned yet, so every step
 // is generic (no per-member names). CO_ADVISOR steps are built as SKIPPED (empty co-advisor list),
 // matching the real auto-skip behavior, so the preview matches what a real submission would show.
-const PREVIEW_PROPOSAL_STEPS: MockWorkflowStep[] = buildWorkflowSteps("PROPOSAL", [], [], null)
+const PREVIEW_PROPOSAL_STEPS: MockWorkflowStep[] = buildWorkflowSteps("PROPOSAL", [], [], [])
   .map((s, i) => ({ ...s, id: `preview-proposal-${i}` }));
-const PREVIEW_DEFENSE_STEPS: MockWorkflowStep[] = buildWorkflowSteps("THESIS_DEFENSE", [], [], null)
+const PREVIEW_DEFENSE_STEPS: MockWorkflowStep[] = buildWorkflowSteps("THESIS_DEFENSE", [], [], [])
   .map((s, i) => ({ ...s, id: `preview-defense-${i}` }));
 
 function daysSince(dateStr: string): number {

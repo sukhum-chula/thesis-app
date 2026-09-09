@@ -30,6 +30,17 @@ Preview, and Development deployments send real emails to whatever address is on 
 as Production. Be careful triggering step approvals/rejections/passcode resets/etc. against real
 accounts on non-Production environments.
 
+**⚠️ The outgoing-mail Gmail account (`GMAIL_USER=suphap.m.me@gmail.com`) is hitting Google's daily
+sending-limit quota (2026-09-09)** — confirmed via a live repro: creating a test account through
+the admin panel produced `[email/welcome] Send error: Data command failed: 550-5.4.5 Daily user
+sending limit exceeded`. It's a personal Gmail account (~500 msgs/day cap), and it sends every
+welcome/passcode-reset/step-notification/finance email for the whole live app plus every session's
+testing — easy to exhaust. Not a code bug; every send path already correctly creates/updates the
+record regardless of email outcome (see the 2026-09-09 entry in §8 about `emailSent`). Fix options,
+undecided as of this writing: wait for the daily quota to reset, switch to the already-built
+Office365 SMTP path (`SMTP_USER`/`SMTP_PASS` env vars, needs a Chula mailbox with Authenticated SMTP
+enabled — see §4), or move to a dedicated transactional-email provider (SendGrid/Resend/SES).
+
 ---
 
 ## 1. Where the code lives now
@@ -184,6 +195,217 @@ add an entry when you start something that spans multiple sessions, and remove/m
 dated), this section is meant to be edited in place.
 
 ### Shipped and verified (locally — not yet re-checked on the deployed Vercel URL)
+
+- **2026-09-09 — New admin-only "rank code" feature: A001/B002/C003/D004 per role group,
+  drag-to-reorder in AdminUsersPanel.** Requested directly by the project owner: a string that
+  ranks each user, visible only to ADMIN, never directly editable, that renumbers automatically
+  when an ADMIN drags a user's card up/down the list. Added `User.rankOrder Int?`
+  (`prisma/schema.prisma`) plus `computeRankCodes()`/`rankCodeNumber()`/`RANK_PREFIX`/`RANK_ROLES`
+  (`src/lib/utils.ts`) to turn it into a display code per role: `A`ADMIN, `B`PROFESSOR,
+  `C`EXTERNAL, `D`STUDENT, each with a dense 3-digit position within that group (null `rankOrder`
+  sorts last, tie-broken by `createdAt`). `GET /api/users` (`src/app/api/users/route.ts`) attaches
+  `rankCode` to each user only when the caller is ADMIN and not SUPER_ADMIN (`isAdminCaller`) — every
+  other caller's response omits the field entirely, so it's structurally impossible for a non-ADMIN
+  session to see it. New ADMIN-only `POST /api/admin/users/reorder` accepts `{ role, orderedIds }`,
+  rejects a partial/stale membership list (409), and sets every member's `rankOrder` to its new
+  1-based position in one `$transaction` — there is no endpoint or form field that sets `rankOrder`
+  to an arbitrary value directly, only a full-group reorder. `AppContext.adminReorderUsers(role,
+  orderedIds)` wraps it and refetches so every affected user's code updates together.
+  `AdminUsersPanel.tsx` gained the drag UI (native HTML5 drag-and-drop, same pattern as
+  `CommitteePeopleEditor`'s existing person-reordering) — enabled only when a single role pill is
+  filtered (not "ทั้งหมด") with the search box and "มีคำร้องที่ยังไม่ถูกยกเลิก" checkbox both cleared,
+  since only then does the visible list equal that role's exact full membership; an optimistic local
+  order is shown immediately on drop while the server round-trip lands. `UserProfileHeader.tsx`
+  renders the code as a badge next to the role pill whenever `viewer.roles.includes("ADMIN")`,
+  independent of the reorder UI being active, so it's visible on every row an ADMIN looks at
+  (including the standalone `/dashboard/admin/users/[uid]` page). See "Admin-only user rank codes"
+  in `AGENTS.md`.
+  **DB migration**: `rankOrder` column added via a one-off raw-SQL script over the pooler connection
+  (same pattern as this file's other column migrations — schema-scoped `information_schema.columns`
+  existence check first, then `ALTER TABLE`, then deleted, not committed), since this session only
+  had the pooler connection. `npx prisma generate` run after.
+  **Built alongside two other concurrent Claude Code sessions** working in this same repo directory
+  at the same time (the `invitedCommitteeId` → `invitedCommitteeIds[]` multi-external-committee
+  migration, and the misreported-email-result fix entry right below this one) — coordinated directly
+  via cross-session messages before editing shared files (`prisma/schema.prisma`, `AppContext.tsx`,
+  `AdminUsersPanel.tsx`, `UserProfileHeader.tsx`, `src/app/api/users/route.ts`); all three sessions'
+  changes are disjoint and merged cleanly. **Verified**: the `rankOrder` column's existence was
+  confirmed via a read-only query before/after; `npx tsc --noEmit` and a scoped `eslint` pass showed
+  zero new errors from any file this work touched; a full `npm run build` was run twice — once
+  before the other two sessions' work had landed (failed only on their then-unfinished
+  `invitedCommitteeId` migration, confirmed unrelated to this work) and once after all three
+  sessions' changes were together, which passed clean. The dev server was restarted (schema change +
+  regenerated Prisma client, per the usual stale-client gotcha) with the project owner's explicit
+  approval, and confirmed healthy afterward (`GET /api/users` → 401 unauthenticated, `/login` → 200).
+  **Not yet clicked through in a real browser** — no working ADMIN credentials were exercised this
+  session; next session should confirm: the rank badge appears only for an ADMIN session (not
+  SUPER_ADMIN, not any other role), filtering to a single role plus clearing search/checkbox reveals
+  the drag handles, dragging a row actually persists a new order that survives a page reload, and a
+  409 is returned (and surfaces sanely in the UI) if two admins reorder the same group at once.
+
+- **2026-09-09 — Fixed the same misreported-email-result bug in the passcode-reset and
+  login-email-change flows** (found by checking whether the "add user" bug below existed elsewhere
+  in the system, per the project owner's explicit ask). Server-side, `PATCH /api/users/[id]`
+  (`src/app/api/users/[id]/route.ts`) already had the important part right — `prisma.user.update(...)`
+  (the actual passcode/email change) runs before either notification email is sent, so the account
+  change always takes effect regardless of mail outcome. But it was structurally worse than the
+  "add user" case: `sendPasscodeResetEmail`/`sendEmailChangedNotice` (`src/lib/email.ts`) returned
+  `void`, so the send result wasn't merely discarded, it was never even available to report, and
+  every UI call site hardcoded a success message unconditionally. Fixed:
+  - `email.ts` — `sendPasscodeResetEmail` now returns `{ sent: boolean }`; `sendEmailChangedNotice`
+    now returns `{ oldSent: boolean; newSent: boolean }` (it emails both the old and new address).
+  - `api/users/[id]/route.ts` — response now includes `passcodeEmailSent` (when a reset was
+    requested) and `emailChangeNoticesSent` (true only if *both* the old- and new-address notices
+    sent successfully, when the email was changed).
+  - `AppContext.tsx` — `superAdminResetPasscode` now returns `{ emailSent: boolean }` (previously
+    `Promise<void>`, and also now updates `users` state, matching `adminUpdateUserInfo`'s existing
+    pattern); `adminUpdateUserInfo` now returns `{ emailChangeNoticesSent?: boolean }`.
+  - Three toast call sites updated to branch on the real result instead of assuming success:
+    `UserProfileHeader.tsx`'s reset-passcode dialog and its edit-info dialog (shared by both
+    `AdminUsersPanel`'s user list and the standalone `/dashboard/admin/users/[uid]` profile page),
+    and `/super-dashboard`'s own inline reset-passcode panel.
+  See "Account creation & passcodes" in `AGENTS.md` (behavior unchanged there — same as the sibling
+  fix below, this was purely a client-side reporting gap). **Verified**: created a disposable test
+  account through the admin panel and reset its passcode live — this time the Gmail daily quota had
+  reset, so both the welcome email and the passcode-reset email actually succeeded, and the toast
+  correctly showed success matching the dev server's own `.next/dev/logs/next-development.log`
+  entries (`[email/welcome] Sent to ...`, `[email/passcode-reset] Sent to ...`); cleaned up the test
+  account after. `npx tsc --noEmit` is clean project-wide (0 errors) and `eslint` shows no new
+  errors in any touched file. **Not yet exercised against an actual failed send** — the success path
+  was confirmed end-to-end live, but the failure-branch wording (shown when `emailSent`/
+  `emailChangeNoticesSent` is `false`) has only been code-reviewed, not triggered by a real repro, on
+  this specific flow (the sibling "add user" fix below *was* verified against a real failure).
+  **Also surfaced, mid-diagnosis, that another concurrent Claude Code session's in-progress
+  `invitedCommitteeId` → `invitedCommitteeIds[]` schema migration had briefly left the dev server
+  crash-looping** (`P2022`/"column does not exist" — the DB migration hadn't finished landing when
+  the server was restarted); resolved on its own once that session completed its migration (confirmed
+  via `npx tsc --noEmit` dropping to 0 project-wide errors), not something this fix needed to touch.
+
+- **2026-09-09 — Fixed the "add user" flow claiming a welcome email was sent even when it
+  actually failed (found while diagnosing the Gmail quota issue above).** `POST /api/users`
+  (`src/app/api/users/route.ts`) already had this right server-side — `prisma.user.create(...)`
+  runs before `sendWelcomeEmail(...)`, and the response always returns `201` with an `emailSent`
+  flag regardless of whether the send succeeded, so the account is never blocked or rolled back by
+  a mail failure. The bug was entirely client-side: every caller of `superAdminAddUser` either
+  discarded the `emailSent` field or never surfaced it at all, so an admin always saw a plain
+  "success" toast even when the passcode email silently failed to go out (e.g. the Gmail daily-quota
+  error above). Fixed all three admin-facing entry points that create an account via this route:
+  - `AppContext.tsx` — `superAdminAddUser`'s return type changed from `Promise<void>` to
+    `Promise<{ emailSent: boolean }>`, now returning the field the API already sent back.
+  - `AdminUsersPanel.tsx` (main "เพิ่มผู้ใช้งาน" modal, both `/admin-dashboard`'s tab and standalone
+    `/dashboard/admin/users`) — toast now branches on `emailSent`, showing an error toast telling
+    the admin to relay the passcode another way when the send failed.
+  - `/dashboard/admin/pending-professors` (quick-create for a DRAFT's missing committee person) —
+    same branching toast.
+  - `/super-dashboard` (SUPER_ADMIN add-admin form) — this one was worse than the other two: it
+    never `await`ed the call or handled errors at all (fire-and-forget), so even a hard failure
+    like a duplicate email would silently do nothing while the form closed as if it had succeeded.
+    Made `handleAddUser` `async`, added a try/catch with an error toast, and only clears/closes the
+    form on confirmed success.
+  See `POST /api/users` in `CLAUDE.md`'s API map and "Account creation & passcodes" in `AGENTS.md`
+  (behavior unchanged there — this was purely a client-side reporting gap, not a workflow change).
+  **Verified**: reproduced the real Gmail-quota failure live (created and deleted a disposable test
+  account through the admin panel, confirmed the dev-server log showed the send error while the
+  account was created successfully either way); `npx tsc --noEmit` and `npx eslint` on all touched
+  files show no new errors. **Not yet clicked through for the other two entry points specifically**
+  (`pending-professors`, `/super-dashboard`) — only the main `AdminUsersPanel` modal was exercised
+  live; next session should trigger a real or simulated send failure through those two forms as well
+  to confirm the toast wording renders correctly.
+
+- **2026-09-09 — Fixed the admin user-management list's submission-status box and 3
+  edit/reset/delete buttons not adapting to a narrower browser width.** Reported as: on
+  `/admin-dashboard`'s จัดการผู้ใช้งาน tab (and standalone `/dashboard/admin/users`), the status box
+  and buttons were "too big when page is narrower". Root cause: `UserProfileHeader.tsx`'s header
+  row had both the status box and the button stack set `shrink-0` with no responsive fallback below
+  the `md` breakpoint the status box was gated on — at any width from ~768px up to a genuinely wide
+  desktop, neither block would shrink, so the identity block (name/email, `flex-1 min-w-0`) absorbed
+  all the narrowing and the name wrapped character-by-character. Confirmed live in the browser at
+  ~871px width logged in as ADMIN before fixing. Fix: the header now stacks vertically below the
+  `xl` breakpoint (1280px) — identity on top, then the status box + 3 buttons together in a
+  wrapping row underneath, only docking side-by-side with identity once there's enough room for
+  everything at full size; the 3 buttons switch from a fixed `w-40` vertical stack to an
+  equal-width horizontal row (`flex-1`) until `xl`; the status box's padding/gaps and count-number
+  size shrink at smaller breakpoints too. Removed the old separate "mobile-only" duplicate stats
+  block, since the status box now always renders in the wrapping row (previously hidden below
+  `md`). **Verified**: confirmed live in the browser (ADMIN → จัดการผู้ใช้งาน tab) that names/emails
+  render normally and the status counts + buttons sit in a clean row below at ~871px width;
+  `npx tsc --noEmit` and `npx eslint` show no new errors (the file's existing `catch (err: any)`
+  lint errors are pre-existing, unrelated to this change). **Not yet verified at the `xl`
+  (1280px+) side-by-side layout or at a true mobile width** — this session's browser-automation
+  tooling couldn't actually resize the rendered viewport (the `resize_window` call reported success
+  but `window.innerWidth` never changed from 871px), so only the stacked (below-`xl`) layout was
+  visually confirmed; the `xl:` docked-row classes are standard Tailwind and logically mirror the
+  original always-on design, but haven't been eyeballed at a wide desktop width.
+  **Built alongside two other concurrent Claude Code sessions working in this same repo directory
+  at the same time** (one on the `INVITED_EXAM_COMMITTEE` multi-member migration below, one —
+  `thesis-app-8c` — on a `User.rankOrder` ranking feature that also touches `UserProfileHeader.tsx`/
+  `AdminUsersPanel.tsx`/`AppContext.tsx`). Coordinated directly via cross-session messages; both
+  this session's edits and `thesis-app-8c`'s landed cleanly in disjoint regions of the shared files
+  with no conflicts.
+
+- **2026-09-09 — `INVITED_EXAM_COMMITTEE` (กรรมการภายนอก) now supports multiple members, not just
+  exactly 1.** Requested by the project owner directly ("change that the project can has more than
+  1 external committee"). Previously this role was hard-capped at exactly 1 person and structurally
+  different from `CO_ADVISOR`/`EXAM_COMMITTEE` (a scalar `invitedCommitteeId` + 4 free-text snapshot
+  columns, single-approver `approve` flow, `SignatureButton` UI) even though `WorkflowStep.
+  committeeMembers` already wrapped it in a 1-element array "for self-containment" (per the old
+  AGENTS.md wording). Made it a genuine multi-member role, mirroring `CO_ADVISOR`/`EXAM_COMMITTEE`
+  exactly: schema field replaced with `invitedCommitteeIds String[]` (migrated via one-off raw SQL
+  over the pooler — backfilled 6/6 existing rows, verified, then dropped the old
+  `invitedCommitteeId`/`invitedProfName`/`invitedProfAffiliation`/`invitedProfEmail`/
+  `invitedProfPhone` columns entirely, with the project owner's explicit go-ahead before running
+  the drop against production); `validatePeople`/`resolvePeople` (`src/lib/committee.ts`) now
+  require ≥1 instead of exactly 1; `buildWorkflowSteps()` populates `committeeMembers` with the
+  real array; `POST /api/submissions/[id]/sign` now accepts this role for the same
+  `committeeActions`-tracked sequential-signing transaction `CO_ADVISOR`/`EXAM_COMMITTEE` already
+  use (each member signs in list order, all must approve); the plain single-approver `approve`
+  action now rejects it the same way it already rejected those two roles;
+  `RoleSubmissionDetail` routes it to `CommitteeSignPanel` instead of `SignatureButton`. UI-side,
+  `CommitteePeopleEditor`'s `ROLE_REQUIREMENTS` dropped its `max: 1` cap (was blocking a 2nd row
+  with a "✗ เกิน" error); `AdminSubmissionPanel`'s submission-edit form gained 3 กรรมการภายนอก
+  dropdown slots (was 1 dropdown + 4 free-text fields), matching its existing 3-slot pattern for
+  co-advisor/exam-committee; every display surface that showed one invited-committee name
+  (`WorkflowTimeline`, `SubmissionInfoPanel`, `RoleSubmissionDetail`, `AdminSubmissionPanel`) now
+  lists all of them. Email-side, `sendStepEmail` folds this role into the same recipient-resolution
+  branch as `EXAM_COMMITTEE`/`CO_ADVISOR` (specific-member or first-member-fallback) plus a new
+  `allMembers` broadcast option (used for the THESIS_DEFENSE step-8 invitation-letter email, so
+  every invited examiner gets it, not just whoever signs first); `sendFinanceEmail`'s
+  `invitedProfs` is now an array of `{name, affiliation?, email?, phone?}`, one row per member.
+  See "Multiple external committee members" in `AGENTS.md`. **Verified**: `npm run build` and
+  `npm run lint` both pass clean (lint's pre-existing `any`-related error count is unchanged by
+  this work — confirmed via diff that no new `any` was introduced); the DB migration was verified
+  before/after (6/6 existing single ids backfilled correctly into the new array, 0 data loss).
+  **Not yet clicked through in a real browser** — next session with working credentials should:
+  create/edit a submission with 2+ invited external committee members, confirm they sign
+  sequentially in the order listed (`CommitteeSignPanel`), confirm the invitation-letter email at
+  THESIS_DEFENSE step 8 reaches all of them, and confirm the finance-notification email lists all
+  invited members correctly.
+  **Built alongside another concurrent Claude Code session** (`thesis-app-8c`, working in this same
+  repo directory at the same time on an unrelated admin user-ranking feature — `User.rankOrder`).
+  Coordinated directly via cross-session messages before running raw SQL against the shared schema;
+  no file conflicts — that session's changes to `prisma/schema.prisma`/`AppContext.tsx` sit in
+  disjoint sections from this work.
+
+- **2026-09-09 — Reworded and de-duplicated the "หาไม่พบกรรมการภายนอก" hint text on the student
+  proposal committee editor.** Reported as: the note was misleadingly worded, and appeared far too
+  many times on one page. Root cause of the repetition: `CommitteePeopleEditor`
+  (`src/components/SubmissionForms.tsx`) rendered a sky-blue hint box under *every* row whose role
+  can be filled by an external examiner (`canBeExternal` — CO_ADVISOR/EXAM_COMMITTEE via
+  `MIXED_ROLES`, INVITED_EXAM_COMMITTEE via `EXTERNAL_ONLY_ROLES`), so a submission with several
+  exam-committee rows plus a co-advisor row showed the same box repeated 3-4+ times, on top of the
+  form's own single intro-paragraph mention of the same thing. Removed the per-row box entirely and
+  reworded the one surviving copy to "หากไม่พบชื่อกรรมการภายนอก นิสิตสามารถยื่นคำขอสร้างบัญชีใหม่ได้
+  ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่" — placed as
+  the second line, right after "เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์..." — in both
+  `ProposalForm`'s intro (`SubmissionForms.tsx`) and `ProposalDraftReview.tsx`'s intro (the latter
+  is the actual live-editing surface for the blank-draft-first proposal flow, see "Proposal tab" in
+  `AGENTS.md`, and previously had no such note of its own at all — it relied entirely on the
+  per-row box that's now gone). `DefenseForm`'s own separate intro copy (`SubmissionForms.tsx`,
+  used only for THESIS_DEFENSE) was left as-is — out of scope, since this request was specifically
+  about the proposal flow. **Verified**: `npx tsc --noEmit` and `npx eslint` on both touched files
+  show no new errors (pre-existing, unrelated errors in other files — traced to an already-modified
+  `prisma/schema.prisma` in the working tree — are unaffected). **Not yet clicked through in a real
+  browser.**
 
 - **2026-09-08 — Fixed EXTERNAL (กรรมการภายนอก) accounts being invisible in the admin user list and
   in the admin submission-edit form's committee pickers.** Reported as: an approved external

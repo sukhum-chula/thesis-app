@@ -3,16 +3,16 @@
 import { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, splitNameTitle } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, splitNameTitle, RANK_ROLES, rankCodeNumber } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Role } from "@/types";
-import type { MockSubmission, NameTitle } from "@/types";
+import type { MockSubmission, MockUser, NameTitle } from "@/types";
 import {
   Users, RotateCcw, Search,
-  UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown,
+  UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown, GripVertical, ArrowUpDown,
 } from "lucide-react";
 
 type PendingPerson = { name?: string; email?: string; role?: string };
@@ -43,11 +43,18 @@ const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm 
 // names in the submission list deep-link to /dashboard/admin/users/[uid]). Callers are
 // responsible for their own ADMIN-role guard before rendering this.
 export function AdminUsersPanel() {
-  const { submissions, users: allUsers, externalRequests, superAdminAddUser, rejectExternalRequest } = useApp();
+  const { submissions, users: allUsers, externalRequests, superAdminAddUser, rejectExternalRequest, adminReorderUsers } = useApp();
   const { showToast } = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Drag-and-drop rank reordering (A001/B002/... — see computeRankCodes in src/lib/utils.ts).
+  // Only enabled when exactly one rank-tracked role is filtered and no search/active-only filter
+  // is narrowing the list further — otherwise what's on screen wouldn't be that group's full,
+  // contiguous membership, and a drop couldn't be translated into a correct new order.
+  const dragIndex = useRef<number | null>(null);
+  const [reorderOverride, setReorderOverride] = useState<{ role: Role; ids: string[] } | null>(null);
+  const [reordering, setReordering] = useState(false);
   const [form, setForm] = useState({
     title: "", name: "", email: "", role: "STUDENT" as Role, studentId: "",
     affiliation: "", phone: "", externalRequestId: undefined as string | undefined,
@@ -77,7 +84,7 @@ export function AdminUsersPanel() {
     return acc;
   }, {} as Record<Role, number>);
 
-  const visibleUsers = sortUsersByRole(allUsers).filter((u) => {
+  const baseVisibleUsers = sortUsersByRole(allUsers).filter((u) => {
     if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -93,6 +100,49 @@ export function AdminUsersPanel() {
     }
     return true;
   });
+
+  // A single rank-tracked role filtered, with no other filter narrowing the list — the exact
+  // condition under which baseVisibleUsers already equals that role's full membership, just not
+  // necessarily in rank order. Non-null only then; this both gates the drag UI and picks which
+  // sort order (rank vs. the default name/academic-rank/studentId one) the list below uses.
+  const reorderRole: Role | null =
+    roleFilter !== "ALL" && (RANK_ROLES as readonly string[]).includes(roleFilter) && !search.trim() && !activeOnly
+      ? roleFilter
+      : null;
+
+  const visibleUsers: MockUser[] = reorderRole
+    ? (() => {
+        const byId = new Map(baseVisibleUsers.map((u) => [u.id, u]));
+        // While a drop is in flight, show the optimistic order immediately instead of waiting for
+        // the server round-trip + refresh to land.
+        if (reorderOverride && reorderOverride.role === reorderRole) {
+          return reorderOverride.ids.map((id) => byId.get(id)).filter((u): u is MockUser => !!u);
+        }
+        return [...baseVisibleUsers].sort((a, b) => rankCodeNumber(a.rankCode) - rankCodeNumber(b.rankCode));
+      })()
+    : baseVisibleUsers;
+
+  function handleRankDragStart(index: number) {
+    dragIndex.current = index;
+  }
+
+  function handleRankDrop(index: number) {
+    const from = dragIndex.current;
+    dragIndex.current = null;
+    if (!reorderRole || from === null || from === index) return;
+    const ids = visibleUsers.map((u) => u.id);
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(index, 0, moved);
+    setReorderOverride({ role: reorderRole, ids: next });
+    setReordering(true);
+    adminReorderUsers(reorderRole, next)
+      .catch((err) => showToast(toUserErrorMessage(err), "error"))
+      .finally(() => {
+        setReordering(false);
+        setReorderOverride(null); // allUsers now carries the server-recomputed rank codes
+      });
+  }
 
   // People named as committee on a DRAFT submission who don't have an account yet — grouped by
   // email (the same person may be named on multiple drafts, or in multiple roles). Shown as
@@ -159,7 +209,7 @@ export function AdminUsersPanel() {
     }
     setSaving(true);
     try {
-      await superAdminAddUser({
+      const { emailSent } = await superAdminAddUser({
         title: (form.title || null) as NameTitle | null,
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
@@ -171,7 +221,12 @@ export function AdminUsersPanel() {
         externalRequestId: form.externalRequestId,
         passcode: form.passcode.trim(),
       });
-      showToast("เพิ่มผู้ใช้สำเร็จ — ระบบส่งรหัสเข้าใช้งานไปยังอีเมลของผู้ใช้แล้ว", "success");
+      showToast(
+        emailSent
+          ? "เพิ่มผู้ใช้สำเร็จ — ระบบส่งรหัสเข้าใช้งานไปยังอีเมลของผู้ใช้แล้ว"
+          : "เพิ่มผู้ใช้สำเร็จ — แต่ส่งอีเมลแจ้งรหัสเข้าใช้งานไม่สำเร็จ กรุณาแจ้งรหัสให้ผู้ใช้ด้วยวิธีอื่น หรือรีเซ็ตรหัสใหม่ภายหลัง",
+        emailSent ? "success" : "error"
+      );
       closeModal();
     } catch (err: any) {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
@@ -363,6 +418,20 @@ export function AdminUsersPanel() {
             />
             มีคำร้องที่ยังไม่ถูกยกเลิก
           </label>
+
+          {/* Drag-to-reorder rank codes (A001/B002/...) — only possible when a single role is
+              filtered with nothing else narrowing the list, since that's the only time what's on
+              screen is that role's exact, full membership. */}
+          {reorderRole ? (
+            <p className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 w-fit">
+              <ArrowUpDown className="w-3.5 h-3.5 shrink-0" />
+              ลากไอคอน <GripVertical className="w-3.5 h-3.5 inline" /> เพื่อจัดลำดับ{ROLE_LABELS[reorderRole]} — ลำดับนี้มองเห็นเฉพาะเจ้าหน้าที่ภาควิชา
+            </p>
+          ) : (
+            <p className="text-xs text-gray-400">
+              เลือกบทบาทใดบทบาทหนึ่ง (ไม่ใช่ &quot;ทั้งหมด&quot;) และล้างคำค้นหา/ตัวกรองด้านบน เพื่อจัดลำดับผู้ใช้งานในบทบาทนั้น
+            </p>
+          )}
         </div>
 
         {visibleUsers.length === 0 ? (
@@ -371,10 +440,27 @@ export function AdminUsersPanel() {
             <p className="text-lg">ไม่พบผู้ใช้ที่ตรงกับการค้นหา</p>
           </div>
         ) : (
-          visibleUsers.map((u) => {
+          visibleUsers.map((u, index) => {
             const isExpanded = expandedId === u.id;
             return (
-              <div key={u.id} className="space-y-2">
+              <div
+                key={u.id}
+                className={`space-y-2 ${reorderRole ? "rounded-2xl" : ""} ${reordering && reorderOverride?.role === reorderRole ? "opacity-70" : ""}`}
+                draggable={!!reorderRole}
+                onDragStart={() => reorderRole && handleRankDragStart(index)}
+                onDragOver={(e) => { if (reorderRole) e.preventDefault(); }}
+                onDrop={(e) => { if (reorderRole) { e.preventDefault(); handleRankDrop(index); } }}
+                onDragEnd={() => { dragIndex.current = null; }}
+              >
+                {reorderRole && (
+                  <div
+                    className="flex items-center gap-2 px-2 text-gray-400 cursor-grab active:cursor-grabbing select-none"
+                    title="ลากเพื่อจัดลำดับ"
+                  >
+                    <GripVertical className="w-4 h-4" />
+                    <span className="text-xs font-mono font-semibold text-gray-500">{u.rankCode}</span>
+                  </div>
+                )}
                 {/* Identity + edit/reset-passcode/delete — always visible; clicking the 3 quick
                     stats toggles the related-submissions panel below */}
                 <UserProfileHeader

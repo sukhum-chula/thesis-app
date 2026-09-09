@@ -64,12 +64,8 @@ export async function POST() {
       headCommitteeId: sourceProposal.headCommitteeId,
       committeeIds: sourceProposal.committeeIds,
       coAdvisorIds: sourceProposal.coAdvisorIds,
-      invitedCommitteeId: sourceProposal.invitedCommitteeId,
+      invitedCommitteeIds: sourceProposal.invitedCommitteeIds,
       programChairId: sourceProposal.programChairId,
-      invitedProfName: sourceProposal.invitedProfName,
-      invitedProfAffiliation: sourceProposal.invitedProfAffiliation,
-      invitedProfEmail: sourceProposal.invitedProfEmail,
-      invitedProfPhone: sourceProposal.invitedProfPhone,
     },
     include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
   });

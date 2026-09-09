@@ -37,7 +37,6 @@ async function notifyRole(role: string, sub: any, message: string, type: string)
   if (role === "STUDENT")              recipientId = sub.studentId;
   else if (role === "ADVISOR")         recipientId = sub.advisorId;
   else if (role === "HEAD_EXAM_COMMITTEE") recipientId = sub.headCommitteeId;
-  else if (role === "INVITED_EXAM_COMMITTEE") recipientId = sub.invitedCommitteeId;
   else if (role === "EXAM_COMMITTEE") {
     const firstId: string | undefined = sub.committeeIds?.[0];
     if (firstId) {
@@ -48,6 +47,14 @@ async function notifyRole(role: string, sub: any, message: string, type: string)
     return;
   } else if (role === "CO_ADVISOR") {
     const firstId: string | undefined = sub.coAdvisorIds?.[0];
+    if (firstId) {
+      await prisma.notification.create({
+        data: { recipientId: firstId, message, detail: sub.title, submissionId: sub.id, type },
+      });
+    }
+    return;
+  } else if (role === "INVITED_EXAM_COMMITTEE") {
+    const firstId: string | undefined = sub.invitedCommitteeIds?.[0];
     if (firstId) {
       await prisma.notification.create({
         data: { recipientId: firstId, message, detail: sub.title, submissionId: sub.id, type },
@@ -97,7 +104,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     (sub.coAdvisorIds as string[]).includes(userId) ||
     (sub.committeeIds as string[]).includes(userId) ||
     sub.headCommitteeId === userId ||
-    sub.invitedCommitteeId === userId ||
+    (sub.invitedCommitteeIds as string[]).includes(userId) ||
     (sub as any).programChairId === userId;
   if (!isPrivileged && !isInvolved)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -142,8 +149,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const step = sub.workflowSteps.find((s: any) => s.status === "PENDING");
     if (!step) return NextResponse.json({ error: "No pending step" }, { status: 400 });
 
-    // CO_ADVISOR and EXAM_COMMITTEE use sequential committee signing via /sign — block here
-    if (step.role === "CO_ADVISOR" || step.role === "EXAM_COMMITTEE") {
+    // CO_ADVISOR, EXAM_COMMITTEE and INVITED_EXAM_COMMITTEE use sequential committee signing via /sign — block here
+    if (step.role === "CO_ADVISOR" || step.role === "EXAM_COMMITTEE" || step.role === "INVITED_EXAM_COMMITTEE") {
       return NextResponse.json(
         { error: "กรุณาใช้เส้นทาง /sign สำหรับการลงนามแบบคณะกรรมการ" },
         { status: 400 }
@@ -156,7 +163,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (step.role === "ADVISOR")               return sub.advisorId === userId;
       if (step.role === "CO_ADVISOR")            return (sub.coAdvisorIds as string[]).includes(userId);
       if (step.role === "HEAD_EXAM_COMMITTEE")   return sub.headCommitteeId === userId;
-      if (step.role === "INVITED_EXAM_COMMITTEE")return sub.invitedCommitteeId === userId;
       if (step.role === "PROGRAM_CHAIR")
         return (sub as any).programChairId
           ? (sub as any).programChairId === userId
@@ -276,6 +282,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         try {
           const specificMemberId = nextStep.role === "EXAM_COMMITTEE" ? (sub.committeeIds as string[])?.[0]
             : nextStep.role === "CO_ADVISOR" ? (sub.coAdvisorIds as string[])?.[0]
+            : nextStep.role === "INVITED_EXAM_COMMITTEE" ? (sub.invitedCommitteeIds as string[])?.[0]
             : undefined;
           await sendStepEmail({ role: nextStep.role, sub, stepName, specificMemberId });
         } catch (e) { console.error("[email/step]", e); }
@@ -305,8 +312,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           if (sub.advisorId) {
             await sendStepEmail({ role: "ADVISOR", sub, stepName: "หนังสือเชิญเข้าร่วมสอบวิทยานิพนธ์" });
           }
-          if (sub.invitedCommitteeId) {
-            await sendStepEmail({ role: "INVITED_EXAM_COMMITTEE", sub, stepName: "หนังสือเชิญเข้าร่วมสอบวิทยานิพนธ์" });
+          if ((sub.invitedCommitteeIds as string[])?.length) {
+            await sendStepEmail({ role: "INVITED_EXAM_COMMITTEE", sub, stepName: "หนังสือเชิญเข้าร่วมสอบวิทยานิพนธ์", allMembers: true });
           }
         } catch (e) { console.error("[email/invitation]", e); }
       }
@@ -314,14 +321,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (step.stepOrder === 6 && step.role === "PROGRAM_CHAIR" && sub.submissionType === "THESIS_DEFENSE") {
       try {
-        const invitedId = (sub as any).invitedCommitteeId as string | null | undefined;
-        const [advisorUser, headUser, committeeUsers, invitedUser, financeAttach] = await Promise.all([
+        const invitedIds = ((sub as any).invitedCommitteeIds as string[] | undefined) ?? [];
+        const [advisorUser, headUser, committeeUsers, invitedUsers, financeAttach] = await Promise.all([
           sub.advisorId ? prisma.user.findUnique({ where: { id: sub.advisorId }, select: { title: true, name: true } }) : null,
           sub.headCommitteeId ? prisma.user.findUnique({ where: { id: sub.headCommitteeId }, select: { title: true, name: true } }) : null,
           (sub.committeeIds as string[] | undefined)?.length
             ? prisma.user.findMany({ where: { id: { in: sub.committeeIds as string[] } }, select: { title: true, name: true } })
             : Promise.resolve([]),
-          invitedId ? prisma.user.findUnique({ where: { id: invitedId }, select: { title: true, name: true, email: true } }) : null,
+          invitedIds.length
+            ? prisma.user.findMany({ where: { id: { in: invitedIds } }, select: { title: true, name: true, email: true, affiliation: true, phone: true } })
+            : Promise.resolve([]),
           prisma.formUpload.findFirst({ where: { submissionId: id, formType: "FINANCE_ATTACH" }, orderBy: { uploadedAt: "desc" }, select: { fileUrl: true, fileName: true } }),
         ]);
         await sendFinanceEmail({
@@ -335,10 +344,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           advisorName: advisorUser ? formatUserName(advisorUser) : undefined,
           headCommitteeName: headUser ? formatUserName(headUser) : undefined,
           committeeNames: committeeUsers.map((u) => formatUserName(u)),
-          invitedProfName: (sub as any).invitedProfName ?? (invitedUser ? formatUserName(invitedUser) : undefined),
-          invitedProfAffiliation: (sub as any).invitedProfAffiliation,
-          invitedProfEmail: (sub as any).invitedProfEmail ?? invitedUser?.email,
-          invitedProfPhone: (sub as any).invitedProfPhone,
+          invitedProfs: invitedUsers.map((u) => ({
+            name: formatUserName(u),
+            affiliation: u.affiliation ?? undefined,
+            email: u.email ?? undefined,
+            phone: u.phone ?? undefined,
+          })),
           examDate: (sub as any).examDate,
           examTime: (sub as any).examTime,
           roomNeeded: (sub as any).roomNeeded,
@@ -361,14 +372,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (step.stepOrder === 3 && step.role === "PROGRAM_CHAIR" && sub.submissionType === "PROPOSAL") {
       try {
-        const invitedId = (sub as any).invitedCommitteeId as string | null | undefined;
-        const [advisorUser, headUser, committeeUsers, invitedUser, financeAttach] = await Promise.all([
+        const invitedIds = ((sub as any).invitedCommitteeIds as string[] | undefined) ?? [];
+        const [advisorUser, headUser, committeeUsers, invitedUsers, financeAttach] = await Promise.all([
           sub.advisorId ? prisma.user.findUnique({ where: { id: sub.advisorId }, select: { title: true, name: true } }) : null,
           sub.headCommitteeId ? prisma.user.findUnique({ where: { id: sub.headCommitteeId }, select: { title: true, name: true } }) : null,
           (sub.committeeIds as string[] | undefined)?.length
             ? prisma.user.findMany({ where: { id: { in: sub.committeeIds as string[] } }, select: { title: true, name: true } })
             : Promise.resolve([]),
-          invitedId ? prisma.user.findUnique({ where: { id: invitedId }, select: { title: true, name: true, email: true } }) : null,
+          invitedIds.length
+            ? prisma.user.findMany({ where: { id: { in: invitedIds } }, select: { title: true, name: true, email: true, affiliation: true, phone: true } })
+            : Promise.resolve([]),
           prisma.formUpload.findFirst({ where: { submissionId: id, formType: "FINANCE_ATTACH" }, orderBy: { uploadedAt: "desc" }, select: { fileUrl: true, fileName: true } }),
         ]);
         await sendFinanceEmail({
@@ -382,10 +395,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           advisorName: advisorUser ? formatUserName(advisorUser) : undefined,
           headCommitteeName: headUser ? formatUserName(headUser) : undefined,
           committeeNames: committeeUsers.map((u) => formatUserName(u)),
-          invitedProfName: (sub as any).invitedProfName ?? (invitedUser ? formatUserName(invitedUser) : undefined),
-          invitedProfAffiliation: (sub as any).invitedProfAffiliation,
-          invitedProfEmail: (sub as any).invitedProfEmail ?? invitedUser?.email,
-          invitedProfPhone: (sub as any).invitedProfPhone,
+          invitedProfs: invitedUsers.map((u) => ({
+            name: formatUserName(u),
+            affiliation: u.affiliation ?? undefined,
+            email: u.email ?? undefined,
+            phone: u.phone ?? undefined,
+          })),
           examDate: (sub as any).examDate,
           examTime: (sub as any).examTime,
           roomNeeded: (sub as any).roomNeeded,
@@ -438,7 +453,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         (sub.coAdvisorIds as string[]).includes(userId) ||
         (sub.committeeIds as string[]).includes(userId) ||
         sub.headCommitteeId === userId ||
-        sub.invitedCommitteeId === userId ||
+        (sub.invitedCommitteeIds as string[]).includes(userId) ||
         (sub as any).programChairId === userId;
       if (!isInvolved) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -569,27 +584,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // submission-edit form writes these same columns) before the student got around to
     // continuing — never clobber that with the original pendingPeople resolution, only fill
     // in whichever fields are still unset.
-    const advisorId          = sub.advisorId          ?? result.advisorId;
-    const headCommitteeId    = sub.headCommitteeId    ?? result.headCommitteeId;
-    const programChairId     = sub.programChairId     ?? result.programChairId;
-    const coAdvisorIds       = sub.coAdvisorIds.length  ? sub.coAdvisorIds  : result.coAdvisorIds;
-    const committeeIds       = sub.committeeIds.length  ? sub.committeeIds  : result.committeeIds;
-    const invitedCommitteeId = sub.invitedCommitteeId ?? result.invitedCommitteeId;
-    const invitedProfName    = sub.invitedProfName    ?? result.invitedProfName;
-    const invitedProfEmail   = sub.invitedProfEmail   ?? result.invitedProfEmail;
-    const invitedProfPhone   = sub.invitedProfPhone   ?? result.invitedProfPhone;
+    const advisorId           = sub.advisorId           ?? result.advisorId;
+    const headCommitteeId     = sub.headCommitteeId     ?? result.headCommitteeId;
+    const programChairId      = sub.programChairId      ?? result.programChairId;
+    const coAdvisorIds        = sub.coAdvisorIds.length        ? sub.coAdvisorIds        : result.coAdvisorIds;
+    const committeeIds        = sub.committeeIds.length        ? sub.committeeIds        : result.committeeIds;
+    const invitedCommitteeIds = sub.invitedCommitteeIds.length ? sub.invitedCommitteeIds : result.invitedCommitteeIds;
 
     await prisma.submission.update({
       where: { id },
       data: {
         status: "IN_PROGRESS",
         pendingPeople: null as any,
-        advisorId, headCommitteeId, committeeIds, coAdvisorIds, invitedCommitteeId,
-        programChairId, invitedProfName, invitedProfEmail, invitedProfPhone,
+        advisorId, headCommitteeId, committeeIds, coAdvisorIds, invitedCommitteeIds,
+        programChairId,
       },
     });
     await prisma.workflowStep.createMany({
-      data: buildWorkflowSteps(sub.submissionType, coAdvisorIds, committeeIds, invitedCommitteeId)
+      data: buildWorkflowSteps(sub.submissionType, coAdvisorIds, committeeIds, invitedCommitteeIds)
         .map((s) => ({ ...s, submissionId: id })),
     });
   }
@@ -611,6 +623,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     try {
       const specificMemberId = rejectedStep.role === "EXAM_COMMITTEE" ? (sub.committeeIds as string[])?.[0]
         : rejectedStep.role === "CO_ADVISOR" ? (sub.coAdvisorIds as string[])?.[0]
+        : rejectedStep.role === "INVITED_EXAM_COMMITTEE" ? (sub.invitedCommitteeIds as string[])?.[0]
         : undefined;
       await sendStepEmail({ role: rejectedStep.role, sub, stepName, specificMemberId });
     } catch (e) { console.error("[email/resubmit]", e); }
@@ -641,11 +654,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         programChairId:       nullOrVal(b.programChairId),
         headCommitteeId:      nullOrVal(b.headCommitteeId),
         committeeIds:         b.committeeIds         !== undefined ? b.committeeIds              : undefined,
-        invitedCommitteeId:   nullOrVal(b.invitedCommitteeId),
-        invitedProfName:      b.invitedProfName      !== undefined ? (b.invitedProfName      || null) : undefined,
-        invitedProfEmail:     b.invitedProfEmail     !== undefined ? (b.invitedProfEmail     || null) : undefined,
-        invitedProfAffiliation: b.invitedProfAffiliation !== undefined ? (b.invitedProfAffiliation || null) : undefined,
-        invitedProfPhone:     b.invitedProfPhone     !== undefined ? (b.invitedProfPhone     || null) : undefined,
+        invitedCommitteeIds:  b.invitedCommitteeIds  !== undefined ? b.invitedCommitteeIds        : undefined,
         examDate:             b.examDate             !== undefined ? (b.examDate             || null) : undefined,
         examTime:             b.examTime             !== undefined ? (b.examTime             || null) : undefined,
         roomNeeded:           b.roomNeeded           !== undefined ? Boolean(b.roomNeeded)          : undefined,
@@ -743,6 +752,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         try {
           const specificMemberId = nextPending.role === "EXAM_COMMITTEE" ? (sub.committeeIds as string[])?.[0]
             : nextPending.role === "CO_ADVISOR" ? (sub.coAdvisorIds as string[])?.[0]
+            : nextPending.role === "INVITED_EXAM_COMMITTEE" ? (sub.invitedCommitteeIds as string[])?.[0]
             : undefined;
           await sendStepEmail({ role: nextPending.role, sub, stepName, specificMemberId });
         } catch (e) { console.error("[email/override-next]", e); }
@@ -837,11 +847,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           headCommitteeId: partial.headCommitteeId,
           committeeIds: partial.committeeIds,
           coAdvisorIds: partial.coAdvisorIds,
-          invitedCommitteeId: partial.invitedCommitteeId,
+          invitedCommitteeIds: partial.invitedCommitteeIds,
           programChairId: partial.programChairId,
-          invitedProfName: partial.invitedProfName,
-          invitedProfEmail: partial.invitedProfEmail,
-          invitedProfPhone: partial.invitedProfPhone,
         },
       });
     } else {
@@ -862,17 +869,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           headCommitteeId: resolved.headCommitteeId,
           committeeIds: resolved.committeeIds,
           coAdvisorIds: resolved.coAdvisorIds,
-          invitedCommitteeId: resolved.invitedCommitteeId,
+          invitedCommitteeIds: resolved.invitedCommitteeIds,
           programChairId: resolved.programChairId,
-          invitedProfName: resolved.invitedProfName,
-          invitedProfEmail: resolved.invitedProfEmail,
-          invitedProfPhone: resolved.invitedProfPhone,
           status: "IN_PROGRESS",
         },
       });
 
       await prisma.workflowStep.createMany({
-        data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId)
+        data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds)
           .map((s) => ({ ...s, submissionId: id })),
       });
       const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
@@ -951,11 +955,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           headCommitteeId: partial.headCommitteeId,
           committeeIds: partial.committeeIds,
           coAdvisorIds: partial.coAdvisorIds,
-          invitedCommitteeId: partial.invitedCommitteeId,
+          invitedCommitteeIds: partial.invitedCommitteeIds,
           programChairId: partial.programChairId,
-          invitedProfName: partial.invitedProfName,
-          invitedProfEmail: partial.invitedProfEmail,
-          invitedProfPhone: partial.invitedProfPhone,
         },
       });
     } else {
@@ -976,17 +977,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           headCommitteeId: resolved.headCommitteeId,
           committeeIds: resolved.committeeIds,
           coAdvisorIds: resolved.coAdvisorIds,
-          invitedCommitteeId: resolved.invitedCommitteeId,
+          invitedCommitteeIds: resolved.invitedCommitteeIds,
           programChairId: resolved.programChairId,
-          invitedProfName: resolved.invitedProfName,
-          invitedProfEmail: resolved.invitedProfEmail,
-          invitedProfPhone: resolved.invitedProfPhone,
           status: "IN_PROGRESS",
         },
       });
 
       await prisma.workflowStep.createMany({
-        data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeId)
+        data: buildWorkflowSteps(sub.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds)
           .map((s) => ({ ...s, submissionId: id })),
       });
       const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });

@@ -66,7 +66,7 @@ export function getRelatedSubmissions(
     ((s.coAdvisorIds ?? []) as string[]).includes(userId) ||
     ((s.committeeIds ?? []) as string[]).includes(userId) ||
     (s as any).headCommitteeId === userId ||
-    (s as any).invitedCommitteeId === userId ||
+    ((s.invitedCommitteeIds ?? []) as string[]).includes(userId) ||
     (s as any).programChairId === userId
   );
 }
@@ -210,6 +210,54 @@ export function sortUsersByRole<T extends { name: string; roles: string[]; stude
 
     return a.name.localeCompare(b.name, "th");
   });
+}
+
+// Admin-only "rank code" (Axxx/Bxxx/Cxxx/Dxxx) — a per-role-group display order an ADMIN can
+// reorder by dragging rows in AdminUsersPanel (see User.rankOrder in prisma/schema.prisma and
+// POST /api/admin/users/reorder). Never shown to a non-ADMIN viewer, never directly editable —
+// only recomputed here from rankOrder + createdAt. SUPER_ADMIN accounts are deliberately excluded
+// (not one of the 4 tracked groups).
+export const RANK_PREFIX: Record<string, string> = {
+  ADMIN: "A",
+  PROFESSOR: "B",
+  EXTERNAL: "C",
+  STUDENT: "D",
+};
+
+export const RANK_ROLES = ["ADMIN", "PROFESSOR", "EXTERNAL", "STUDENT"] as const;
+
+/**
+ * Groups users by primary role (roles[0]) among RANK_ROLES, orders each group by rankOrder
+ * ascending (null last) then createdAt ascending, and assigns a dense "A001"/"A002"/... code per
+ * group. Returns a Map<userId, code> — users outside the 4 tracked roles (e.g. SUPER_ADMIN) are
+ * simply absent from the map.
+ */
+export function computeRankCodes<
+  T extends { id: string; roles: string[]; rankOrder?: number | null; createdAt: Date | string }
+>(users: T[]): Map<string, string> {
+  const codes = new Map<string, string>();
+  for (const role of RANK_ROLES) {
+    const group = users
+      .filter((u) => (u.roles[0] ?? "") === role)
+      .sort((a, b) => {
+        const ao = a.rankOrder ?? Number.MAX_SAFE_INTEGER;
+        const bo = b.rankOrder ?? Number.MAX_SAFE_INTEGER;
+        if (ao !== bo) return ao - bo;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    group.forEach((u, i) => {
+      codes.set(u.id, `${RANK_PREFIX[role]}${String(i + 1).padStart(3, "0")}`);
+    });
+  }
+  return codes;
+}
+
+/** Numeric position parsed back out of a rank code (e.g. "B007" -> 7) — used to sort a
+ * single-role-group view back into rank order client-side. Missing/malformed codes sort last. */
+export function rankCodeNumber(code?: string | null): number {
+  if (!code) return Number.MAX_SAFE_INTEGER;
+  const n = parseInt(code.slice(1), 10);
+  return Number.isNaN(n) ? Number.MAX_SAFE_INTEGER : n;
 }
 
 export const STATUS_LABELS: Record<SubmissionStatus, string> = {

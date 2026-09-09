@@ -24,7 +24,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
   const sub = submissions.find((s) => s.id === submissionId);
 
   const hasCommittee = !!(
-    sub?.advisorId || sub?.headCommitteeId || sub?.committeeIds?.length || sub?.invitedCommitteeId || sub?.invitedProfName
+    sub?.advisorId || sub?.headCommitteeId || sub?.committeeIds?.length || sub?.invitedCommitteeIds?.length
   );
 
   const [title,         setTitle]         = useState(sub?.title ?? "");
@@ -186,9 +186,14 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
         </Section>
 
         <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
-          <p className="text-xs text-gray-500 -mt-1">
-            เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านจากรายชื่อในระบบเท่านั้น — ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
-          </p>
+          <div className="text-xs text-gray-500 -mt-1 space-y-1">
+            <p>
+              เลือกอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์ของท่านจากรายชื่อในระบบเท่านั้น — ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
+            </p>
+            <p>
+              หากไม่พบชื่อกรรมการภายนอก นิสิตสามารถยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
+            </p>
+          </div>
           <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
         </Section>
 

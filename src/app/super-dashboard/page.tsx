@@ -98,8 +98,13 @@ export default function SuperDashboardPage() {
     }
     setPwLoading(true);
     try {
-      await superAdminResetPasscode(pwUserId!, pwPasscode.trim());
-      showToast("ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว ✓");
+      const { emailSent } = await superAdminResetPasscode(pwUserId!, pwPasscode.trim());
+      showToast(
+        emailSent
+          ? "ออกรหัสเข้าใช้งานใหม่และส่งอีเมลแจ้งผู้ใช้งานแล้ว ✓"
+          : "ออกรหัสเข้าใช้งานใหม่แล้ว — แต่ส่งอีเมลแจ้งไม่สำเร็จ กรุณาแจ้งรหัสให้ผู้ใช้ด้วยวิธีอื่น",
+        emailSent ? "success" : "error"
+      );
       closePasswordForm();
     } catch {
       showToast("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง", "error");
@@ -110,7 +115,7 @@ export default function SuperDashboardPage() {
 
   if (!user || !isSuperAdmin) return null;
 
-  function handleAddUser(e: React.FormEvent) {
+  async function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim()) return;
     if (!isValidPasscode(newPasscode)) {
@@ -125,9 +130,19 @@ export default function SuperDashboardPage() {
       roles: [newRole],
       passcode: newPasscode.trim(),
     };
-    superAdminAddUser(userData);
-    setNewTitle(""); setNewName(""); setNewEmail(""); setNewRole("ADMIN"); setNewPasscode(generatePassword());
-    setShowAddForm(false);
+    try {
+      const { emailSent } = await superAdminAddUser(userData);
+      showToast(
+        emailSent
+          ? `เพิ่มผู้ใช้ ${newName.trim()} สำเร็จ`
+          : `เพิ่มผู้ใช้ ${newName.trim()} สำเร็จ — แต่ส่งอีเมลแจ้งรหัสเข้าใช้งานไม่สำเร็จ กรุณาแจ้งรหัสให้ด้วยวิธีอื่น`,
+        emailSent ? "success" : "error"
+      );
+      setNewTitle(""); setNewName(""); setNewEmail(""); setNewRole("ADMIN"); setNewPasscode(generatePassword());
+      setShowAddForm(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง", "error");
+    }
   }
 
   return (

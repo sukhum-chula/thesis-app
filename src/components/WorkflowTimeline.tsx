@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 type SubInfo = Pick<MockSubmission,
   "studentId" | "studentFullName" | "advisorId" | "headCommitteeId" | "coAdvisorIds" |
-  "committeeIds" | "invitedCommitteeId" | "invitedProfName" | "program"
+  "committeeIds" | "invitedCommitteeIds" | "program"
 > & { uploads?: MockUpload[]; status?: string };
 
 /** Resolve the list of people assigned to a step: [{ id, name }] */
@@ -35,9 +35,10 @@ function resolveAssignees(
       return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
     case "INVITED_EXAM_COMMITTEE": {
-      const u = find(sub.invitedCommitteeId);
-      const name = u ? formatUserName(u) : sub.invitedProfName;
-      return name ? [{ id: sub.invitedCommitteeId ?? "ext", name }] : [];
+      const ids: string[] = (step.committeeMembers?.length
+        ? step.committeeMembers
+        : (sub.invitedCommitteeIds ?? [])) as string[];
+      return ids.map((id) => { const u = find(id); return { id, name: u ? formatUserName(u) : id }; });
     }
     case "PROGRAM_CHAIR": {
       const u = (sub as any).programChairId

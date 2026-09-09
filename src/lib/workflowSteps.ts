@@ -47,7 +47,7 @@ export function buildWorkflowSteps(
   submissionType: SubmissionType | null | undefined,
   coAdvisorIds: string[],
   committeeIds: string[],
-  invitedCommitteeId: string | null
+  invitedCommitteeIds: string[]
 ): { stepOrder: number; role: string; status: StepStatus; committeeMembers: string[] }[] {
   const roles = submissionType === "THESIS_DEFENSE" ? THESIS_ROLES : PROPOSAL_ROLES;
   return roles.map((role, i) => ({
@@ -57,6 +57,6 @@ export function buildWorkflowSteps(
     committeeMembers:
       role === "EXAM_COMMITTEE"          ? committeeIds :
       role === "CO_ADVISOR"              ? coAdvisorIds :
-      role === "INVITED_EXAM_COMMITTEE" && invitedCommitteeId ? [invitedCommitteeId] : [],
+      role === "INVITED_EXAM_COMMITTEE"  ? invitedCommitteeIds : [],
   }));
 }

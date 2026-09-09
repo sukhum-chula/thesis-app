@@ -49,7 +49,7 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the /demo page; unset in production
 - **All API logic is in `src/app/api/`**. State is server-fetched; client state lives in `AppContext` which polls the API.
 - Two submission types: **PROPOSAL** (11 steps) and **THESIS_DEFENSE** (22 steps). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/app/api/submissions/route.ts`.
 - **Step names**: `PROPOSAL_STEP_NAMES` / `THESIS_STEP_NAMES` in `src/lib/utils.ts`. Always call `getStepName(stepOrder, submissionType)` — never access the maps directly.
-- **EXAM_COMMITTEE and CO_ADVISOR steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
+- **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
   PROPOSAL:       step 1 → [BW1A, BW1B, FINANCE_ATTACH],  step 4 → [B1C, B1D, FINANCE_DOC]
@@ -150,9 +150,11 @@ through NextAuth's callbacks — `api/auth/magic` and `api/auth/demo`) into `App
 
 **Deliberately not touched** — historical denormalized text snapshots that have no parallel title
 column to go with them, so fixing this properly would mean new schema columns, not a display-layer
-change: `Submission.studentFullName` / `invitedProfName` (student/invited-committee snapshots taken
-at submission-creation time), and any `pendingPeople[].name` entry recorded before that person had
-an account.
+change: `Submission.studentFullName` (student-info snapshot taken at submission-creation time), and
+any `pendingPeople[].name` entry recorded before that person had an account. (The invited-committee
+snapshot fields this bullet used to also list — `invitedProfName`/`invitedProfAffiliation`/
+`invitedProfEmail`/`invitedProfPhone` — were removed 2026-09-09 when `INVITED_EXAM_COMMITTEE` moved
+to multi-member support; see "Multiple external committee members" below.)
 
 `ExternalCommitteeRequest` is **no longer** in that "deliberately not touched" bucket (fixed
 2026-09-08) — it gained its own nullable `title` column (same `NameTitle` enum) instead of relying
@@ -352,6 +354,35 @@ the outer page, which used to shift the whole layout when the browser's own scro
    "Program Chair & finance-contact assignment" above. Also rendered standalone below
    `AdminUsersPanel` at `/dashboard/admin/users`.
 
+### Admin-only user rank codes (A001/B002/C003/D004) — drag-to-reorder (2026-09-09)
+Every account in the 4 role groups an ADMIN manages gets a display-order code — `A`ADMIN,
+`B`PROFESSOR, `C`EXTERNAL, `D`STUDENT, each followed by a dense 3-digit position within that group
+(e.g. the 7th-ranked professor is `B007`). Backed by a nullable `User.rankOrder Int?` column
+(`prisma/schema.prisma`) and computed by `computeRankCodes()` (`src/lib/utils.ts`): groups users by
+primary role (`roles[0]`), sorts each group by `rankOrder` ascending (null last) then `createdAt`
+ascending, and assigns the codes from that order. `rankCodeNumber()` (same file) parses the numeric
+suffix back out of a code for client-side sorting.
+
+**Visible to ADMIN only — never SUPER_ADMIN, never any other role, never directly editable.**
+`GET /api/users` only attaches `rankCode` when the caller's session roles include `ADMIN` and not
+`SUPER_ADMIN` (`isAdminCaller` in `src/app/api/users/route.ts`); every other caller's response omits
+it entirely. There is no form field or API path that sets `rankOrder` to an arbitrary value — the
+only way to change it is a full drag-and-drop reorder of one role group.
+
+**Reordering**: in `AdminUsersPanel`'s "จัดการผู้ใช้งาน" list, dragging is only enabled when exactly
+one of the 4 role filter pills is selected (not "ทั้งหมด") **and** the search box and "มีคำร้องที่
+ยังไม่ถูกยกเลิก" checkbox are both cleared — only then does the visible list equal that role's exact,
+full membership, which a drop can be translated into a valid new order for. When enabled, each row
+grows a grip handle (`GripVertical`) plus its current rank code above `UserProfileHeader`, and a
+blue hint line explains it; otherwise a gray hint explains what to clear to enable it. Dropping a
+row calls `adminReorderUsers(role, orderedIds)` (`AppContext.tsx`) → `POST /api/admin/users/reorder`
+(ADMIN-only), which rejects a partial/stale id list (409, someone else added/removed a member
+concurrently) and otherwise sets every member's `rankOrder` to its new 1-based position in one
+`$transaction`. The rank badge itself (`UserProfileHeader.tsx`, next to the role pill) is gated on
+`viewer.roles.includes("ADMIN")`, independent of the reordering UI, so it's visible on every row an
+ADMIN looks at (including the standalone `/dashboard/admin/users/[uid]` page) even outside the
+single-role-filtered reorder view — only the drag interaction itself requires that filtered view.
+
 ### admin_override_step status priority
 When admin overrides individual steps via `action: "admin_override_step"`, submission status is computed as: **`hasPending → IN_PROGRESS`** (takes priority), then `hasRejected → REJECTED`, then `COMPLETED`. This ensures overriding a step to REJECTED does not lock the submission if later steps are still PENDING.
 
@@ -405,7 +436,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`SystemSetting` key `programChair:<program>` — a professor may chair more than one program, see "Program Chair & finance-contact assignment" below) |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student |
-| Invited Exam Committee | กรรมการภายนอก | External examiner — assigned per submission by Student, selected from existing `EXTERNAL`-role accounts only (see "Committee people" below and "EXTERNAL account requests" further down) |
+| Invited Exam Committee | กรรมการภายนอก | External examiner(s) — one or more, sign separately in order (sequential like EXAM_COMMITTEE); assigned per submission by Student, selected from existing `EXTERNAL`-role accounts only (see "Committee people" below, "Multiple external committee members" further down, and "EXTERNAL account requests" further down) |
 
 ### External roles (no login)
 | Role | How they interact |
@@ -445,8 +476,9 @@ work, they're just not rendered. `initialPeople()` seeds a fresh editor (a new `
 INVITED_EXAM_COMMITTEE (CO_ADVISOR is optional so it isn't a default row; add one via
 "เพิ่มบุคคล"). Each row has a leftmost numbered drag handle (`GripVertical`, native HTML5
 drag-and-drop) so the student can reorder the list — this isn't just display order: the array
-order is exactly what's submitted as `committeeIds`/`coAdvisorIds`, which is the real sequential
-sign order for roles with multiple members (see "Sequential only" further below). The submitted
+order is exactly what's submitted as `committeeIds`/`coAdvisorIds`/`invitedCommitteeIds`, which is
+the real sequential sign order for roles with multiple members (see "Sequential only" further below
+and "Multiple external committee members" above). The submitted
 shape is still `{name, email, role, phone?}[]`, identical to before, so server-side resolution
 (`src/lib/committee.ts`'s `resolvePeople`, email lookup only, never creates an account) is
 unchanged — since every option in the dropdown is already a real account, an unresolved email is
@@ -507,7 +539,50 @@ which should only ever offer `EXTERNAL` accounts — from a single `advisors` li
 never actually select an external examiner there at all), and อาจารย์ที่ปรึกษา/ประธานกรรมการสอบ
 stay PROFESSOR-only same as before.
 
-**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE exactly 1 · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
+**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE ≥1 (multiple external committee members allowed — see "Multiple external committee members" below) · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
+
+### Multiple external committee members (2026-09-09)
+`INVITED_EXAM_COMMITTEE` (กรรมการภายนอก) now supports **any number of members (≥1)**, sequential
+sign-in-list-order — previously hard-capped at exactly 1. This makes it structurally identical to
+`CO_ADVISOR`/`EXAM_COMMITTEE`, which already supported multiple members:
+
+- **Schema**: `Submission.invitedCommitteeId String?` (plus the `invitedProfName`/
+  `invitedProfAffiliation`/`invitedProfEmail`/`invitedProfPhone` free-text snapshot scalars) was
+  replaced with `invitedCommitteeIds String[]` — migrated via a one-off raw-SQL script (backfilled
+  existing single ids into a 1-element array, verified row-for-row, then dropped the old columns;
+  same pattern as this file's other `$executeRawUnsafe`-over-the-pooler migrations). The snapshot
+  scalars are gone entirely — like `committeeIds`/`coAdvisorIds`, a member's name/email/phone/
+  affiliation is now always resolved from their `User` row at display/email time, never cached on
+  the submission.
+- **Validation/resolution** (`src/lib/committee.ts`): `validatePeople`/`validatePeopleLenient` now
+  require **at least 1** INVITED_EXAM_COMMITTEE row (was exactly 1); `resolvePeople`/
+  `resolvePeoplePartial` resolve it to an id array the same way `coAdvisorIds`/`committeeIds` do.
+- **Workflow steps** (`src/lib/workflowSteps.ts`): `buildWorkflowSteps()` takes
+  `invitedCommitteeIds: string[]` and populates `WorkflowStep.committeeMembers` with the real array
+  — no longer a synthetic 1-element wrap.
+- **Sequential signing**: `POST /api/submissions/[id]/sign` now includes
+  `"INVITED_EXAM_COMMITTEE"` in its allowed-roles check, so it goes through the same
+  `committeeActions`-tracked, serializable-transaction sequential-approval path as
+  `CO_ADVISOR`/`EXAM_COMMITTEE` — each member signs in list order, all must approve before the
+  step advances. The plain single-approver `approve` action (`PATCH /api/submissions/[id]`) now
+  rejects this role the same way it already rejected CO_ADVISOR/EXAM_COMMITTEE. `RoleSubmissionDetail`
+  routes it to `CommitteeSignPanel` instead of `SignatureButton`.
+- **UI**: `CommitteePeopleEditor`'s `ROLE_REQUIREMENTS` for this role is now `min: 1, max: null` (no
+  more "✗ เกิน" error past 1 row) — a student can add as many กรรมการภายนอก rows as needed, and
+  their sign order is the row order (same drag-to-reorder convention as every other multi-member
+  role). The admin submission-edit form (`AdminSubmissionPanel`) gained 3 กรรมการภายนอก dropdown
+  slots (was 1 dropdown + 4 free-text fields), matching its existing 3-slot อาจารย์ที่ปรึกษาร่วม/
+  กรรมการสอบ pattern. Every display surface that used to show one invited-committee name
+  (`WorkflowTimeline`, `SubmissionInfoPanel`, `RoleSubmissionDetail`, `AdminSubmissionPanel`) now
+  lists all of them, comma-joined or one row per member — same convention already used for
+  `coAdvisorIds`/`committeeIds`.
+- **Email**: `sendStepEmail`'s recipient resolution folds `INVITED_EXAM_COMMITTEE` into the same
+  branch as `EXAM_COMMITTEE`/`CO_ADVISOR` (a `specificMemberId` for the sequential in-turn email, or
+  first-member fallback); a new `allMembers` option broadcasts to every member at once, used for the
+  THESIS_DEFENSE step-8 invitation-letter email (every invited examiner gets it, not just whoever
+  signs first). `sendFinanceEmail`'s `FinanceEmailData.invitedProfs` is now an array of
+  `{name, affiliation?, email?, phone?}`, one row per member, rendered the same way `committeeNames`
+  already renders one row per EXAM_COMMITTEE member.
 
 **Exam logistics:** วันที่สอบ + เวลา, ห้องประชุม (yes/no), ที่จอดรถ (yes/no), เลขทะเบียนรถ.
 เวลาสอบ (`ExamLogisticsSection`, `src/components/SubmissionForms.tsx`) is a `TimeSelect` — two
@@ -596,7 +671,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 
 ## Key rules
 - **Sequential only** — no parallel signing
-- **EXAM_COMMITTEE and CO_ADVISOR** steps: all assigned members must approve (tracked via `committeeActions` JSON on `WorkflowStep`). CO_ADVISOR uses `coAdvisorIds` (DB field `String[]`) the same way EXAM_COMMITTEE uses `committeeIds`. INVITED_EXAM_COMMITTEE steps carry `[invitedCommitteeId]` in `committeeMembers` for self-containment.
+- **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE** steps: all assigned members must approve, sequentially in list order (tracked via `committeeActions` JSON on `WorkflowStep`, same sequential-sign mechanism `sign/route.ts` and `CommitteeSignPanel` already use). CO_ADVISOR uses `coAdvisorIds`, EXAM_COMMITTEE uses `committeeIds`, INVITED_EXAM_COMMITTEE uses `invitedCommitteeIds` — all three are DB field `String[]` and support any number of members (≥1 for INVITED_EXAM_COMMITTEE/EXAM_COMMITTEE, 0+ for CO_ADVISOR). See "Multiple external committee members" below.
 - **CO_ADVISOR auto-skip**: when `coAdvisorIds` is empty at submission creation, all CO_ADVISOR steps are created with `status: "SKIPPED"` so they are transparently bypassed.
 - **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR's `programChairFor` array includes `sub.program` (see "Program Chair & finance-contact assignment" above — no holder means no fallback recipient; since a professor may now chair more than one program, this is an `.includes()` check, not `===`). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
 - **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
@@ -780,10 +855,9 @@ through to a detail page" step):
    all (a row with no role or no account picked yet is simply skipped, not rejected) and never fail
    on an unresolvable email (silently dropped instead of blocking the save) — only an outright bad
    row (self-email, a duplicate role+account, a malformed email) is still rejected. Each committee
-   field (`advisorId`, `headCommitteeId`, `committeeIds`, `coAdvisorIds`, `invitedCommitteeId`,
-   `programChairId`, `invitedProf*`) is written as whatever resolved — `null`/`[]` for a role with
-   no valid entry — since every one of those columns is already nullable/defaults-empty in the
-   schema. Client-side, `ProposalDraftReview`/`DefenseDraftReview` mirror this with a separate
+   field (`advisorId`, `headCommitteeId`, `committeeIds`, `coAdvisorIds`, `invitedCommitteeIds`,
+   `programChairId`) is written as whatever resolved — `null`/`[]` for a role with no valid entry —
+   since every one of those columns is already nullable/defaults-empty in the schema. Client-side, `ProposalDraftReview`/`DefenseDraftReview` mirror this with a separate
    `validateForSave()` (used by "บันทึกฉบับร่าง") alongside the existing strict `validate()` (used by
    "ยืนยัน") — `validateForSave()` only checks a value that was actually typed and is wrong (a
    malformed student phone, a past exam date), never requires a field to be filled in.

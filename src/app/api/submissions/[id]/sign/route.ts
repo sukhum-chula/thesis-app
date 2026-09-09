@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const currentStep = sub.workflowSteps.find((s: any) => s.status === "PENDING");
   if (
     !currentStep ||
-    !["EXAM_COMMITTEE", "CO_ADVISOR"].includes(currentStep.role) ||
+    !["EXAM_COMMITTEE", "CO_ADVISOR", "INVITED_EXAM_COMMITTEE"].includes(currentStep.role) ||
     !(currentStep.committeeMembers as string[])?.includes(userId)
   ) {
     return NextResponse.json({ error: "ยังไม่ถึงคิวของท่าน หรือท่านไม่ได้เป็นกรรมการของขั้นตอนนี้" }, { status: 403 });
@@ -130,7 +130,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           status: "APPROVED",
           committeeActions: newActions,
           actedAt: now,
-          actedByName: userRole === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วมครบทุกท่าน" : "กรรมการสอบครบทุกท่าน",
+          actedByName: userRole === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วมครบทุกท่าน"
+            : userRole === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอกครบทุกท่าน"
+            : "กรรมการสอบครบทุกท่าน",
           actedById: userId,
         },
       });
@@ -220,7 +222,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } else if (nextRole === "HEAD_EXAM_COMMITTEE") {
           recipientId = (sub as any).headCommitteeId ?? null;
         } else if (nextRole === "INVITED_EXAM_COMMITTEE") {
-          recipientId = (sub as any).invitedCommitteeId ?? null;
+          const invitedIds: string[] = (sub as any).invitedCommitteeIds ?? [];
+          specificMemberId = invitedIds[0];
+          if (invitedIds[0]) recipientId = invitedIds[0];
         } else if (nextRole === "PROGRAM_CHAIR") {
           if ((sub as any).programChairId) {
             recipientId = (sub as any).programChairId;

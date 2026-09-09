@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
           const role = pendingStep.role;
           if (role === "ADVISOR"               && sub.advisorId)           recipIds.add(sub.advisorId);
           if (role === "HEAD_EXAM_COMMITTEE"   && sub.headCommitteeId)     recipIds.add(sub.headCommitteeId);
-          if (role === "INVITED_EXAM_COMMITTEE"&& sub.invitedCommitteeId)  recipIds.add(sub.invitedCommitteeId);
+          if (role === "INVITED_EXAM_COMMITTEE"&& sub.invitedCommitteeIds?.[0]) recipIds.add(sub.invitedCommitteeIds[0]);
           if (role === "EXAM_COMMITTEE"        && sub.committeeIds?.[0])   recipIds.add(sub.committeeIds[0]);
           if (role === "CO_ADVISOR"            && sub.coAdvisorIds?.[0])   recipIds.add(sub.coAdvisorIds[0]);
           if (role === "PROGRAM_CHAIR") {
