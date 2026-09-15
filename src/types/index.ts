@@ -20,6 +20,8 @@ export interface MockUser {
   // Every program this user chairs — a professor may chair more than one at once.
   programChairFor?: ProgramType[];
   isFinanceContact?: boolean;
+  // Admin-designated หัวหน้าภาควิชา — at most one PROFESSOR account system-wide.
+  isDepartmentChair?: boolean;
   affiliation?: string | null;
   phone?: string | null;
   // Admin-only display order code ("A001"/"B002"/"C003"/"D004") — only present when the viewer

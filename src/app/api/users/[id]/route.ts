@@ -10,7 +10,7 @@ import { attachSystemSettings, clearUserFromSystemSettings } from "@/lib/systemS
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
-  return { id: u.id, title: u.title ?? null, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false };
+  return { id: u.id, title: u.title ?? null, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false, isDepartmentChair: u.isDepartmentChair ?? false };
 }
 
 function sessionRoles(session: any): string[] {

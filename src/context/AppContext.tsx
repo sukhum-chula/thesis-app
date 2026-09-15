@@ -117,6 +117,7 @@ interface AppContextType {
   adminReorderUsers: (role: Role, orderedIds: string[]) => Promise<void>;
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
   adminSetFinanceContact: (userId: string | null) => Promise<void>;
+  adminSetDepartmentChair: (userId: string | null) => Promise<void>;
   submitExternalRequest: (data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
   rejectExternalRequest: (id: string, reviewNote?: string) => Promise<void>;
 }
@@ -468,6 +469,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh(); // clears the previous holder + sets the new one across the user list
   }
 
+  async function adminSetDepartmentChair(userId: string | null) {
+    await api("/api/admin/department-chair", "POST", { userId });
+    await refresh(); // clears the previous holder + sets the new one across the user list
+  }
+
   async function submitExternalRequest(data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) {
     const req = await api<MockExternalRequest>("/api/external-requests", "POST", data);
     setExternalRequests((prev) => [req, ...prev]);
@@ -502,7 +508,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact,
+      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair,
       submitExternalRequest, rejectExternalRequest,
     }}>
       {children}

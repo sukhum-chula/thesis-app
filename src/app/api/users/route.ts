@@ -14,6 +14,7 @@ function mapUser(u: any) {
     studentId: u.studentId ?? undefined,
     programChairFor: u.programChairFor ?? [],
     isFinanceContact: u.isFinanceContact ?? false,
+    isDepartmentChair: u.isDepartmentChair ?? false,
     affiliation: u.affiliation ?? null,
     phone: u.phone ?? null,
     rankCode: u.rankCode ?? null,

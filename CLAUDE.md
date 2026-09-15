@@ -73,9 +73,14 @@ src/lib/
   committee.ts               validatePeople/resolvePeople for submission committee people —
                              account lookup only, never creates one (see AGENTS.md)
   systemSettings.ts          getProgramChairUserId/getProgramChairsOfUser/setProgramChair,
-                             getFinanceContactUser/setFinanceContact, clearUserFromSystemSettings,
+                             getFinanceContactUser/setFinanceContact,
+                             getDepartmentChairUser/setDepartmentChair,
+                             clearUserFromSystemSettings,
                              attachSystemSettings — the only code that touches the SystemSetting
-                             table (see AGENTS.md, "Program Chair & finance contact assignment")
+                             table (see AGENTS.md, "Program Chair & finance contact assignment").
+                             NOTE: attachSystemSettings' computed flags only reach the client if
+                             they are also listed in the mapUser() whitelists in
+                             api/users/route.ts and api/users/[id]/route.ts
   workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
                              initial-create path and the continue_draft finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn

@@ -7,6 +7,22 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-15
 
+- **New "หัวหน้าภาควิชา" (department chair) setting**, rendered as the first section of the ADMIN
+  "ตั้งค่าระบบ" tab, above ประธานหลักสูตร and ผู้รับผิดชอบด้านการเงิน. One PROFESSOR account for the
+  whole department, stored as `SystemSetting` key `departmentChair` — same single-holder,
+  never-delete-the-row pattern as `financeContact`, with `getDepartmentChairUserId`/
+  `getDepartmentChairUser`/`setDepartmentChair` added to `src/lib/systemSettings.ts` and a computed
+  `isDepartmentChair` flag added to `attachSystemSettings` **and to both `mapUser()` response
+  whitelists** (`src/app/api/users/route.ts`, `src/app/api/users/[id]/route.ts`) so it reaches the
+  client alongside `programChairFor`/`isFinanceContact` — caught in browser testing: without the
+  second half the row saved correctly but the dropdown still read "— ไม่มี —" after a reload, since
+  `attachSystemSettings` computed the flag and the field-whitelisting response shaper then dropped
+  it. New ADMIN-only
+  `POST /api/admin/department-chair` (`{ userId }`, 400s on a non-PROFESSOR target) +
+  `AppContext.adminSetDepartmentChair`. Deleting the holder's account nulls the row via the existing
+  `clearUserFromSystemSettings`. **The assignment is a record only for now** — no workflow step,
+  authorization check or email recipient reads it yet.
+
 - **User deletion now says *what* is blocking it, and external-committee requests no longer block
   it at all.** Investigated a report of accounts showing `0 0 0` in the admin user list that still
   refused to delete. Two independent causes, both fixed:

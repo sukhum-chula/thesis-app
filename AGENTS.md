@@ -198,17 +198,31 @@ designated chair is only consulted when `programChairId` is unset. Likewise `sen
 (`src/lib/email.ts`) prefers the designated finance-contact user's email over the legacy
 `FINANCE_EMAIL` env var, which is now only a fallback for when no contact has been set.
 
-ADMIN manages both from one **"ตั้งค่าระบบ"** tab on `/admin-dashboard` (third tab, alongside
+**Department chair (หัวหน้าภาควิชา) — a third key in the same table** (added 2026-09-15):
+`SystemSetting` key `departmentChair`, one PROFESSOR account for the whole department (not
+per-program, so there is no `:<program>` suffix). Read/written only through
+`getDepartmentChairUserId`/`getDepartmentChairUser`/`setDepartmentChair` in
+`src/lib/systemSettings.ts`, cleared by the same `clearUserFromSystemSettings` on account delete,
+and surfaced to the client as a computed `isDepartmentChair: boolean` by `attachSystemSettings`
+(alongside `programChairFor`/`isFinanceContact`). It is **currently a record only** — nothing in
+the workflow, step routing, authorization or email resolution reads it yet, unlike the program-chair
+and finance-contact keys.
+
+ADMIN manages all three from one **"ตั้งค่าระบบ"** tab on `/admin-dashboard` (third tab, alongside
 "จัดการคำร้อง"/"จัดการผู้ใช้งาน") and standalone below `AdminUsersPanel` at
 `/dashboard/admin/users` — both render `AdminSettingsPanel`
 (`src/components/AdminSettingsPanel.tsx`, extracted 2026-09-07 from what used to be a card inside
-`AdminUsersPanel`): 3 program-chair `<select>` rows (one per `ProgramType`, each a dropdown of
-every PROFESSOR — picking one already assigned elsewhere shows "(เป็นประธานหลักสูตร X ด้วย)" as
-information, not a warning, since it doesn't move them), and one finance-contact `<select>` row
-(dropdown of every ADMIN account). Changing a row calls `POST /api/admin/program-chairs`
-(`{ program, userId }`) or `POST /api/admin/finance-contact` (`{ userId }`), both ADMIN-only.
-`AppContext.adminSetProgramChair(program, userId | null)` / `adminSetFinanceContact(userId | null)`
-wrap these and refresh the user list.
+`AdminUsersPanel`), top to bottom: one department-chair `<select>` row (dropdown of every
+PROFESSOR — **first section on the panel**, above everything else); 3 program-chair `<select>` rows
+(one per `ProgramType`, each a dropdown of every PROFESSOR — picking one already assigned elsewhere
+shows "(เป็นประธานหลักสูตร X ด้วย)" as information, not a warning, since it doesn't move them); and
+one finance-contact `<select>` row (dropdown of every ADMIN account). Changing a row calls
+`POST /api/admin/department-chair` (`{ userId }`), `POST /api/admin/program-chairs`
+(`{ program, userId }`) or `POST /api/admin/finance-contact` (`{ userId }`), all three ADMIN-only
+and all three rejecting a target whose account role doesn't match the row (PROFESSOR for the two
+chair rows, ADMIN for the finance row). `AppContext.adminSetDepartmentChair(userId | null)` /
+`adminSetProgramChair(program, userId | null)` / `adminSetFinanceContact(userId | null)` wrap these
+and refresh the user list.
 
 On the admin submission-edit form (`src/app/dashboard/admin/[id]/page.tsx`, edit mode), "ประธาน
 หลักสูตร" is **not** a free `<select>` — it's a read-only value auto-resolved from whichever

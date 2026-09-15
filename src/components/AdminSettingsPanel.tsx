@@ -5,24 +5,39 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { ProgramType } from "@/types";
-import { Landmark, Mail, Loader2 } from "lucide-react";
+import { Landmark, Mail, Loader2, Building2 } from "lucide-react";
 
 const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
 
-// System-wide settings — program chair assignment (3 slots, one PROFESSOR each) and the
+// System-wide settings — department chair (one PROFESSOR, department-wide), program chair
+// assignment (3 slots, one PROFESSOR each) and the
 // finance-notification contact (one ADMIN account, whose email replaces the old hardcoded
 // FINANCE_EMAIL env var). Rendered as its own "ตั้งค่าระบบ" tab on /admin-dashboard and also
 // standalone below AdminUsersPanel at /dashboard/admin/users. Callers are responsible for
 // their own ADMIN-role guard before rendering this.
 export function AdminSettingsPanel() {
-  const { users: allUsers, adminSetProgramChair, adminSetFinanceContact } = useApp();
+  const { users: allUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair } = useApp();
   const { showToast } = useToast();
   const [savingProgram, setSavingProgram] = useState<ProgramType | null>(null);
   const [savingFinanceContact, setSavingFinanceContact] = useState(false);
+  const [savingDepartmentChair, setSavingDepartmentChair] = useState(false);
 
   const professors = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
   const adminAccounts = allUsers.filter((u) => u.roles.includes("ADMIN"));
   const financeContact = allUsers.find((u) => u.isFinanceContact);
+  const departmentChair = allUsers.find((u) => u.isDepartmentChair);
+
+  async function handleSetDepartmentChair(userId: string) {
+    setSavingDepartmentChair(true);
+    try {
+      await adminSetDepartmentChair(userId || null);
+      showToast("บันทึกหัวหน้าภาควิชาสำเร็จ", "success");
+    } catch (err: any) {
+      showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+    } finally {
+      setSavingDepartmentChair(false);
+    }
+  }
 
   async function handleSetProgramChair(program: ProgramType, userId: string) {
     setSavingProgram(program);
@@ -56,6 +71,33 @@ export function AdminSettingsPanel() {
       </div>
 
       <div className="space-y-3">
+        <div>
+          <p className="text-sm font-medium text-gray-700">หัวหน้าภาควิชา</p>
+          <p className="text-sm text-gray-400">
+            กำหนดอาจารย์ผู้เป็นหัวหน้าภาควิชา — มีได้เพียงท่านเดียวสำหรับทั้งภาควิชา
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+          <div className="flex-1 flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+            <select
+              value={departmentChair?.id ?? ""}
+              onChange={(e) => handleSetDepartmentChair(e.target.value)}
+              disabled={savingDepartmentChair}
+              aria-label="หัวหน้าภาควิชา"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
+            >
+              <option value="">— ไม่มี —</option>
+              {professors.map((p) => (
+                <option key={p.id} value={p.id}>{formatUserName(p)}</option>
+              ))}
+            </select>
+          </div>
+          {savingDepartmentChair && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-2 border-t border-gray-100">
         <div>
           <p className="text-sm font-medium text-gray-700">ประธานหลักสูตร</p>
           <p className="text-sm text-gray-400">
