@@ -5,7 +5,7 @@ import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName } from "@/lib/
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
-import { validatePeople, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
+import { validatePeople, validateCommitteeAccountRoles, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
 import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
@@ -854,6 +854,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     } else {
       const peopleError = validatePeople(people, studentOwnEmails);
       if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      const accountRoleError = await validateCommitteeAccountRoles(people, program);
+      if (accountRoleError) return NextResponse.json({ error: accountRoleError }, { status: 400 });
       const resolved = await resolvePeople(people);
       if (!resolved.ok)
         return NextResponse.json(
@@ -962,6 +964,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     } else {
       const peopleError = validatePeople(people, studentOwnEmails);
       if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      // A defense inherits its program from the source proposal and never edits it here.
+      const accountRoleError = await validateCommitteeAccountRoles(people, sub.program);
+      if (accountRoleError) return NextResponse.json({ error: accountRoleError }, { status: 400 });
       const resolved = await resolvePeople(people);
       if (!resolved.ok)
         return NextResponse.json(

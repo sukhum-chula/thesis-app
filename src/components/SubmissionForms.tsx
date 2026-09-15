@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useApp, SubmissionFormData } from "@/context/AppContext";
-import { PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate, formatUserName } from "@/lib/utils";
+import {
+  PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate, formatUserName,
+  degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
+} from "@/lib/utils";
 import { ProgramType } from "@/types";
 import { User, Users, CalendarDays, Info, X, Plus, BookOpen, GraduationCap, AlertCircle, Lock, GripVertical } from "lucide-react";
 import Link from "next/link";
@@ -22,13 +25,11 @@ const PERSON_ROLES = [
   "INVITED_EXAM_COMMITTEE",
 ] as const;
 
-// Roles filled from the internal faculty (PROFESSOR) account list vs. the external-examiner
-// (EXTERNAL) account list vs. both — CommitteePeopleEditor renders a plain account picker, never
-// free text. INVITED_EXAM_COMMITTEE (กรรมการภายนอก) is external-only; CO_ADVISOR and
-// EXAM_COMMITTEE can be filled by either an internal PROFESSOR or an external examiner, since both
-// commonly serve in those roles too — only ADVISOR/HEAD_EXAM_COMMITTEE stay PROFESSOR-only.
-const EXTERNAL_ONLY_ROLES = new Set(["INVITED_EXAM_COMMITTEE"]);
-const MIXED_ROLES = new Set(["CO_ADVISOR", "EXAM_COMMITTEE"]);
+// Which account list each role is filled from (internal PROFESSOR / external EXTERNAL / both) is
+// degree-dependent and lives in one place, committeeRoleScope() in src/lib/utils.ts — the same
+// function the server-side validator uses, so this picker and the API can never disagree. The one
+// role that differs between degrees is ประธานกรรมการสอบ: either kind for a master's, external
+// only for a doctoral submission.
 
 export interface Person {
   name: string;
@@ -100,7 +101,13 @@ export function ProgramChairAutoField({ program, users }: {
 
 // Shared shape/format/role-count validation used by both ProposalForm and DefenseForm — mirrors
 // (but is a separate copy of) the server-side check in src/lib/committee.ts's validatePeople().
-export function validatePeopleClient(people: Person[], ownEmails: string[]): string | null {
+export function validatePeopleClient(
+  people: Person[],
+  ownEmails: string[],
+  program: string | "",
+  users: ReturnType<typeof useApp>["users"]
+): string | null {
+  const degree = degreeOfProgram(program);
   const seenRoleEmail = new Set<string>();
   for (const [i, p] of people.entries()) {
     if (!p.name.trim())  return `กรุณาระบุชื่อ-นามสกุลของบุคคลที่ ${i + 1}`;
@@ -108,6 +115,12 @@ export function validatePeopleClient(people: Person[], ownEmails: string[]): str
     if (!isValidEmail(p.email)) return `บุคคลที่ ${i + 1}: รูปแบบอีเมลไม่ถูกต้อง (${p.email.trim()})`;
     if (!p.role) return `กรุณาเลือกบทบาทของบุคคลที่ ${i + 1}`;
     if (p.phone.trim() && !isValidThaiPhone(p.phone)) return `บุคคลที่ ${i + 1}: เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)`;
+    // Degree-dependent account-type criterion — mirrors validateCommitteeAccountRoles() on the
+    // server. An account that no longer exists client-side is left to the server to reject.
+    const scope = committeeRoleScope(p.role, degree);
+    const account = users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase());
+    if (account && !accountFitsScope(account.roles, scope))
+      return `${ROLE_LABELS[p.role] ?? p.role} ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${p.name.trim() || p.email.trim()}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
     const email = p.email.trim().toLowerCase();
     if (ownEmails.includes(email)) return `บุคคลที่ ${i + 1}: ไม่สามารถใช้อีเมลของท่านเองเป็นกรรมการได้`;
     const key = `${p.role}:${email}`;
@@ -174,7 +187,7 @@ export function ProposalForm({
 
     const ownEmails = [user?.email?.toLowerCase()].filter(Boolean) as string[];
     const fullPeople = withProgramChair(people, chair);
-    const peopleError = validatePeopleClient(fullPeople, ownEmails);
+    const peopleError = validatePeopleClient(fullPeople, ownEmails, program, users);
     if (peopleError) { setError(peopleError); return; }
 
     if (!examDate.trim()) { setError("กรุณาระบุวันที่สอบ"); return; }
@@ -299,7 +312,7 @@ export function ProposalForm({
               </p>
               <p>(อาจารย์ที่ปรึกษาร่วมเพิ่มได้ตามต้องการ)</p>
             </div>
-            <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
+            <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} program={program} />
           </Section>
 
           <ExamLogisticsSection
@@ -426,7 +439,7 @@ export function DefenseForm({
 
     const ownEmails = [user?.email?.toLowerCase(), selected.studentEmail?.toLowerCase()].filter(Boolean) as string[];
     const fullPeople = withProgramChair(people, chair);
-    const peopleError = validatePeopleClient(fullPeople, ownEmails);
+    const peopleError = validatePeopleClient(fullPeople, ownEmails, selected.program ?? "", users);
     if (peopleError) { setError(peopleError); return; }
 
     if (!examDate.trim()) { setError("กรุณาระบุวันที่สอบ"); return; }
@@ -522,7 +535,7 @@ export function DefenseForm({
                 (ไม่มีผลย้อนกลับไปยังคำร้องโครงร่างเดิม) ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
                 ไม่พบชื่อกรรมการภายนอกที่ต้องการ? ยื่นคำขอสร้างบัญชีได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo;
               </p>
-              <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
+              <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} program={selected.program ?? ""} />
             </Section>
 
             <ExamLogisticsSection
@@ -738,12 +751,16 @@ export function ReadOnlyField({ label, value }: { label: string; value?: string 
 // committee member is guaranteed to already have an account. PROGRAM_CHAIR is never offered here
 // — see ProgramChairAutoField. Rows can be dragged (via the leftmost numbered handle) to reorder
 // the underlying array, which is the real sign order for roles with multiple members.
-export function CommitteePeopleEditor({ people, setPeople, clearError }: {
+export function CommitteePeopleEditor({ people, setPeople, clearError, program }: {
   people: Person[];
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
   clearError: () => void;
+  /** The submission's หลักสูตร — decides the degree level, which decides who may fill
+   *  ประธานกรรมการสอบ (either kind for a master's, external only for a doctoral). */
+  program: string | "";
 }) {
   const { users } = useApp();
+  const degree = degreeOfProgram(program);
   const professors = users.filter((u) => u.roles.includes("PROFESSOR"));
   const externals  = users.filter((u) => u.roles.includes("EXTERNAL"));
   // Tracks the row being dragged — a plain ref (not state) since it never needs to trigger a
@@ -751,9 +768,10 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
   const dragIndex = useRef<number | null>(null);
 
   function accountsFor(role: string) {
-    if (EXTERNAL_ONLY_ROLES.has(role)) return externals;
-    if (MIXED_ROLES.has(role)) return [...professors, ...externals];
-    return professors;
+    const scope = committeeRoleScope(role, degree);
+    if (scope === "EXTERNAL") return externals;
+    if (scope === "INTERNAL") return professors;
+    return [...professors, ...externals];
   }
 
   function updatePerson(index: number, patch: Partial<Person>) {
@@ -813,11 +831,16 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
 
       <div className="space-y-2">
         {people.map((p, i) => {
-          const isExternalOnlyRole = EXTERNAL_ONLY_ROLES.has(p.role);
-          const canBeExternal = isExternalOnlyRole || MIXED_ROLES.has(p.role);
+          const rowScope = committeeRoleScope(p.role, degree);
           const accounts = accountsFor(p.role);
           // Match the selected account by email (state stores name/email/phone, not the id).
           const selectedAccount = accounts.find((a) => a.email.toLowerCase() === p.email.trim().toLowerCase());
+          // A row can still hold an account that no longer fits the rule — a committee imported
+          // from a proposal, or a หลักสูตร switched after the pick. Keep it visible in the picker
+          // instead of silently blanking it, and flag the row so the student sees what to change.
+          const outOfScope = !selectedAccount && p.email.trim()
+            ? users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase())
+            : undefined;
           return (
             <div
               key={i}
@@ -854,18 +877,30 @@ export function CommitteePeopleEditor({ people, setPeople, clearError }: {
                     ))}
                   </select>
                   <select
-                    value={selectedAccount?.id ?? ""}
+                    value={selectedAccount?.id ?? outOfScope?.id ?? ""}
                     onChange={(e) => selectAccount(i, e.target.value)}
                     disabled={!p.role}
-                    className={INPUT + " bg-white disabled:opacity-50"}
-                    aria-label={isExternalOnlyRole ? "กรรมการภายนอก" : canBeExternal ? "อาจารย์หรือกรรมการภายนอก" : "อาจารย์"}
+                    className={INPUT + " bg-white disabled:opacity-50" + (outOfScope ? " border-red-300" : "")}
+                    aria-label={p.role ? ACCOUNT_SCOPE_LABELS[rowScope] : "รายชื่อ"}
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
+                    {outOfScope && (
+                      <option value={outOfScope.id}>{formatUserName(outOfScope)} (ไม่ตรงตามเงื่อนไข)</option>
+                    )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>{formatUserName(a)}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
                     ))}
                   </select>
                 </div>
+                {p.role && (
+                  outOfScope ? (
+                    <p className="text-xs text-red-600">
+                      {ROLE_LABELS[p.role] ?? p.role}ของหลักสูตรนี้ต้องเป็น{ACCOUNT_SCOPE_LABELS[rowScope]} — กรุณาเลือกใหม่
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-400">เลือกจาก: {ACCOUNT_SCOPE_LABELS[rowScope]}</p>
+                  )
+                )}
               </div>
 
               {people.length > 1 && (

@@ -21,6 +21,11 @@ The app is **live with real users** — treat data and email as production, on e
 
 ## Read this before touching real accounts or sending email
 
+- **There are currently 0 `EXTERNAL` accounts in the system** (21 PROFESSOR, 24 users total, and
+  0 submissions as of 2026-09-15). Since 2026-09-15 a `PHD` submission needs an `EXTERNAL`
+  account to chair its exam committee, and every degree already needed one for กรรมการภายนอก —
+  so **no submission of any kind can be confirmed until an admin creates at least one**. See
+  "Committee composition by degree" in `AGENTS.md`.
 - **⚠️ Every account's passcode is currently the shared value `A00a00`.** All live accounts —
   real STUDENT/PROFESSOR/ADMIN/SUPER_ADMIN accounts, not just test ones — were bulk-reset to this
   one known value for local testing convenience (see `CHANGELOG.md` 2026-09-07/09-09). Anyone who
@@ -121,7 +126,10 @@ Roughly in priority order:
    email-result-reporting fix's *failure* branch for passcode-reset/email-change and for the
    `pending-professors`/`/super-dashboard` add-user forms specifically; `/professor-dashboard`'s
    rework as a real PROFESSOR account; the name-title split and editable-login-email features
-   end-to-end.
+   end-to-end; the degree-dependent committee composition rules (2026-09-15) — confirm the
+   ประธานกรรมการสอบ dropdown really switches to externals-only when หลักสูตร is set to `PHD`,
+   and that a defense draft importing a now-invalid committee still saves but refuses to
+   confirm.
 5. **Fix the outgoing-mail quota problem** (see warning above) — pick one of the three options and
    do it, rather than continuing to absorb Gmail's daily cap.
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against

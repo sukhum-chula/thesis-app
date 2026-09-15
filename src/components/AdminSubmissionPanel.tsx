@@ -5,7 +5,10 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge";
-import { FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile, toUserErrorMessage, formatUserName } from "@/lib/utils";
+import {
+  FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
+  toUserErrorMessage, formatUserName, degreeOfProgram, committeeRoleScope, ACCOUNT_SCOPE_LABELS,
+} from "@/lib/utils";
 import { MockWorkflowStep, MockUpload } from "@/types";
 import {
   ArrowLeft, Download, FileText, Pencil, Check, X,
@@ -451,10 +454,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const student    = allUsers.find((u) => u.id === sub.studentId);
   const advisor    = allUsers.find((u) => u.id === sub.advisorId);
   const advisors   = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
-  // CO_ADVISOR and EXAM_COMMITTEE can be filled by either an internal PROFESSOR or an external
-  // examiner (see "Committee people" in AGENTS.md); INVITED_EXAM_COMMITTEE is external-only.
+  // Who may fill each role is degree-dependent — see committeeRoleScope() in src/lib/utils.ts, the
+  // same rule the student-facing CommitteePeopleEditor and the API validator use. Only
+  // ประธานกรรมการสอบ differs between degrees (either kind for a master's, external only for a
+  // doctoral submission), so it is the one list resolved from the edit draft's current หลักสูตร.
   const externals       = allUsers.filter((u) => u.roles.includes("EXTERNAL"));
   const mixedCommittee  = [...advisors, ...externals];
+  const headScope       = committeeRoleScope("HEAD_EXAM_COMMITTEE", degreeOfProgram(editDraft.program));
+  const headCandidates  = headScope === "EXTERNAL" ? externals : mixedCommittee;
   // When REJECTED, no step is treated as "current" — future pending steps aren't highlighted
   const currentOrd        = sub.status === "REJECTED"
     ? null
@@ -824,14 +831,15 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <EField label="ประธานกรรมการสอบ">
                   <select value={editDraft.headCommitteeId} onChange={(e) => upd("headCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>
                     <option value="">— ไม่ระบุ —</option>
-                    {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+                    {headCandidates.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                   </select>
+                  <p className="text-[11px] text-gray-400 mt-0.5">เลือกจาก: {ACCOUNT_SCOPE_LABELS[headScope]} (ตามหลักสูตรที่เลือก)</p>
                 </EField>
                 {[0, 1, 2].map((i) => (
                   <EField key={i} label={`กรรมการสอบ ${i + 1}`}>
                     <select value={editDraft.committeeIds[i] ?? ""} onChange={(e) => updArr("committeeIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
                       <option value="">— ไม่ระบุ —</option>
-                      {mixedCommittee.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
                     </select>
                   </EField>
                 ))}

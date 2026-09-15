@@ -7,6 +7,42 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-15
 
+- **Committee composition is now degree-dependent, and the account-type rule is enforced
+  server-side for the first time.** Which kind of account may fill each committee role used to be a
+  UI-only convention: `CommitteePeopleEditor` scoped its dropdowns via two fixed sets
+  (`EXTERNAL_ONLY_ROLES`/`MIXED_ROLES`), while `resolvePeople()` looked accounts up by email without
+  ever checking their `Role`, so anything posted directly to the API was accepted. Both halves
+  changed:
+  - **New rule.** ADVISOR: internal `PROFESSOR`, exactly 1 (both degrees). CO_ADVISOR: either type,
+    0+. HEAD_EXAM_COMMITTEE: exactly 1, **either type for a master's (`ME_MECH`/`ME_CPS`) but
+    `EXTERNAL` only for a doctoral (`PHD`) submission** — the only role that differs by degree.
+    EXAM_COMMITTEE: internal `PROFESSOR` only (**changed** — it accepted `EXTERNAL` since
+    2026-09-08), ≥1. INVITED_EXAM_COMMITTEE: `EXTERNAL` only, ≥1. Role *counts* are unchanged.
+  - **One source of truth**: `degreeOfProgram()`/`committeeRoleScope()`/`accountFitsScope()`/
+    `ACCOUNT_SCOPE_LABELS` in `src/lib/utils.ts` — no Prisma import, so the client pickers, the
+    client validator and the server validator all call the same functions instead of keeping
+    parallel copies of the table.
+  - **Server enforcement**: `validateCommitteeAccountRoles(people, program)` in
+    `src/lib/committee.ts`, wired into `POST /api/submissions` and both
+    `save_proposal_draft`/`save_defense_draft` `confirm: true` branches. It is the one committee
+    check that must hit the DB (the rule is about the account behind an email, not the row's own
+    fields). Rows whose email has no account yet are skipped — still `resolvePeople()`'s
+    DRAFT/`pendingPeople` business. Deliberately **not** applied on the lenient `confirm: false`
+    path or in `continue_draft`, so a draft stays saveable while the student fixes a committee that
+    no longer fits.
+  - **Client**: `CommitteePeopleEditor` takes a `program` prop (threaded from all four call sites)
+    and builds each dropdown from the resolved scope; `validatePeopleClient()` gained `program` and
+    `users` parameters and re-checks the same rule at submit. Each row gained a "เลือกจาก: …" hint,
+    and a row holding an account that no longer fits keeps it visible marked
+    "(ไม่ตรงตามเงื่อนไข)" with a red hint rather than blanking the picker.
+    `AdminSubmissionPanel`'s separate `<select>`-based editor follows the same rule: ประธานกรรมการสอบ
+    is resolved from the edit draft's current หลักสูตร, กรรมการสอบ went back to PROFESSOR-only.
+  - **Migration impact: none.** A read-only audit of every existing submission found 0 violations —
+    the database currently holds 24 users and 0 submissions. **But there are 0 `EXTERNAL` accounts
+    in the system**, so no `PHD` submission can be confirmed until an admin creates at least one
+    (a master's submission can still use an internal ประธานกรรมการสอบ, but every degree already
+    needed an `EXTERNAL` for กรรมการภายนอก).
+
 - **Removed the dead `Signature` model and dropped three orphaned tables.** `signatures` had a
   schema model, a `@@unique([workflowStepId, userId])` and an `ipAddress` column, but **nothing in
   the app had ever written to it** — the sole reference in the entire codebase was a

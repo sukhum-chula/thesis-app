@@ -54,7 +54,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
     if (studentPhone.trim() && !isValidThaiPhone(studentPhone)) return "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
     if (!chair) return "ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา";
     const ownEmails = [sub!.studentEmail?.toLowerCase()].filter((e): e is string => !!e);
-    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails);
+    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails, program, users);
     if (peopleError) return peopleError;
     if (!examDate.trim()) return "กรุณาระบุวันที่สอบ";
     if (examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
@@ -194,7 +194,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
               หากไม่พบชื่อกรรมการภายนอก นิสิตสามารถยื่นคำขอสร้างบัญชีใหม่ได้ที่แท็บ &ldquo;กรรมการภายนอก&rdquo; แล้วรอเจ้าหน้าที่อนุมัติก่อนจึงจะเลือกได้ที่นี่
             </p>
           </div>
-          <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
+          <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} program={program} />
         </Section>
 
         <ExamLogisticsSection

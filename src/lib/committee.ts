@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { isValidEmail, isValidThaiPhone } from "@/lib/utils";
+import {
+  isValidEmail, isValidThaiPhone, ROLE_LABELS,
+  degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
+} from "@/lib/utils";
 
 export type PersonInput = { name?: string; email?: string; role?: string; phone?: string };
 
@@ -72,6 +75,41 @@ export function validatePeopleLenient(people: PersonInput[], studentOwnEmails: S
     const key = `${p.role}:${email}`;
     if (seenRoleEmail.has(key)) return "อีเมลนี้ถูกเพิ่มในบทบาทเดียวกันซ้ำ";
     seenRoleEmail.add(key);
+  }
+  return null;
+}
+
+/** Degree-dependent account-type criterion: each committee role may only be filled by a certain
+ *  kind of account, and ประธานกรรมการสอบ differs between a master's and a doctoral submission
+ *  (see committeeRoleScope() in src/lib/utils.ts for the full table). Unlike validatePeople() this
+ *  has to hit the DB — the rule is about the *account* behind an email, not the row's own fields.
+ *
+ *  Rows whose email has no account yet are skipped: a missing account is resolvePeople()'s
+ *  business (it becomes a DRAFT with pendingPeople), not a composition error. Only called on the
+ *  strict path (`confirm: true` / submission creation) — a draft save stays lenient, so a student
+ *  can still save and come back to fix an imported committee that no longer satisfies the rule. */
+export async function validateCommitteeAccountRoles(
+  people: PersonInput[],
+  program: string | null | undefined
+): Promise<string | null> {
+  const degree = degreeOfProgram(program);
+  const filled = people.filter((p) => p.role && p.email?.trim());
+  if (filled.length === 0) return null;
+
+  const uniqueEmails = [...new Set(filled.map((p) => p.email!.trim().toLowerCase()))];
+  const accounts = await prisma.user.findMany({
+    where: { email: { in: uniqueEmails } },
+    select: { email: true, roles: true },
+  });
+  const rolesByEmail = new Map(accounts.map((u) => [u.email.toLowerCase(), u.roles as string[]]));
+
+  for (const p of filled) {
+    const accountRoles = rolesByEmail.get(p.email!.trim().toLowerCase());
+    if (!accountRoles) continue; // no account yet — handled by resolvePeople()
+    const scope = committeeRoleScope(p.role!, degree);
+    if (!accountFitsScope(accountRoles, scope))
+      return `${ROLE_LABELS[p.role!] ?? p.role} ของ${degree === "DOCTORAL" ? "หลักสูตรปริญญาเอก" : "หลักสูตรปริญญาโท"}` +
+             ` ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${p.name?.trim() || p.email!.trim()}" ไม่ตรงตามเงื่อนไข`;
   }
   return null;
 }

@@ -94,6 +94,55 @@ export const PROGRAM_LABELS: Record<string, string> = {
   ME_CPS:  "หลักสูตรวิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาระบบกายภาพที่เชื่อมประสานด้วยเครือข่ายไซเบอร์",
 };
 
+// ─── Committee composition rules (degree-dependent) ───────────────────────────
+// Which kind of account may fill each contextual committee role, per degree level. Shared by the
+// client editors (CommitteePeopleEditor, AdminSubmissionPanel) and the server-side validator in
+// src/lib/committee.ts, so the dropdown a student sees and the rule the API enforces can never
+// drift apart. "INTERNAL" = a PROFESSOR account, "EXTERNAL" = an EXTERNAL account, "BOTH" = either.
+//
+//                          | ปริญญาโท (ME_MECH/ME_CPS) | ปริญญาเอก (PHD)
+//   ADVISOR                | internal, exactly 1       | internal, exactly 1
+//   CO_ADVISOR             | either,   0+              | either,   0+
+//   HEAD_EXAM_COMMITTEE    | either,   exactly 1       | EXTERNAL, exactly 1
+//   EXAM_COMMITTEE         | internal, >=1             | internal, >=1
+//   INVITED_EXAM_COMMITTEE | EXTERNAL, >=1             | EXTERNAL, >=1
+export type DegreeLevel = "MASTER" | "DOCTORAL";
+export type AccountScope = "INTERNAL" | "EXTERNAL" | "BOTH";
+
+/** PHD is the only doctoral program; both ME_* programs are master's. An unset program is treated
+ *  as master's — the permissive case, so a not-yet-chosen program never blocks a draft. */
+export function degreeOfProgram(program: string | null | undefined): DegreeLevel {
+  return program === "PHD" ? "DOCTORAL" : "MASTER";
+}
+
+/** PROGRAM_CHAIR is deliberately unconstrained here ("BOTH"): it is never a student-picked row —
+ *  it's auto-resolved from the program's admin-designated chair, which POST /api/admin/program-chairs
+ *  already restricts to a PROFESSOR account. */
+export function committeeRoleScope(role: string, degree: DegreeLevel): AccountScope {
+  switch (role) {
+    case "ADVISOR":                return "INTERNAL";
+    case "EXAM_COMMITTEE":         return "INTERNAL";
+    case "INVITED_EXAM_COMMITTEE": return "EXTERNAL";
+    case "HEAD_EXAM_COMMITTEE":    return degree === "DOCTORAL" ? "EXTERNAL" : "BOTH";
+    default:                       return "BOTH"; // CO_ADVISOR, PROGRAM_CHAIR
+  }
+}
+
+/** True when an account holding `accountRoles` may fill a role whose scope is `scope`. */
+export function accountFitsScope(accountRoles: readonly string[], scope: AccountScope): boolean {
+  const internal = accountRoles.includes("PROFESSOR");
+  const external = accountRoles.includes("EXTERNAL");
+  if (scope === "INTERNAL") return internal;
+  if (scope === "EXTERNAL") return external;
+  return internal || external;
+}
+
+export const ACCOUNT_SCOPE_LABELS: Record<AccountScope, string> = {
+  INTERNAL: "อาจารย์ภายใน",
+  EXTERNAL: "กรรมการภายนอก",
+  BOTH:     "อาจารย์ภายในหรือกรรมการภายนอก",
+};
+
 // User-level role labels (4 simplified roles)
 // Also includes step-role labels (ADVISOR, PROGRAM_CHAIR, etc.) for WorkflowStep display
 export const ROLE_LABELS: Record<string, string> = {

@@ -44,7 +44,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
     if (!title.trim()) return "กรุณาระบุชื่อหัวข้อ";
     if (!chair) return "ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา";
     const ownEmails = [sub!.studentEmail?.toLowerCase()].filter((e): e is string => !!e);
-    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails);
+    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails, sub?.program ?? "", users);
     if (peopleError) return peopleError;
     if (!examDate.trim()) return "กรุณาระบุวันที่สอบ";
     if (examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
@@ -159,7 +159,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
             นำเข้าจากคำร้องโครงร่าง — เลือกจากรายชื่อในระบบเท่านั้น แก้ไขได้หากต้องการเปลี่ยนแปลง
             (ไม่มีผลย้อนกลับไปยังคำร้องโครงร่างเดิม) ประธานหลักสูตรกำหนดให้อัตโนมัติแล้วด้านบน
           </p>
-          <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} />
+          <CommitteePeopleEditor people={people} setPeople={setPeople} clearError={() => setError(null)} program={sub?.program ?? ""} />
         </Section>
 
         <ExamLogisticsSection

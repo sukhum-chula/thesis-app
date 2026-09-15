@@ -443,11 +443,11 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passcodes. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission. As of 2026-09-06 it CAN view (read-only oversight, not act on) a full directory of every account including STUDENT/PROFESSOR via `GET /api/super-admin/users`, and a full list of every submission via `GET /api/super-admin/submissions` (no detail-page link, no actions); the older counts-only `GET /api/super-admin/stats` was removed as redundant once these two list endpoints shipped |
 | Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student, create the missing accounts for a committee person named on a DRAFT submission (`/dashboard/admin/pending-professors`), accept/decline student cancellation requests. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
-| Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students |
-| Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE) |
+| Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students — always an internal `PROFESSOR` account, both degrees |
+| Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE); may be an internal `PROFESSOR` or an `EXTERNAL` account, both degrees |
 | Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`SystemSetting` key `programChair:<program>` — a professor may chair more than one program, see "Program Chair & finance-contact assignment" below) |
-| Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student |
-| Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student |
+| Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student. **Account type is degree-dependent**: `PROFESSOR` or `EXTERNAL` for a master's submission, `EXTERNAL` only for a doctoral one (see "Committee composition by degree" below) |
+| Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student; internal `PROFESSOR` accounts only, both degrees (an external examiner belongs in กรรมการภายนอก or อาจารย์ที่ปรึกษาร่วม instead) |
 | Invited Exam Committee | กรรมการภายนอก | External examiner(s) — one or more, sign separately in order (sequential like EXAM_COMMITTEE); assigned per submission by Student, selected from existing `EXTERNAL`-role accounts only (see "Committee people" below, "Multiple external committee members" further down, and "EXTERNAL account requests" further down) |
 
 ### External roles (no login)
@@ -470,17 +470,16 @@ reworked 2026-09-08):** `CommitteePeopleEditor` (`src/components/SubmissionForms
 `ProposalForm`, `DefenseForm`, `ProposalDraftReview` and `DefenseDraftReview`) renders each row as
 a role `<select>` plus an account `<select>` — never free-text name/email entry, and neither
 select carries a visible label any more (role/account picker labels are `aria-label` only,
-selection is conveyed by the placeholder option text). ADVISOR/HEAD_EXAM_COMMITTEE pick from every
-`PROFESSOR`-role account only; INVITED_EXAM_COMMITTEE (กรรมการภายนอก) picks from every `EXTERNAL`-
-role account only (see "EXTERNAL account requests" below for how those get created).
-**CO_ADVISOR and EXAM_COMMITTEE pick from both lists combined** (2026-09-08) — either role is
-commonly filled by an external examiner as well as an internal faculty member, so their dropdown
-offers every `PROFESSOR` account followed by every `EXTERNAL` account (`MIXED_ROLES` in
-`CommitteePeopleEditor`, `src/components/SubmissionForms.tsx`; `EXTERNAL_ONLY_ROLES` still gates
-INVITED_EXAM_COMMITTEE to externals-only). Server-side this needed no change at all —
-`resolvePeople`/`resolvePeoplePartial` (`src/lib/committee.ts`) only look up an account by email,
-never checking its `Role`, so a CO_ADVISOR/EXAM_COMMITTEE entry resolving to an `EXTERNAL` account
-was already accepted. Picking an account fills `{name, email, phone}` from it, but the row no longer displays
+selection is conveyed by the placeholder option text). **Which account list each role picks
+from is degree-dependent** (2026-09-15, replacing the earlier fixed `EXTERNAL_ONLY_ROLES`/
+`MIXED_ROLES` sets) — see "Committee composition by degree" below. The single source of truth
+is `committeeRoleScope(role, degree)` in `src/lib/utils.ts`, used by `CommitteePeopleEditor`,
+`AdminSubmissionPanel`'s separate editor, the client validator and the server validator alike,
+so the dropdown a student sees and the rule the API enforces can never drift apart. Each row
+shows a small "เลือกจาก: …" hint naming the account type that role accepts, and a row still
+holding an account that no longer fits (a committee imported from a proposal, or a หลักสูตร
+switched after the pick) keeps that account visible in the picker marked "(ไม่ตรงตามเงื่อนไข)"
+with a red hint, rather than silently blanking. Picking an account fills `{name, email, phone}` from it, but the row no longer displays
 either — only the role/account selects are shown; email and phone are still carried internally
 (and still submitted) so `resolvePeople`'s email-lookup and the optional phone-override still
 work, they're just not rendered. `initialPeople()` seeds a fresh editor (a new `ProposalForm`/
@@ -545,13 +544,56 @@ already used `FACULTY_ROLES = ["PROFESSOR", "EXTERNAL"]` correctly and needed no
 `CommitteePeopleEditor`) that built every dropdown — including "กรรมการภายนอก ในระบบ (เลือก)",
 which should only ever offer `EXTERNAL` accounts — from a single `advisors` list filtered to
 `PROFESSOR` only. Added a matching `externals` list and a `mixedCommittee` (`[...advisors,
-...externals]`) list, mirroring `CommitteePeopleEditor`'s `MIXED_ROLES`: อาจารย์ที่ปรึกษาร่วม
-(CO_ADVISOR) and กรรมการสอบ (EXAM_COMMITTEE) now list both PROFESSOR and EXTERNAL accounts,
-กรรมการภายนอก ในระบบ now lists EXTERNAL accounts only (previously PROFESSOR-only, so an admin could
-never actually select an external examiner there at all), and อาจารย์ที่ปรึกษา/ประธานกรรมการสอบ
-stay PROFESSOR-only same as before.
+...externals]`) list: อาจารย์ที่ปรึกษาร่วม (CO_ADVISOR) and กรรมการสอบ (EXAM_COMMITTEE) now list
+both PROFESSOR and EXTERNAL accounts, กรรมการภายนอก ในระบบ now lists EXTERNAL accounts only
+(previously PROFESSOR-only, so an admin could never actually select an external examiner there
+at all), and อาจารย์ที่ปรึกษา/ประธานกรรมการสอบ stay PROFESSOR-only same as before. **Superseded
+2026-09-15** — which list each role offers is now degree-dependent (กรรมการสอบ went back to
+PROFESSOR-only, ประธานกรรมการสอบ became degree-dependent); see "Committee composition by degree"
+below. Only the `GET /api/users` half of this bullet is still current as written.
 
-**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE ≥1 (multiple external committee members allowed — see "Multiple external committee members" below) · CO_ADVISOR 0+. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
+**Validation (enforced in form AND API):** ADVISOR exactly 1 · PROGRAM_CHAIR exactly 1 (auto-injected, never a user-facing row — see "Committee people" above) · HEAD_EXAM_COMMITTEE exactly 1 · EXAM_COMMITTEE ≥1 · INVITED_EXAM_COMMITTEE ≥1 (multiple external committee members allowed — see "Multiple external committee members" below) · CO_ADVISOR 0+. These counts are the same for both degrees; **which account type may fill each role is not** — see "Committee composition by degree" below. Every person's email must pass `isValidEmail()` (a typo'd email would create an account whose passcode email goes nowhere); a person's email may not equal the student's own email; duplicate email-in-same-role rows are rejected. The form shows a live checklist chip per required role (excluding PROGRAM_CHAIR, which has its own read-only auto-resolved display instead). วันที่สอบ + เวลาสอบ required; title-confirmation checkbox before submit.
+
+### Committee composition by degree (2026-09-15)
+**Who may fill each committee role depends on the degree level of the submission's หลักสูตร.**
+`PHD` is doctoral; `ME_MECH`/`ME_CPS` are master's (`degreeOfProgram()`, `src/lib/utils.ts` — an
+unset program is treated as master's, the permissive case, so a not-yet-chosen หลักสูตร never
+blocks a draft).
+
+| Role | ปริญญาโท (ME_MECH/ME_CPS) | ปริญญาเอก (PHD) | Count |
+|---|---|---|---|
+| ADVISOR อาจารย์ที่ปรึกษา | `PROFESSOR` | `PROFESSOR` | exactly 1 |
+| CO_ADVISOR อาจารย์ที่ปรึกษาร่วม | `PROFESSOR` or `EXTERNAL` | `PROFESSOR` or `EXTERNAL` | 0+ |
+| HEAD_EXAM_COMMITTEE ประธานกรรมการสอบ | `PROFESSOR` or `EXTERNAL` | **`EXTERNAL` only** | exactly 1 |
+| EXAM_COMMITTEE กรรมการสอบ | `PROFESSOR` | `PROFESSOR` | ≥1 |
+| INVITED_EXAM_COMMITTEE กรรมการภายนอก | `EXTERNAL` | `EXTERNAL` | ≥1 |
+
+HEAD_EXAM_COMMITTEE is the only role that differs between the two degrees. PROGRAM_CHAIR is
+deliberately **not** in this table — it's never a student-picked row, it's auto-resolved from the
+program's admin-designated chair, and `POST /api/admin/program-chairs` already restricts that to a
+`PROFESSOR` account.
+
+- **One source of truth**: `degreeOfProgram()` / `committeeRoleScope(role, degree)` /
+  `accountFitsScope(accountRoles, scope)` / `ACCOUNT_SCOPE_LABELS` in `src/lib/utils.ts` (no Prisma
+  import, so both client and server use the same functions). Nothing else encodes this table.
+- **Client**: `CommitteePeopleEditor` takes a `program` prop (threaded from `ProposalForm`'s program
+  state, `DefenseForm`/`DefenseDraftReview`'s source-proposal program, `ProposalDraftReview`'s draft
+  program) and builds each row's account dropdown from it; `validatePeopleClient(people, ownEmails,
+  program, users)` re-checks it at submit.
+- **Server**: `validateCommitteeAccountRoles(people, program)` (`src/lib/committee.ts`) — the one
+  check that has to hit the DB, since the rule is about the *account* behind an email rather than
+  the row's own fields. Called on the strict path only: `POST /api/submissions`, and
+  `save_proposal_draft`/`save_defense_draft` with `confirm: true`. A row whose email has no account
+  yet is skipped (that's still `resolvePeople`'s DRAFT/`pendingPeople` business, not a composition
+  error).
+- **Deliberately not enforced on the lenient path** (`confirm: false`) or in `continue_draft`, even
+  though a wrong account type is a mistake rather than an incompleteness: a draft must stay saveable
+  so a student can come back and fix an imported committee that no longer satisfies the rule, and
+  `continue_draft` gives them no editor to fix it with. Both paths were strictly validated at the
+  point the committee was confirmed, so nothing reaches `IN_PROGRESS` unchecked.
+- **Operational prerequisite**: a `PHD` submission now cannot be confirmed until at least one
+  `EXTERNAL` account exists to chair the exam committee (and every degree already needed one for
+  กรรมการภายนอก). See "EXTERNAL account requests" above for how those accounts get created.
 
 ### Multiple external committee members (2026-09-09)
 `INVITED_EXAM_COMMITTEE` (กรรมการภายนอก) now supports **any number of members (≥1)**, sequential
