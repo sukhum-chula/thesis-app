@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>คู่มือระบบวิทยานิพนธ์</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
@@ -270,6 +271,16 @@
   .shot-inner{text-align:center; max-width:44ch;}
   .shot-inner svg{width:34px; height:34px; color:var(--line-strong); margin-bottom:10px;}
   .shot-inner .lbl{font-size:13px; font-weight:700; letter-spacing:.04em; color:var(--ink-soft); text-transform:uppercase;}
+
+  /* real screenshot (redacted) — replaces the dashed placeholder look */
+  .shot-frame.filled{
+    display:block; padding:0; min-height:0;
+    border:1px solid var(--line-strong);
+    background:var(--surface-sunken);
+    overflow:hidden;
+  }
+  .shot-frame.filled img{display:block; width:100%; height:auto;}
+  .shot-frame.filled .tag{top:10px; left:10px;}
   figcaption{margin-top:9px; font-size:13.5px; color:var(--ink-soft); line-height:1.6;}
   figcaption b{color:var(--ink); font-weight:600;}
 
@@ -362,8 +373,8 @@
       </ol>
       <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>ข้อควรทราบ</b>นิสิตไม่สามารถตั้งหรือเปลี่ยนรหัสเข้าใช้งานได้ด้วยตนเอง หากลืมรหัส ให้ติดต่อเจ้าหน้าที่ภาควิชาเพื่อรีเซ็ตให้</div></div>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 1.1</span>
-          <div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><div class="lbl">ภาพหน้าจอ</div></div>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 1.1</span>
+          <img src="screenshots/1-1-login.jpg" alt="หน้าจอเข้าสู่ระบบ">
         </div>
         <figcaption><b>หน้าจอเข้าสู่ระบบ (Login)</b> — ช่องกรอกอีเมลและรหัสเข้าใช้งาน พร้อมข้อความอธิบายว่าไม่มีการสมัครสมาชิกด้วยตนเอง</figcaption>
       </figure>
@@ -373,8 +384,8 @@
       <div class="block-head"><span class="block-tag">02</span><h3>หน้าหลักนิสิต</h3></div>
       <p class="block-intro">หน้าหลักแบ่งเป็น 3 แท็บ: <span class="btn">สอบโครงร่าง</span> <span class="btn">สอบวิทยานิพนธ์</span> <span class="btn">กรรมการภายนอก</span> — ทุกการดำเนินการ (อัปโหลด ลงนามยืนยัน ขอยกเลิก) ทำได้จากในหน้านี้โดยตรง ไม่ต้องคลิกเข้าไปหน้าอื่น</p>
       <div class="shots-row">
-        <figure class="shot"><div class="shot-frame"><span class="tag">รูปที่ 1.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div><figcaption><b>แถบแท็บ 3 แท็บ</b> บนหน้าหลักนิสิต พร้อมแถบด้านบนแสดงชื่อ-อีเมลผู้ใช้งานตรงกลาง</figcaption></figure>
-        <figure class="shot"><div class="shot-frame"><span class="tag">รูปที่ 1.3</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div><figcaption><b>การ์ด "ความคืบหน้าปัจจุบัน"</b> แสดงแถบขั้นตอนทั้งหมดของคำร้องที่กำลังดำเนินการอยู่</figcaption></figure>
+        <figure class="shot"><div class="shot-frame filled"><span class="tag">รูปที่ 1.2</span><img src="screenshots/1-2-student-tabs.jpg" alt="แถบแท็บ 3 แท็บบนหน้าหลักนิสิต"></div><figcaption><b>แถบแท็บ 3 แท็บ</b> บนหน้าหลักนิสิต พร้อมแถบด้านบนแสดงชื่อ-อีเมลผู้ใช้งานตรงกลาง (ชื่อ/อีเมล/รหัสในภาพถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption></figure>
+        <figure class="shot"><div class="shot-frame filled"><span class="tag">รูปที่ 1.3</span><img src="screenshots/1-3-progress-card.jpg" alt="การ์ดความคืบหน้าปัจจุบัน"></div><figcaption><b>การ์ด "ความคืบหน้าปัจจุบัน"</b> แสดงคณะกรรมการ กำหนดการสอบ และแถบความคืบหน้าของคำร้อง (ข้อมูลบุคคลถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption></figure>
       </div>
     </section>
 
@@ -390,10 +401,16 @@
         <li><div><strong>กรอกกำหนดการสอบ</strong> วันที่ เวลา (เลือกชั่วโมง/นาทีจากรายการ) การใช้ห้องประชุมและที่จอดรถ</div></li>
         <li><div><strong>เลือกการบันทึก</strong><div class="sd"><span class="btn">บันทึกฉบับร่าง</span> — บันทึกเท่าที่กรอกไว้ได้ทันที แม้ยังกรอกไม่ครบ เพื่อกลับมาทำต่อภายหลัง<br><span class="btn">ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์</span> — ต้องกรอกครบทุกช่องที่จำเป็นและติ๊กยืนยันความถูกต้องก่อน กดแล้วคำร้องเข้าสู่กระบวนการจริงทันที (11 ขั้นตอน) และแก้ไขคณะกรรมการเองไม่ได้อีก</div></div></li>
       </ol>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>แต่ละบทบาทเลือกได้จากใคร?</b>ขึ้นอยู่กับระดับปริญญาของหลักสูตรที่เลือก — ระบบจะแสดงเฉพาะรายชื่อที่เลือกได้ให้โดยอัตโนมัติ และมีคำอธิบาย "เลือกจาก: ..." กำกับไว้ใต้ทุกแถว<br>
+        · <b>อาจารย์ที่ปรึกษา</b> (1 คน) — อาจารย์ภายในเท่านั้น<br>
+        · <b>อาจารย์ที่ปรึกษาร่วม</b> (มีหรือไม่มีก็ได้) — อาจารย์ภายในหรือกรรมการภายนอก<br>
+        · <b>ประธานกรรมการสอบ</b> (1 คน) — <b>ปริญญาโท</b>: อาจารย์ภายในหรือกรรมการภายนอก · <b>ปริญญาเอก</b>: กรรมการภายนอกเท่านั้น<br>
+        · <b>กรรมการสอบ</b> (อย่างน้อย 1 คน) — อาจารย์ภายในเท่านั้น<br>
+        · <b>กรรมการภายนอก</b> (อย่างน้อย 1 คน) — กรรมการภายนอกเท่านั้น</div></div>
       <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>หาไม่พบชื่อกรรมการภายนอกที่ต้องการ?</b>ไปที่แท็บ "กรรมการภายนอก" เพื่อยื่นคำขอสร้างบัญชีใหม่ แล้วรอเจ้าหน้าที่อนุมัติก่อน จึงจะเลือกชื่อนั้นได้ที่นี่ — ดูหัวข้อ 08</div></div>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 1.4</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>แบบฟอร์มคำร้องขอสอบโครงร่าง (ฉบับร่าง)</b> — แสดงแถวเลือกคณะกรรมการพร้อมไอคอนลากจัดลำดับ และช่องประธานหลักสูตรแบบอ่านอย่างเดียว</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 1.4</span><img src="screenshots/1-4-proposal-form.jpg" alt="แบบฟอร์มเลือกคณะกรรมการ พร้อมไอคอนลากจัดลำดับ"></div>
+        <figcaption><b>แถวเลือกคณะกรรมการ (CommitteePeopleEditor)</b> — เลือก "บทบาท" แล้วเลือก "รายชื่อ" ทีละแถว พร้อมไอคอนลากจัดลำดับด้านซ้าย (ชื่อกรรมการในภาพถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
 
@@ -402,11 +419,11 @@
       <p class="block-intro">หลังยืนยันคำร้องแล้ว การ์ด "ความคืบหน้าปัจจุบัน" จะแสดงแถบขั้นตอนทั้งหมด (WorkflowTimeline) — ขั้นตอนของนิสิตจะเริ่มค้างที่สถานะ "รอดำเนินการ" จนกว่าจะอัปโหลดเอกสารที่กำหนดครบและกดยืนยันส่ง</p>
       <table class="spec"><thead><tr><th>ขั้นตอน</th><th>เอกสารที่ต้องอัปโหลด</th></tr></thead>
         <tbody>
-          <tr><td>ขั้นตอนที่ 1 (โครงร่าง)</td><td><span class="taglist"><span>BW1A</span><span>BW1B</span><span>FINANCE_ATTACH</span></span></td></tr>
-          <tr><td>ขั้นตอนที่ 4 (โครงร่าง)</td><td><span class="taglist"><span>B1C</span><span>B1D</span></span></td></tr>
-          <tr><td>ขั้นตอนที่ 1 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>B2</span><span>B3</span><span>FINANCE_ATTACH</span></span></td></tr>
-          <tr><td>ขั้นตอนที่ 9 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>SIGNED</span></span> — แบบฟอร์มที่เจ้าหน้าที่คืนมาให้กรอก+ลงนาม แล้วอัปโหลดกลับ</td></tr>
-          <tr><td>ขั้นตอนที่ 16 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>B4</span><span>THESIS</span></span> — เล่มวิทยานิพนธ์จากระบบ e-thesis พร้อมบาร์โค้ด</td></tr>
+          <tr><td>ขั้นตอนที่ 1 (โครงร่าง)</td><td><span class="taglist"><span>บ.วศ.1ก</span><span>บ.วศ.1ข</span><span>เอกสารการเงินแนบ</span></span></td></tr>
+          <tr><td>ขั้นตอนที่ 4 (โครงร่าง)</td><td><span class="taglist"><span>บ.วศ.1ค</span><span>บ.วศ.1ง</span></span></td></tr>
+          <tr><td>ขั้นตอนที่ 1 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>บ.2</span><span>บ.3</span><span>เอกสารการเงินแนบ</span></span></td></tr>
+          <tr><td>ขั้นตอนที่ 9 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>แบบรายงานฯ</span></span> — แบบฟอร์มที่เจ้าหน้าที่คืนมาให้กรอก+ลงนาม แล้วอัปโหลดกลับ</td></tr>
+          <tr><td>ขั้นตอนที่ 16 (สอบวิทยานิพนธ์)</td><td><span class="taglist"><span>บ.4</span><span>วิทยานิพนธ์</span></span> — เล่มวิทยานิพนธ์จากระบบ e-thesis พร้อมบาร์โค้ด</td></tr>
         </tbody>
       </table>
       <ol class="steps">
@@ -415,8 +432,8 @@
         <li><div><strong>ติดตามผ่านแถบขั้นตอน</strong><div class="sd">ไอคอนนาฬิกาสีน้ำเงินหมายถึงขั้นตอนกำลังดำเนินการ เครื่องหมายถูกสีเขียวหมายถึงผ่านแล้ว</div></div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 1.5</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>ช่องอัปโหลดเอกสารพร้อมสถานะ</b> — ป้ายรหัสฟอร์ม (เช่น BW1A) คำอธิบาย และชิปสถานะ "อัปโหลดแล้ว/ยังไม่ได้เลือกไฟล์" ต่อ 1 ช่อง</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 1.5</span><img src="screenshots/1-5-workflow-timeline.jpg" alt="แถบขั้นตอน WorkflowTimeline แสดงสถานะแต่ละขั้นตอน"></div>
+        <figcaption><b>แถบขั้นตอน (WorkflowTimeline)</b> — แต่ละขั้นตอนที่ผ่านแล้วแสดงชิปสถานะ "อนุมัติแล้ว" พร้อมชื่อผู้ลงนามและเวลา (ชื่อในภาพถูกปิดบังไว้เพื่อความเป็นส่วนตัว); ช่องอัปโหลดเอกสารของขั้นตอนที่ยังไม่ถึงคิวจะแสดงป้ายรหัสฟอร์มพร้อมชิปสถานะ "อัปโหลดแล้ว/ยังไม่ได้เลือกไฟล์" ในลักษณะเดียวกัน</figcaption>
       </figure>
     </section>
 
@@ -426,11 +443,11 @@
       <ol class="steps">
         <li><div><strong>อ่านเหตุผลที่แสดงในแบนเนอร์สีแดง</strong> บนหน้าหลักนิสิต</div></li>
         <li><div><strong>แก้ไข/อัปโหลดเอกสารใหม่ตามที่ผู้ตรวจแจ้ง</strong></div></li>
-        <li><div><strong>กดปุ่ม "ยืนยันการแก้ไข" เพื่อส่งกลับให้ผู้ตรวจคนเดิมพิจารณาใหม่</strong><div class="sd">ขั้นตอนนี้จะรีเซ็ตกลับเป็น "รอดำเนินการ" ให้ผู้ตรวจคนเดิมอีกครั้ง</div></div></li>
+        <li><div><strong>กดปุ่ม "ยืนยันและยื่นใหม่อีกครั้ง" เพื่อส่งกลับให้ผู้ตรวจคนเดิมพิจารณาใหม่</strong><div class="sd">ขั้นตอนนี้จะรีเซ็ตกลับเป็น "รอดำเนินการ" ให้ผู้ตรวจคนเดิมอีกครั้ง</div></div></li>
       </ol>
       <figure class="shot">
         <div class="shot-frame"><span class="tag">รูปที่ 1.6</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>แบนเนอร์แจ้งเหตุผลการปฏิเสธ</b> พร้อมปุ่ม "ยืนยันการแก้ไข" สำหรับส่งคำร้องกลับเข้าสู่การพิจารณา</figcaption>
+        <figcaption><b>แบนเนอร์แจ้งเหตุผลการปฏิเสธ</b> พร้อมปุ่ม "ยืนยันและยื่นใหม่อีกครั้ง" สำหรับส่งคำร้องกลับเข้าสู่การพิจารณา</figcaption>
       </figure>
     </section>
 
@@ -455,8 +472,8 @@
         <li><div><strong>เลือก "บันทึกฉบับร่าง" หรือ "ยืนยัน — ขอสอบวิทยานิพนธ์"</strong> เช่นเดียวกับขั้นตอนคำร้องโครงร่าง — ยืนยันแล้วจะเริ่มกระบวนการ 22 ขั้นตอน</div></div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 1.7</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 4h9a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6"/><path d="M9 4 5 8m4-4v4H5"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>หน้าฉบับร่างคำร้องสอบวิทยานิพนธ์</b> — แสดงคณะกรรมการที่คัดลอกมาจากคำร้องโครงร่างและช่องกำหนดการสอบที่ยังว่างรอกรอก</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 1.7</span><img src="screenshots/1-7-defense-draft.jpg" alt="หน้าฉบับร่างคำร้องสอบวิทยานิพนธ์"></div>
+        <figcaption><b>หน้าฉบับร่างคำร้องสอบวิทยานิพนธ์ (DefenseDraftReview)</b> — แสดงคณะกรรมการที่คัดลอกมาจากคำร้องโครงร่าง (ข้อมูลบุคคลถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
 
@@ -510,8 +527,8 @@
         <li><div><strong>คลิกการ์ดคำร้องเพื่อเปิดหน้ารายละเอียด</strong> และดำเนินการลงนาม/ปฏิเสธ</div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 2.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>หน้าหลักอาจารย์</b> — แถบแท็บสถานะพร้อมตัวเลขนับ และรายการคำร้องพร้อมป้ายบอกสถานะการดำเนินการของอาจารย์เอง</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 2.2</span><img src="screenshots/2-2-professor-home.jpg" alt="หน้าหลักอาจารย์"></div>
+        <figcaption><b>หน้าหลักอาจารย์</b> — แถบแท็บสถานะพร้อมตัวเลขนับ และรายการคำร้องพร้อมป้ายบอกสถานะการดำเนินการของอาจารย์เอง (ชื่อ/รหัสนิสิตในภาพถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
 
@@ -544,19 +561,19 @@
       <ol class="steps">
         <li><div><strong>กด "ปฏิเสธ"</strong> ซึ่งอยู่ในแผงลงนามเดียวกัน (ไม่มีปุ่ม "ส่งกลับ" แยกต่างหากสำหรับอาจารย์ — การส่งกลับขั้นตอนก่อนหน้าทำได้โดยเจ้าหน้าที่ภาควิชาเท่านั้น)</div></div></li>
         <li><div><strong>ระบุเหตุผลการปฏิเสธ</strong> (แนะนำให้ระบุเสมอเพื่อให้นิสิตแก้ไขได้ตรงจุด)</div></li>
-        <li><div><strong>คำร้องจะค้างอยู่ที่ขั้นตอนของท่าน</strong> จนกว่านิสิตจะแก้ไขและกด "ยืนยันการแก้ไข" ส่งกลับมาให้ท่านพิจารณาอีกครั้ง</div></div></li>
+        <li><div><strong>คำร้องจะค้างอยู่ที่ขั้นตอนของท่าน</strong> จนกว่านิสิตจะแก้ไขและกด "ยืนยันและยื่นใหม่อีกครั้ง" ส่งกลับมาให้ท่านพิจารณาอีกครั้ง</div></div></li>
       </ol>
     </section>
 
     <section class="block" id="p-download">
       <div class="block-head"><span class="block-tag">06</span><h3>ดาวน์โหลดเอกสารเพื่อลงนาม</h3></div>
-      <p class="block-intro">เอกสารบางประเภทต้องพิมพ์ออกมาลงนามจริงแล้วอัปโหลดกลับ (เช่น แบบรายงานการเสนอผลงานฯ)</p>
+      <p class="block-intro">เอกสารบางประเภทต้องดาวน์โหลดมาลงนามแล้วอัปโหลดกลับ (เช่น แบบรายงานการเสนอผลงานฯ) — จะพิมพ์ลงนามด้วยลายมือแล้วสแกน หรือลงนามดิจิทัลก็ได้</p>
       <ol class="steps">
         <li><div><strong>กด "ดาวน์โหลดเอกสารเพื่อลงนาม"</strong> ในแผงลงนาม — ระบบจะดาวน์โหลดไฟล์ล่าสุดของเอกสารที่เกี่ยวข้องกับขั้นตอนนั้นให้ทันที</div></div></li>
-        <li><div><strong>พิมพ์ ลงนาม แล้วสแกนกลับเป็นไฟล์</strong></div></li>
+        <li><div><strong>เลือกวิธีลงนามอย่างใดอย่างหนึ่ง</strong><div class="sd">1) <b>พิมพ์ ลงนาม แล้วสแกนกลับเป็นไฟล์</b> — พิมพ์เอกสารที่ดาวน์โหลดมา ลงนามด้วยปากกาจริง แล้วสแกน/ถ่ายภาพกลับเป็นไฟล์ PDF หรือรูปภาพ<br>2) <b>ลงนามดิจิทัล</b> — เปิดไฟล์ด้วยโปรแกรมที่รองรับการลงลายเซ็นอิเล็กทรอนิกส์ แล้วบันทึกไฟล์ที่ลงนามแล้วโดยไม่ต้องพิมพ์กระดาษ</div></div></li>
         <li><div><strong>อัปโหลดไฟล์ที่ลงนามแล้วกลับเข้าช่องเดิม</strong> ก่อนกด "อนุมัติ / ลงนาม"</div></div></li>
       </ol>
-      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>เอกสารทั้งหมดเป็นไฟล์ส่วนตัว</b>ไม่มีลิงก์สาธารณะ ทุกครั้งที่คลิกดู/ดาวน์โหลด ระบบจะออกลิงก์ชั่วคราวอายุ 1 ชั่วโมงให้เฉพาะผู้เกี่ยวข้องกับคำร้องนั้นเท่านั้น</div></div>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>เอกสารทั้งหมดเป็นไฟล์ส่วนตัว</b>ไม่มีลิงก์สาธารณะที่เปิดดูได้โดยตรง — ระบบอนุญาตให้ดู/ดาวน์โหลดเฉพาะผู้ที่เกี่ยวข้องกับคำร้องนั้นเท่านั้น (เช่น นิสิตเจ้าของคำร้อง อาจารย์ที่ปรึกษา คณะกรรมการ ประธานหลักสูตร หรือเจ้าหน้าที่ภาควิชา)</div></div>
     </section>
   </section>
 
@@ -592,8 +609,8 @@
         <li><div><strong>คลิกการ์ดคำร้องในรายการ</strong> เพื่อขยายแผงดำเนินการทั้งหมดในบรรทัดเดียวกัน (ไม่ต้องเปิดหน้าใหม่) — คำร้องที่ค้างนานเกิน 7 วันจะมีป้าย "ค้างมา X วัน" กำกับให้เห็นชัด</div></div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 3.1</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>หน้าหลักเจ้าหน้าที่ภาควิชา</b> — 3 แท็บด้านบน กล่องงานสีส้ม และรายการคำร้องพร้อมป้ายค้างวันและแถบความคืบหน้า</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 3.1</span><img src="screenshots/3-1-admin-home.jpg" alt="หน้าหลักเจ้าหน้าที่ภาควิชา"></div>
+        <figcaption><b>หน้าหลักเจ้าหน้าที่ภาควิชา</b> — 3 แท็บด้านบน ตัวกรองประเภท/สถานะ และรายการคำร้อง (กล่องงานสีส้ม "งานที่ต้องดำเนินการ" แสดงเฉพาะเมื่อมีงานค้างจริง จึงไม่ปรากฏในภาพนี้; ชื่อ/รหัสนิสิตถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
 
@@ -623,7 +640,7 @@
         <li><div><strong>ขั้นตอนที่ 8 — เมื่อได้รับเอกสารคืนจากคณะ</strong> อัปโหลดให้ครบทั้ง 4 ประเภท: <span class="taglist"><span>SIGNED</span><span>EXAM_RESULT</span><span>INVITE_LETTER</span><span>FINANCE_DOC</span></span> ก่อนจึงจะกดอนุมัติต่อได้ (ระบบบังคับให้ครบก่อนเสมอ)</div></div></li>
         <li><div><strong>กดอนุมัติ</strong> เพื่อส่งต่อเอกสารให้นิสิตและแจ้งเชิญกรรมการทุกท่านทางอีเมลโดยอัตโนมัติ</div></div></li>
       </ol>
-      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>ค่าเงิน</b>สำหรับขั้นตอนที่ 4 ของคำร้องโครงร่าง เจ้าหน้าที่ต้องอัปโหลดเอกสารการเงิน (FINANCE_DOC) ผ่านการ์ดสีเหลืองในกล่องงานเช่นกัน ก่อนที่นิสิตจะสามารถส่งขั้นตอนนั้นต่อได้</div></div>
+      <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><div><b>การเงิน</b>สำหรับขั้นตอนที่ 4 ของคำร้องโครงร่าง เจ้าหน้าที่ต้องอัปโหลดเอกสารการเงิน (FINANCE_DOC) ผ่านการ์ดสีเหลืองในกล่องงานเช่นกัน ก่อนที่นิสิตจะสามารถส่งขั้นตอนนั้นต่อได้</div></div>
       <figure class="shot">
         <div class="shot-frame"><span class="tag">รูปที่ 3.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12h16M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
         <figcaption><b>รายการตรวจสอบเอกสารขั้นตอนที่ 8</b> — สถานะครบ/ไม่ครบของเอกสารทั้ง 4 ประเภทก่อนกดอนุมัติ</figcaption>
@@ -641,8 +658,8 @@
         <li><div><strong>ใช้ปุ่ม "แก้ไข" / "รหัสเข้าใช้งาน" / "ลบ" ท้ายแถว</strong> เพื่อแก้ข้อมูล รีเซ็ตรหัส หรือลบบัญชี<div class="sd">บัญชีที่เคยมีประวัติคำร้อง/อัปโหลด/ลงนามมาก่อน จะลบไม่ได้ ระบบจะแจ้งเหตุผลชัดเจน</div></div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 3.3</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3"/><path d="M3 19c.6-3.4 2.6-5 6-5s5.4 1.6 6 5"/><path d="M17 8h4M19 6v4"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>แถวผู้ใช้งานหนึ่งราย</b> — ชื่อ อีเมล ป้ายบทบาท กล่องสถานะคำร้อง 3 ตัวเลข และปุ่มแก้ไข/รีเซ็ตรหัส/ลบ</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 3.3</span><img src="screenshots/3-3-user-row.jpg" alt="แถวผู้ใช้งานหนึ่งราย พร้อมรหัสลำดับและปุ่มจัดการ"></div>
+        <figcaption><b>แถวผู้ใช้งานหนึ่งราย</b> — รหัสลำดับ ชื่อ อีเมล ป้ายบทบาท กล่องสถานะคำร้อง 3 ตัวเลข และปุ่มแก้ไข/รีเซ็ตรหัส/ลบ (ชื่อ/อีเมลถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
 
@@ -656,9 +673,9 @@
         <li><div><strong>กดยืนยันสร้างบัญชี</strong><div class="sd">ระบบจะส่งอีเมลต้อนรับพร้อมรหัสเข้าใช้งานให้บัญชีใหม่ทันที และแจ้งเตือนนิสิตที่คำร้องเคยติดค้างเพราะรอบัญชีนี้ ระบบจะแจ้งชัดเจนหากอีเมลส่งไม่สำเร็จ เพื่อให้เจ้าหน้าที่แจ้งรหัสด้วยช่องทางอื่นแทน</div></div></li>
         <li><div><strong>สำหรับกรรมการภายนอกที่นิสิตร้องขอมา</strong> อาจกด "ปฏิเสธ" แทนได้ พร้อมระบุเหตุผล ระบบจะแจ้งนิสิตอัตโนมัติ</div></div></li>
       </ol>
-      <div class="warn-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div><b>เมื่อคำร้องรอบัญชีอยู่ในสถานะ "ฉบับร่าง"</strong>เมื่อสร้างบัญชีครบทุกคนในคำร้องแล้ว นิสิตต้องกลับมากด "ดำเนินการต่อ" ด้วยตนเอง ระบบจะไม่เริ่มกระบวนการให้อัตโนมัติ</div></div>
+      <div class="warn-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div><b>เมื่อคำร้องรอบัญชีอยู่ในสถานะ "ฉบับร่าง"</b>เมื่อสร้างบัญชีครบทุกคนในคำร้องแล้ว นิสิตต้องกลับมากด "ดำเนินการต่อ" ด้วยตนเอง ระบบจะไม่เริ่มกระบวนการให้อัตโนมัติ</div></div>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 3.4</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 3.4</span><img src="screenshots/3-4-add-user-modal.jpg" alt="หน้าต่างเพิ่มผู้ใช้งาน"></div>
         <figcaption><b>หน้าต่าง "เพิ่มผู้ใช้งาน"</b> พร้อมช่องคำนำหน้าชื่อและช่องรหัสเข้าใช้งานคู่กับปุ่ม "สุ่มรหัส"</figcaption>
       </figure>
     </section>
@@ -674,15 +691,16 @@
     </section>
 
     <section class="block" id="a-settings">
-      <div class="block-head"><span class="block-tag">08</span><h3>ตั้งค่าระบบ — ประธานหลักสูตรและผู้ติดต่อการเงิน</h3></div>
-      <p class="block-intro">แท็บ "ตั้งค่าระบบ" กำหนดค่าสำรอง 2 อย่างที่ใช้เมื่อคำร้องไม่ได้ระบุไว้เอง</p>
+      <div class="block-head"><span class="block-tag">08</span><h3>ตั้งค่าระบบ — หัวหน้าภาควิชา ประธานหลักสูตร และผู้ติดต่อการเงิน</h3></div>
+      <p class="block-intro">แท็บ "ตั้งค่าระบบ" กำหนดผู้รับผิดชอบระดับภาควิชา 3 อย่าง — หัวหน้าภาควิชา (ข้อมูลประจำระบบ) และค่าสำรองอีก 2 อย่างที่ใช้เมื่อคำร้องไม่ได้ระบุไว้เอง</p>
       <ol class="steps">
+        <li><div><strong>เลือกอาจารย์ผู้เป็นหัวหน้าภาควิชา</strong> จากรายการอาจารย์ทั้งหมด (ช่องแรกสุดของแท็บ)<div class="sd">มีได้เพียงท่านเดียวสำหรับทั้งภาควิชา — ปัจจุบันเป็นการบันทึกข้อมูลไว้ในระบบเท่านั้น ยังไม่มีขั้นตอนใดในคำร้องที่ใช้ค่านี้</div></div></li>
         <li><div><strong>เลือกอาจารย์ประจำแต่ละหลักสูตร</strong> (ปริญญาเอก / ปริญญาโท-เครื่องกล / ปริญญาโท-ระบบกายภาพไซเบอร์) จากรายการดรอปดาวน์ 3 ช่อง<div class="sd">อาจารย์ 1 ท่านเป็นประธานหลักสูตรได้มากกว่า 1 หลักสูตรพร้อมกัน</div></div></li>
         <li><div><strong>เลือกเจ้าหน้าที่ที่เป็นผู้ติดต่อฝ่ายการเงิน</strong> จากรายการเจ้าหน้าที่ภาควิชาทั้งหมด — อีเมลแจ้งเตือนฝ่ายการเงินจะถูกส่งไปยังบัญชีนี้โดยตรง</div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 3.5</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>แท็บตั้งค่าระบบ</b> — ดรอปดาวน์ประธานหลักสูตร 3 หลักสูตร และดรอปดาวน์ผู้ติดต่อฝ่ายการเงิน 1 ช่อง</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 3.5</span><img src="screenshots/3-5-settings-tab.jpg" alt="แท็บตั้งค่าระบบ"></div>
+        <figcaption><b>แท็บตั้งค่าระบบ</b> — ดรอปดาวน์หัวหน้าภาควิชา 1 ช่อง ดรอปดาวน์ประธานหลักสูตร 3 หลักสูตร และดรอปดาวน์ผู้ติดต่อฝ่ายการเงิน 1 ช่อง (ชื่ออาจารย์ในดรอปดาวน์ถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
   </section>
@@ -724,7 +742,7 @@
         <li><div><strong>ใช้ปุ่มรีเซ็ตรหัสเข้าใช้งานหรือปุ่มลบท้ายแถว</strong> เพื่อจัดการบัญชีที่มีอยู่</div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 4.1</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 4.1</span><img src="screenshots/4-1-add-admin-form.jpg" alt="แบบฟอร์มเพิ่มผู้ดูแลระบบ"></div>
         <figcaption><b>แบบฟอร์มเพิ่มผู้ดูแลระบบ/เจ้าหน้าที่ภาควิชา</b> พร้อมตัวเลือกบทบาทและช่องกำหนดรหัสเข้าใช้งาน</figcaption>
       </figure>
     </section>
@@ -736,8 +754,8 @@
         <li><div><strong>"รายการคำร้องทั้งหมด"</strong> แสดงทุกคำร้องในระบบพร้อมสถานะ แต่ไม่มีลิงก์เข้าไปหน้ารายละเอียด</div></li>
       </ol>
       <figure class="shot">
-        <div class="shot-frame"><span class="tag">รูปที่ 4.2</span><div class="shot-inner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19V5a1 1 0 0 1 1-1h9l6 6v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M14 4v6h6"/></svg><div class="lbl">ภาพหน้าจอ</div></div></div>
-        <figcaption><b>รายการคำร้องทั้งหมดในระบบ</b> มุมมองอ่านอย่างเดียว ไม่มีปุ่มดำเนินการใด ๆ</figcaption>
+        <div class="shot-frame filled"><span class="tag">รูปที่ 4.2</span><img src="screenshots/4-2-submissions-list.jpg" alt="รายการคำร้องทั้งหมดในระบบ มุมมองผู้ดูแลระบบสูงสุด"></div>
+        <figcaption><b>รายการคำร้องทั้งหมดในระบบ</b> มุมมองอ่านอย่างเดียว ไม่มีปุ่มดำเนินการใด ๆ (ชื่อ/รหัสนิสิตถูกปิดบังไว้เพื่อความเป็นส่วนตัว)</figcaption>
       </figure>
     </section>
   </section>
