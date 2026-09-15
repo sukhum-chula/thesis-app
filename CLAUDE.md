@@ -71,7 +71,10 @@ src/lib/
                              via GET /api/upload/[uploadId]/signed-url (gated by the same
                              submission-involvement check as the rest of the API)
   committee.ts               validatePeople/resolvePeople for submission committee people —
-                             account lookup only, never creates one (see AGENTS.md)
+                             account lookup only, never creates one; plus
+                             validateCommitteeAccountRoles(), the degree-dependent check of
+                             which account type may fill each role (the table itself lives in
+                             utils.ts as committeeRoleScope) (see AGENTS.md)
   systemSettings.ts          getProgramChairUserId/getProgramChairsOfUser/setProgramChair,
                              getFinanceContactUser/setFinanceContact,
                              getDepartmentChairUser/setDepartmentChair,
@@ -83,7 +86,10 @@ src/lib/
                              api/users/route.ts and api/users/[id]/route.ts
   workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
                              initial-create path and the continue_draft finalize path
-  utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn
+  utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn,
+                             degreeOfProgram/committeeRoleScope/accountFitsScope — the one
+                             definition of which account type may fill each committee role per
+                             degree, shared by the client editors and committee.ts
   workflow.ts                dead stub file left over from an earlier mock build — ignore it,
                              real workflow logic is in src/app/api/submissions/**
   roleRoutes.ts              maps the 4 account-level roles to dashboard paths (STUDENT →
