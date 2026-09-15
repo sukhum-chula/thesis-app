@@ -5,6 +5,59 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-09-15
+
+- **User deletion now says *what* is blocking it, and external-committee requests no longer block
+  it at all.** Investigated a report of accounts showing `0 0 0` in the admin user list that still
+  refused to delete. Two independent causes, both fixed:
+  - `DELETE /api/users/[id]` only reacted to Prisma's `P2003`, so every blocked delete produced the
+    same generic "มีคำร้อง เอกสาร หรือประวัติการดำเนินการที่เกี่ยวข้อง" message. Added
+    `describeDeleteBlockers()`, a pre-flight count of the three `User` relations that actually
+    refuse a delete — `Submission.studentId` (grouped per status), `FormUpload.uploadedById` and
+    `Signature.userId`, confirmed against `pg_constraint`; the 409 now lists each with its count and
+    returns them as a `blockers: string[]` field too. Motivating case: the row's three stats count
+    only `IN_PROGRESS`/`COMPLETED`/`REJECTED`, so a student whose only reference is an untouched
+    blank `DRAFT` proposal (one click of "+ สร้างร่างคำร้อง") reads as `0 0 0` — when every blocker
+    is a DRAFT the message now adds that it can be deleted from the "จัดการคำร้อง" tab first. The
+    `P2003` catch stays as a fallback. Live audit at the time: 7 of 68 accounts read `0 0 0` while
+    holding a reference — 4 blank drafts, 1 advisor-on-a-draft, 2 external-request-related; of
+    those, only the 4 blank drafts and 1 external request were genuinely blocked (see the
+    correction below).
+  - **Which relations block is decided by optionality, not by an explicit `onDelete`.** Prisma
+    defaults a *required* relation to `Restrict` and an *optional* one to `SetNull`, so of the five
+    `User` relations `AGENTS.md` had listed together as non-cascading, only three refuse a delete
+    (`Submission.studentId`, `FormUpload.uploadedById`, `Signature.userId`); `Submission.advisorId`
+    and `WorkflowStep.actedById` are `SET NULL`. Noted here because it cuts both ways: it is why
+    two of the accounts reported as undeletable never were, and it means **deleting a professor
+    silently nulls their advisor link and step-action attribution** on existing submissions rather
+    than being refused. `AGENTS.md`'s bullet was corrected to say so.
+  - `ExternalCommitteeRequest.requestedById` is a **required** relation with no explicit
+    `onDelete`, so it took Prisma's default for that case — `Restrict` — which made any student who
+    had ever filed an external-committee request, including a rejected one, permanently
+    undeletable. Nothing surfaces this in the UI and there is no DELETE route for a request, so
+    there was no way out of it. Now `onDelete: Cascade`: a provisioning request is not a thesis
+    record, and it belongs to the student who made it. Applied to the live DB with a one-off pooler
+    script (`scripts/fk-external-requests.ts`, deleted after running, per the usual convention),
+    constraint definitions confirmed before and after.
+    `createdUserId` was declared `onDelete: SetNull` in the same change, but that was already its
+    effective behavior (Prisma's default for an *optional* relation) — it is now explicit rather
+    than implicit, and no DB change was needed. (The investigation that opened this work initially
+    reported that every `EXTERNAL` account created through the approval flow was undeletable
+    because of this FK — it never was; the audit script behind that claim assumed a missing
+    `onDelete` meant `Restrict` for both columns instead of checking `pg_constraint`.)
+  - Also widened the toast component (`src/context/ToastContext.tsx`) — errors now wrap at
+    `max-w-[min(90vw,26rem)]` and stay up 8s instead of 3.5s, since the new blocker message is a
+    sentence rather than a phrase.
+  - Verified: `npm run build` and `npx tsc --noEmit` clean, `npm run lint` unchanged for `src/`
+    (247 → 245 problems, both from the deleted one-off script); the new message text was previewed
+    against live data with a read-only script before shipping. Not browser-verified — by the time
+    the work was done the database had been cleared to 24 users / 0 submissions, so no blocked
+    account was left to reproduce the 409 against.
+  - **Known, not fixed here**: `headCommitteeId`/`programChairId`/`committeeIds`/`coAdvisorIds`/
+    `invitedCommitteeIds` are plain string columns, not FKs — deleting a professor who sits on a
+    committee succeeds and leaves a dangling id on that submission (3 such accounts in the live DB
+    at the time of the audit).
+
 ## 2026-09-09
 
 - **Removed dead code and unused dependencies**, following a project-wide consistency/old-design

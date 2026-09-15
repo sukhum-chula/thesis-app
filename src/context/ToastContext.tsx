@@ -25,9 +25,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string, type: ToastType = "success") => {
     const id = ++_id;
     setToasts((prev) => [...prev, { id, message, type }]);
+    // Errors get longer on screen than confirmations — some of them explain what to do next
+    // (e.g. the user-delete blocker list), which can't be read in 3.5s.
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
+    }, type === "error" ? 8000 : 3500);
   }, []);
 
   const dismiss = (id: number) => setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -53,13 +55,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-auto animate-fade-in ${styles[t.type]}`}
+            className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-auto animate-fade-in max-w-[min(90vw,26rem)] ${styles[t.type]}`}
           >
-            {icons[t.type]}
-            <span>{t.message}</span>
+            <span className="mt-0.5">{icons[t.type]}</span>
+            <span className="break-words leading-relaxed">{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}
-              className="ml-2 opacity-70 hover:opacity-100 transition"
+              className="ml-2 mt-0.5 shrink-0 opacity-70 hover:opacity-100 transition"
             >
               <X className="w-4 h-4" />
             </button>

@@ -142,10 +142,17 @@ model ExternalCommitteeRequest {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
-  requestedBy   User   @relation("ExternalRequestsByStudent", fields: [requestedById], references: [id])
+  // Both FKs are deliberately non-restricting — this is an account-provisioning request, not a
+  // thesis record, so it must never be the thing that makes an account undeletable. The request
+  // row belongs to the student who made it, so it goes with them (Cascade — this one used to be
+  // Restrict, Prisma's default for a *required* relation, which made any student who had ever
+  // filed a request undeletable); the account it produced outlives it, so that link is only
+  // nulled (SetNull was already the effective behavior, being Prisma's default for an *optional*
+  // relation — declared explicitly here so it isn't left to a default).
+  requestedBy   User   @relation("ExternalRequestsByStudent", fields: [requestedById], references: [id], onDelete: Cascade)
   requestedById String
 
-  createdUser   User?   @relation("ExternalRequestCreatedUser", fields: [createdUserId], references: [id])
+  createdUser   User?   @relation("ExternalRequestCreatedUser", fields: [createdUserId], references: [id], onDelete: SetNull)
   createdUserId String? @unique
 
   @@map("external_committee_requests")

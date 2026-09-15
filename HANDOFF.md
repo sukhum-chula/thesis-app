@@ -127,7 +127,17 @@ Roughly in priority order:
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against
    the local dev server (same production DB) — worth a quick pass on the actual deployed URL after
    the next push.
-7. **Drop the now-orphaned `rate_limits` and `magic_tokens` tables** from the live DB — their Prisma
+7. **Decide what deleting a user should do to their audit trail.** Only three FKs to `users(id)`
+   refuse a delete (`submissions.studentId`, `form_uploads.uploadedById`, `signatures.userId`);
+   `submissions.advisorId` and `workflow_steps.actedById` are `SET NULL` — Prisma's default for an
+   *optional* relation — so deleting a professor succeeds and silently erases their advisor link
+   and their step-action attribution on existing submissions. The committee id columns
+   (`headCommitteeId`/`programChairId`/`committeeIds`/`coAdvisorIds`/`invitedCommitteeIds`) aren't
+   FKs at all, so the same delete leaves dangling ids there. Both contradict the stated intent that
+   deleting an account must never silently destroy thesis records; making those two relations
+   explicit `Restrict` would close the first half. Left as a deliberate decision, not a drive-by —
+   see `CHANGELOG.md` 2026-09-15.
+8. **Drop the now-orphaned `rate_limits` and `magic_tokens` tables** from the live DB — their Prisma
    models are gone from the schema (see below), but the tables themselves haven't been dropped yet;
    this is a real destructive action against production, so do it deliberately (one-off pooler
    script, confirm row counts are 0/don't matter first) rather than as a drive-by.

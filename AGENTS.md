@@ -676,13 +676,40 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
 - **SUPER_ADMIN has zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission (no detail-page views either — `src/app/dashboard/admin/[id]` stays ADMIN-only). That responsibility belongs exclusively to ADMIN. It does have read-only oversight: a full user directory (incl. STUDENT/PROFESSOR) via `GET /api/super-admin/users`, and a full submission list via `GET /api/super-admin/submissions` (both SUPER_ADMIN-only, view-only; the older counts-only `GET /api/super-admin/stats` was removed once these shipped) — but account *management* of STUDENT/PROFESSOR/ADMIN stays exclusively ADMIN's (SUPER_ADMIN can only create/edit/delete SUPER_ADMIN/ADMIN accounts, per `src/lib/accountScope.ts`).
 - **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.
-- **A user with any submission history cannot be deleted** — `DELETE /api/users/[id]` is a hard delete
-  with no cascade for `Submission.studentId`/`advisorId`, `FormUpload.uploadedById`,
-  `Signature.userId`, or `WorkflowStep.actedById` (all reference `User` without `onDelete: Cascade`,
-  deliberately — deleting an account must never silently destroy thesis records). Deleting a
-  student/professor who has ever submitted, uploaded, signed, or acted on a step now fails fast with
-  a `409` and a clear Thai message instead of an unhandled Prisma FK error surfacing as a bare `500`
-  (`src/app/api/users/[id]/route.ts` catches `Prisma.PrismaClientKnownRequestError` code `P2003`).
+- **A user with any submission history cannot be deleted** — `DELETE /api/users/[id]` is a hard
+  delete, and three FKs to `users(id)` refuse it: `Submission.studentId`, `FormUpload.uploadedById`
+  and `Signature.userId` (deliberately — deleting an account must never silently destroy thesis
+  records). **Which relations block is decided by optionality, not by this file**: none of them
+  declares an explicit `onDelete`, so Prisma applies `Restrict` to the *required* ones above and
+  `SetNull` to the two *optional* ones — `Submission.advisorId` and `WorkflowStep.actedById` do
+  **not** block a delete, they are quietly nulled, which also means deleting a professor erases
+  their advisor link and their step-action attribution on existing submissions. Verify against
+  `pg_constraint`, never by reading the schema. Deleting a student/professor who owns a submission,
+  has uploaded a file, or has signed fails with a `409`
+  and a Thai message that **names each blocker with its count** — `describeDeleteBlockers()` in
+  `src/app/api/users/[id]/route.ts` counts those three relations *before* attempting the delete
+  (submissions broken down per status, so a blocking `DRAFT` is named as such) and returns them as
+  `{ error, blockers: string[] }`. The old catch of `Prisma.PrismaClientKnownRequestError` code
+  `P2003` is still there as a fallback for a relation the counter doesn't know about, or a row
+  created in between.
+
+  This exists because the most common blocker is **invisible in the admin user list**: the three
+  stats on a user row (`UserProfileHeader`, กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ) count only
+  `IN_PROGRESS`/`COMPLETED`/`REJECTED`, so a student holding nothing but an untouched blank `DRAFT`
+  proposal — one click of "+ สร้างร่างคำร้อง" on `/student-dashboard`, see "Student dashboard"
+  above — reads as `0 0 0` yet cannot be deleted. When **every** blocker is a DRAFT, the message
+  appends that the draft can be deleted from the "จัดการคำร้อง" tab first (an admin can do that
+  themselves; the counts are unchanged either way).
+
+  **`ExternalCommitteeRequest` deliberately never blocks a delete** (fixed 2026-09-15): it's an
+  account-provisioning request, not a thesis record. `requestedById` is `onDelete: Cascade` (the
+  request belongs to the student who made it) and `createdUserId` is `onDelete: SetNull` (the
+  EXTERNAL account it produced outlives it). Both are now declared explicitly rather than left to
+  Prisma's per-optionality defaults — which is what caused the bug: `requestedById` is a *required*
+  relation, so it defaulted to `Restrict`, making **any student who had ever filed a request — even
+  a rejected one — permanently undeletable** while still showing `0 0 0`. (`createdUserId` is
+  optional and so already defaulted to `SetNull`; the EXTERNAL account an approved request created
+  was never blocked by it.)
 - **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 7–8 — step 7: send B2+B3 to Faculty; step 8: receive back docs (ใบรายงานผล, แบบรายงานฯ, invitation letter), upload, forward to student, then approve → triggers invitation emails. Admin panel shows step-7-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
