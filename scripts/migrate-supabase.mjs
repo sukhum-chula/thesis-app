@@ -26,7 +26,6 @@
  *   node scripts/migrate-supabase.mjs               # data + storage
  *   node scripts/migrate-supabase.mjs --skip-storage
  *   node scripts/migrate-supabase.mjs --skip-data
- *   node scripts/migrate-supabase.mjs --include-ephemeral   # also magic_tokens + rate_limits
  *   node scripts/migrate-supabase.mjs --force-storage       # re-upload files already in dest
  *
  * Safe to re-run: row inserts use ON CONFLICT DO NOTHING, uploads skip existing paths.
@@ -47,21 +46,19 @@ const args = new Set(process.argv.slice(2))
 const DRY = args.has('--dry-run')
 const SKIP_DATA = args.has('--skip-data')
 const SKIP_STORAGE = args.has('--skip-storage')
-const INCLUDE_EPHEMERAL = args.has('--include-ephemeral')
 const FORCE_STORAGE = args.has('--force-storage')
 
-/** Parent-before-child: every FK target is copied before the table that points at it. */
+/** Parent-before-child: every FK target is copied before the table that points at it.
+ *  `signatures`, `magic_tokens` and `rate_limits` used to be here (the last two behind a
+ *  --include-ephemeral flag); all three were removed as dead 2026-09-15 and no longer exist. */
 const TABLES = [
   { name: 'users', key: 'id' },
+  { name: 'external_committee_requests', key: 'id' },
   { name: 'submissions', key: 'id' },
   { name: 'workflow_steps', key: 'id' },
   { name: 'form_uploads', key: 'id' },
-  { name: 'signatures', key: 'id' },
   { name: 'notifications', key: 'id' },
-]
-const EPHEMERAL = [
-  { name: 'magic_tokens', key: 'id' },
-  { name: 'rate_limits', key: 'key' },
+  { name: 'system_settings', key: 'key' },
 ]
 
 // ---------------------------------------------------------------- env loading
@@ -262,7 +259,7 @@ try {
   die(`could not connect: ${e.message}\n\nCheck both DATABASE_URLs (Supabase dashboard -> Connect -> URI) and that your network allows outbound Postgres.`)
 }
 
-const tables = INCLUDE_EPHEMERAL ? [...TABLES, ...EPHEMERAL] : TABLES
+const tables = TABLES
 
 // The new project must already have the schema — otherwise every insert fails.
 const absent = []

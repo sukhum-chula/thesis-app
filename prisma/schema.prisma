@@ -111,7 +111,6 @@ model User {
   submissions        Submission[]   @relation("StudentSubmissions")
   advisorSubmissions Submission[]   @relation("AdvisorSubmissions")
   workflowSteps      WorkflowStep[]
-  signatures         Signature[]
   uploads            FormUpload[]
   notifications      Notification[]
 
@@ -229,8 +228,6 @@ model WorkflowStep {
   actedBy   User?   @relation(fields: [actedById], references: [id])
   actedById String?
 
-  signatures Signature[]
-
   @@unique([submissionId, stepOrder])
   @@map("workflow_steps")
 }
@@ -250,21 +247,6 @@ model FormUpload {
   uploadedById String
 
   @@map("form_uploads")
-}
-
-model Signature {
-  id        String   @id @default(cuid())
-  signedAt  DateTime @default(now())
-  ipAddress String?
-
-  workflowStep   WorkflowStep @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
-  workflowStepId String
-
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
-
-  @@unique([workflowStepId, userId])
-  @@map("signatures")
 }
 
 model Notification {

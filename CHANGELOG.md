@@ -7,6 +7,34 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-15
 
+- **Removed the dead `Signature` model and dropped three orphaned tables.** `signatures` had a
+  schema model, a `@@unique([workflowStepId, userId])` and an `ipAddress` column, but **nothing in
+  the app had ever written to it** — the sole reference in the entire codebase was a
+  `prisma.signature.count()` inside `describeDeleteBlockers()`. Signing has always been recorded on
+  the step row instead (`WorkflowStep.actedById`/`actedByName`/`actedAt` for single approvers, the
+  `committeeActions` JSON array for the three sequential multi-member roles), so the table recorded
+  nothing the workflow didn't already hold. Removed the model plus its `User.signatures` /
+  `WorkflowStep.signatures` relation fields, and dropped the signature count + its
+  `ลายเซ็น N รายการ` blocker line from the user-delete 409 — **user deletes now have two blocking
+  FKs, not three** (`submissions.studentId`, `form_uploads.uploadedById`).
+- **Live DB now matches the schema exactly: 7 tables.** `signatures`, `rate_limits` (3 stale
+  forgot-password/registration counter rows) and `magic_tokens` were all dropped from production,
+  closing the "orphaned table, not yet dropped" item that had been open in `HANDOFF.md` since
+  2026-09-09. `public` now holds exactly `users`, `submissions`, `workflow_steps`, `form_uploads`,
+  `notifications`, `system_settings`, `external_committee_requests`. Note `prisma db push` will not
+  drop a table whose model was removed in an earlier session — `RateLimit`/`MagicToken` had been
+  gone from the schema for days while their tables lived on — so a model deletion needs its own
+  deliberate drop.
+- **`scripts/migrate-supabase.mjs` and `docs/SUPABASE-MIGRATION.md` brought back in step with the
+  schema.** The script still listed `signatures` in its unconditional `TABLES` array (it would now
+  abort on a missing table) and `magic_tokens`/`rate_limits` behind `--include-ephemeral`; it was
+  also missing `external_committee_requests` and `system_settings`, which have existed for a while
+  and were silently never copied. Replaced with the real 7-table parent-first list and dropped the
+  now-pointless `--include-ephemeral` flag.
+- **Known caveat, unresolved**: the storage bucket holds 405 objects against 0 `form_uploads` rows.
+  Whatever cleared the submission data did not go through `DELETE /api/submissions/[id]` (which
+  calls `deleteFolder()` first), so those files are orphaned in the bucket. Worth a sweep.
+
 - **New "หัวหน้าภาควิชา" (department chair) setting**, rendered as the first section of the ADMIN
   "ตั้งค่าระบบ" tab, above ประธานหลักสูตร and ผู้รับผิดชอบด้านการเงิน. One PROFESSOR account for the
   whole department, stored as `SystemSetting` key `departmentChair` — same single-holder,

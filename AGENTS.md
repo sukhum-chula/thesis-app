@@ -685,23 +685,26 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Sequential only** — no parallel signing
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE** steps: all assigned members must approve, sequentially in list order (tracked via `committeeActions` JSON on `WorkflowStep`, same sequential-sign mechanism `sign/route.ts` and `CommitteeSignPanel` already use). CO_ADVISOR uses `coAdvisorIds`, EXAM_COMMITTEE uses `committeeIds`, INVITED_EXAM_COMMITTEE uses `invitedCommitteeIds` — all three are DB field `String[]` and support any number of members (≥1 for INVITED_EXAM_COMMITTEE/EXAM_COMMITTEE, 0+ for CO_ADVISOR). See "Multiple external committee members" below.
 - **CO_ADVISOR auto-skip**: when `coAdvisorIds` is empty at submission creation, all CO_ADVISOR steps are created with `status: "SKIPPED"` so they are transparently bypassed.
+- **Signing is recorded on the step row, not in a separate table** (2026-09-15). Who signed and when lives on `WorkflowStep` — `actedById`/`actedByName`/`actedAt` for single-approver steps, and the `committeeActions` JSON array (`{userId, name, decision, notes, actedAt}[]`) for the three sequential multi-member roles. There is **no `Signature` model**: one existed in the schema (`signatures` table, with an unused `ipAddress` column) but nothing ever wrote to it — the only reference in the whole codebase was a `count()` in the user-delete blocker — so the model and the table were removed 2026-09-15. Don't reintroduce a separate signature table without first deciding what it would record that `WorkflowStep` doesn't.
 - **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR's `programChairFor` array includes `sub.program` (see "Program Chair & finance-contact assignment" above — no holder means no fallback recipient; since a professor may now chair more than one program, this is an `.includes()` check, not `===`). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
 - **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
 - **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
 - **SUPER_ADMIN has zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission (no detail-page views either — `src/app/dashboard/admin/[id]` stays ADMIN-only). That responsibility belongs exclusively to ADMIN. It does have read-only oversight: a full user directory (incl. STUDENT/PROFESSOR) via `GET /api/super-admin/users`, and a full submission list via `GET /api/super-admin/submissions` (both SUPER_ADMIN-only, view-only; the older counts-only `GET /api/super-admin/stats` was removed once these shipped) — but account *management* of STUDENT/PROFESSOR/ADMIN stays exclusively ADMIN's (SUPER_ADMIN can only create/edit/delete SUPER_ADMIN/ADMIN accounts, per `src/lib/accountScope.ts`).
 - **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.
 - **A user with any submission history cannot be deleted** — `DELETE /api/users/[id]` is a hard
-  delete, and three FKs to `users(id)` refuse it: `Submission.studentId`, `FormUpload.uploadedById`
-  and `Signature.userId` (deliberately — deleting an account must never silently destroy thesis
-  records). **Which relations block is decided by optionality, not by this file**: none of them
+  delete, and two FKs to `users(id)` refuse it: `Submission.studentId` and `FormUpload.uploadedById`
+  (deliberately — deleting an account must never silently destroy thesis
+  records). (There was a third, `Signature.userId`, until the `Signature` model was removed
+  2026-09-15 as dead — see "Signing is recorded on the step row" below.) **Which relations block is
+  decided by optionality, not by this file**: neither
   declares an explicit `onDelete`, so Prisma applies `Restrict` to the *required* ones above and
   `SetNull` to the two *optional* ones — `Submission.advisorId` and `WorkflowStep.actedById` do
   **not** block a delete, they are quietly nulled, which also means deleting a professor erases
   their advisor link and their step-action attribution on existing submissions. Verify against
-  `pg_constraint`, never by reading the schema. Deleting a student/professor who owns a submission,
-  has uploaded a file, or has signed fails with a `409`
+  `pg_constraint`, never by reading the schema. Deleting a student/professor who owns a submission
+  or has uploaded a file fails with a `409`
   and a Thai message that **names each blocker with its count** — `describeDeleteBlockers()` in
-  `src/app/api/users/[id]/route.ts` counts those three relations *before* attempting the delete
+  `src/app/api/users/[id]/route.ts` counts those two relations *before* attempting the delete
   (submissions broken down per status, so a blocking `DRAFT` is named as such) and returns them as
   `{ error, blockers: string[] }`. The old catch of `Prisma.PrismaClientKnownRequestError` code
   `P2003` is still there as a fallback for a relation the counter doesn't know about, or a row

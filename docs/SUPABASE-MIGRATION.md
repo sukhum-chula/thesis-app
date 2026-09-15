@@ -36,8 +36,10 @@ $env:DATABASE_URL = "<NEW pooler URI>"
 npx prisma db push
 ```
 
-That creates `users`, `submissions`, `workflow_steps`, `form_uploads`, `signatures`,
-`magic_tokens`, `rate_limits`, `notifications` plus the enum types.
+That creates the 7 tables the schema declares — `users`, `submissions`, `workflow_steps`,
+`form_uploads`, `notifications`, `system_settings`, `external_committee_requests` — plus the enum
+types. (`signatures`, `magic_tokens` and `rate_limits` were part of this list until 2026-09-15,
+when all three were removed as dead; don't expect them on a fresh push.)
 
 Optional, only if you want a clean demo dataset instead of the old data: `npm run db:seed`.
 
@@ -65,15 +67,14 @@ node scripts/migrate-supabase.mjs             # do it
 
 Details worth knowing:
 
-- Tables are copied parent-first (`users` → `submissions` → `workflow_steps` → `form_uploads` →
-  `signatures` → `notifications`) so foreign keys never dangle.
+- Tables are copied parent-first (`users` → `external_committee_requests` → `submissions` →
+  `workflow_steps` → `form_uploads` → `notifications` → `system_settings`) so foreign keys never
+  dangle.
 - Rows travel as `jsonb` and are rebuilt with `jsonb_populate_recordset(null::"table", …)`, which
   lets Postgres handle the enum columns, `Role[]` / `committeeIds` arrays and the
   `committeeActions` JSON without hand-written type mapping.
 - Inserts are `ON CONFLICT DO NOTHING` and uploads skip paths that already exist, so the script is
   safe to re-run — useful if a few large files time out.
-- `magic_tokens` and `rate_limits` are skipped by default (short-lived; pass
-  `--include-ephemeral` to bring them anyway).
 - Storage paths are preserved exactly, so the `fileUrl` values in `form_uploads` keep resolving —
   nothing needs rewriting.
 - The new bucket is created private, mirroring the old one; the app serves files through

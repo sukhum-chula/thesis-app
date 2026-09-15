@@ -136,11 +136,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({ ...mapUser(decorated), passcodeEmailSent, emailChangeNoticesSent });
 }
 
-// The three FKs to users(id) that actually refuse a delete, verified against pg_constraint rather
+// The FKs to users(id) that actually refuse a delete, verified against pg_constraint rather
 // than read off prisma/schema.prisma — Prisma's default referential action depends on optionality,
 // so a relation with no explicit `onDelete` is RESTRICT only when it is *required*:
-//   submissions.studentId · form_uploads.uploadedById · signatures.userId   → RESTRICT (blocking)
-//   submissions.advisorId · workflow_steps.actedById                        → SET NULL (not blocking)
+//   submissions.studentId · form_uploads.uploadedById   → RESTRICT (blocking)
+//   submissions.advisorId · workflow_steps.actedById    → SET NULL (not blocking)
 // Keep this list in step with those constraints: counting a non-blocking relation here would
 // refuse a delete the database would happily perform.
 //
@@ -148,10 +148,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // submissions so a blocking DRAFT is named as such (`draftOnly` marks the case an admin can clear
 // themselves). ExternalCommitteeRequest is deliberately absent — both its FKs cascade/null out.
 async function describeDeleteBlockers(userId: string): Promise<{ text: string; draftOnly: boolean }[]> {
-  const [asStudent, uploads, signatures] = await Promise.all([
+  const [asStudent, uploads] = await Promise.all([
     prisma.submission.groupBy({ by: ["status"], where: { studentId: userId }, _count: { _all: true } }),
     prisma.formUpload.count({ where: { uploadedById: userId } }),
-    prisma.signature.count({ where: { userId } }),
   ]);
 
   const submissionTotal = asStudent.reduce((n, r) => n + r._count._all, 0);
@@ -167,7 +166,6 @@ async function describeDeleteBlockers(userId: string): Promise<{ text: string; d
         }
       : null,
     uploads > 0 ? { text: `เอกสารที่อัปโหลด ${uploads} ไฟล์`, draftOnly: false } : null,
-    signatures > 0 ? { text: `ลายเซ็น ${signatures} รายการ`, draftOnly: false } : null,
   ].filter((b): b is { text: string; draftOnly: boolean } => b !== null);
 }
 

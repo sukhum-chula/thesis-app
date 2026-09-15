@@ -127,8 +127,9 @@ Roughly in priority order:
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against
    the local dev server (same production DB) — worth a quick pass on the actual deployed URL after
    the next push.
-7. **Decide what deleting a user should do to their audit trail.** Only three FKs to `users(id)`
-   refuse a delete (`submissions.studentId`, `form_uploads.uploadedById`, `signatures.userId`);
+7. **Decide what deleting a user should do to their audit trail.** Only two FKs to `users(id)`
+   refuse a delete (`submissions.studentId`, `form_uploads.uploadedById` — `signatures.userId` was
+   the third until the dead `signatures` table was dropped 2026-09-15);
    `submissions.advisorId` and `workflow_steps.actedById` are `SET NULL` — Prisma's default for an
    *optional* relation — so deleting a professor succeeds and silently erases their advisor link
    and their step-action attribution on existing submissions. The committee id columns
@@ -137,11 +138,6 @@ Roughly in priority order:
    deleting an account must never silently destroy thesis records; making those two relations
    explicit `Restrict` would close the first half. Left as a deliberate decision, not a drive-by —
    see `CHANGELOG.md` 2026-09-15.
-8. **Drop the now-orphaned `rate_limits` and `magic_tokens` tables** from the live DB — their Prisma
-   models are gone from the schema (see below), but the tables themselves haven't been dropped yet;
-   this is a real destructive action against production, so do it deliberately (one-off pooler
-   script, confirm row counts are 0/don't matter first) rather than as a drive-by.
-
 ### Dead code/scripts removed 2026-09-09 (following the consistency pass above)
 
 All of the following were reported first, then removed the same day with the project owner's
@@ -150,10 +146,11 @@ before):
 
 - `scripts/assign-passcodes-no-email.ts` — untracked, already-run one-off passcode-reset script.
 - `src/lib/rateLimit.ts` + the `RateLimit` Prisma model (`rate_limits` table) — orphaned since
-  self-registration/forgot-password were removed. The schema model is gone; the live `rate_limits`
-  table itself hasn't been dropped yet (same "orphaned table, not yet dropped" state as
-  `magic_tokens` — see the 2026-09-09 magic-link removal in `CHANGELOG.md` — drop both together via
-  the usual one-off pooler-script convention when someone confirms).
+  self-registration/forgot-password were removed. The schema model went first; the live
+  `rate_limits` table was dropped 2026-09-15, together with `magic_tokens` and `signatures`. The
+  live `public` schema now holds exactly the 7 tables the schema declares: `users`, `submissions`,
+  `workflow_steps`, `form_uploads`, `notifications`, `system_settings`,
+  `external_committee_requests`.
 - `src/lib/utils.ts`'s unused `STEP_NAMES` export.
 - **All 9 `/dashboard/<contextual-role>` route pairs** (`advisor`, `co-advisor`, `dept-staff`,
   `exam-committee`, `faculty-dean`, `graduate-school`, `head-exam-committee`,
