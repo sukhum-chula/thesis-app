@@ -1,19 +1,24 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge";
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
-  toUserErrorMessage, formatUserName, degreeOfProgram, committeeRoleScope, ACCOUNT_SCOPE_LABELS,
+  toUserErrorMessage, formatUserName,
 } from "@/lib/utils";
+import {
+  CommitteePeopleEditor, ProgramChairAutoField, ExamLogisticsSection, buildPeopleFromSubmission,
+  initialPeople, resolveProgramChair, withProgramChair, validatePeopleClient, validateNoInvalidRows,
+  Section, Field, INPUT, type Person,
+} from "@/components/SubmissionForms";
 import { MockWorkflowStep, MockUpload } from "@/types";
 import {
   ArrowLeft, Download, FileText, Pencil, Check, X,
   Trash2, ShieldCheck, ChevronDown, ChevronUp,
-  CheckCircle2, XCircle, Clock, User, Users, CalendarDays, Upload, Loader2,
+  CheckCircle2, XCircle, Clock, User, Users, CalendarDays, Upload, Loader2, Info,
 } from "lucide-react";
 import { FileList } from "@/components/FileList";
 import { UploadSlot } from "@/components/FileUploader";
@@ -431,17 +436,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
   const [editMode, setEditMode] = useState(false);
   const [editDraft, setEditDraft] = useState({
-    title: "", advisorId: "", studentFullName: "", studentCode: "", program: "",
+    title: "", studentFullName: "", studentCode: "", program: "",
     studentEmail: "", studentPhone: "",
-    coAdvisorIds: ["", "", ""] as string[],
-    headCommitteeId: "",
-    committeeIds: ["", "", ""] as string[],
-    invitedCommitteeIds: ["", "", ""] as string[],
     examDate: "", examTime: "", roomNeeded: false, parkingNeeded: false, carPlate: "",
   });
   const upd = (key: string, val: unknown) => setEditDraft((p) => ({ ...p, [key]: val }));
-  const updArr = (key: "coAdvisorIds" | "committeeIds" | "invitedCommitteeIds", i: number, val: string) =>
-    setEditDraft((p) => { const a = [...p[key]]; a[i] = val; return { ...p, [key]: a }; });
+  // The committee is edited with the exact editor the student uses (CommitteePeopleEditor) —
+  // same rows, same degree-dependent pickers, same one-person-one-role filtering, no slot limit.
+  const [editPeople, setEditPeople] = useState<Person[]>([]);
   const [confirmDel,  setConfirmDel]  = useState(false);
   const [activeTab,   setActiveTab]   = useState<"steps" | "timeline">("steps");
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -453,15 +455,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const allUsers   = users;
   const student    = allUsers.find((u) => u.id === sub.studentId);
   const advisor    = allUsers.find((u) => u.id === sub.advisorId);
-  const advisors   = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
-  // Who may fill each role is degree-dependent — see committeeRoleScope() in src/lib/utils.ts, the
-  // same rule the student-facing CommitteePeopleEditor and the API validator use. Only
-  // ประธานกรรมการสอบ differs between degrees (either kind for a master's, external only for a
-  // doctoral submission), so it is the one list resolved from the edit draft's current หลักสูตร.
-  const externals       = allUsers.filter((u) => u.roles.includes("EXTERNAL"));
-  const mixedCommittee  = [...advisors, ...externals];
-  const headScope       = committeeRoleScope("HEAD_EXAM_COMMITTEE", degreeOfProgram(editDraft.program));
-  const headCandidates  = headScope === "EXTERNAL" ? externals : mixedCommittee;
   // When REJECTED, no step is treated as "current" — future pending steps aren't highlighted
   const currentOrd        = sub.status === "REJECTED"
     ? null
@@ -474,9 +467,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const totalSteps = visibleSteps.length;
   // ประธานหลักสูตร is admin-designated per program (see "จัดการประธานหลักสูตร"), not freely
   // selectable per submission — it always follows whichever หลักสูตร is picked in the edit form.
-  const resolvedProgramChair = editDraft.program
-    ? advisors.find((a) => a.programChairFor?.includes(editDraft.program as never)) ?? null
-    : null;
+  const resolvedProgramChair = resolveProgramChair(allUsers, editDraft.program) ?? null;
 
   async function handleAcceptCancel() {
     setCancelActionBusy(true);
@@ -507,47 +498,66 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     if (!sub) return;
     setEditDraft({
       title:               sub.title               ?? "",
-      advisorId:           sub.advisorId           ?? "",
       studentFullName:     sub.studentFullName      ?? "",
       studentCode:         sub.studentCode          ?? "",
       program:             sub.program              ?? "",
       studentEmail:        sub.studentEmail         ?? "",
       studentPhone:        sub.studentPhone         ?? "",
-      coAdvisorIds:        [...(sub.coAdvisorIds    ?? []), "", "", ""].slice(0, 3),
-      headCommitteeId:     sub.headCommitteeId      ?? "",
-      committeeIds:        [...(sub.committeeIds    ?? []), "", "", ""].slice(0, 3),
-      invitedCommitteeIds: [...(sub.invitedCommitteeIds ?? []), "", "", ""].slice(0, 3),
       examDate:            sub.examDate             ?? "",
       examTime:            sub.examTime             ?? "",
       roomNeeded:          sub.roomNeeded           ?? false,
       parkingNeeded:       sub.parkingNeeded        ?? false,
       carPlate:            sub.carPlate             ?? "",
     });
+    const people = buildPeopleFromSubmission(sub, allUsers, sub.program ?? "");
+    setEditPeople(people.length ? people : initialPeople());
     setEditMode(true);
   }
 
-  function saveEdit() {
-    if (!sub || !editDraft.title.trim()) return;
-    adminUpdateSubmission(sub.id, {
+  async function saveEdit() {
+    if (!sub) return;
+    if (!editDraft.title.trim()) { showToast("กรุณาระบุชื่อหัวข้อวิทยานิพนธ์", "error"); return; }
+    // Same client checks the student's own draft uses: a DRAFT may be incomplete (only a mistake
+    // blocks it — an unusable or double-booked member); anything past DRAFT needs the full
+    // committee, same as the server's admin_update count check.
+    const peopleError = sub.status === "DRAFT"
+      ? validateNoInvalidRows(editPeople, editDraft.program, allUsers)
+      : validatePeopleClient(
+          withProgramChair(editPeople, resolvedProgramChair ?? undefined),
+          [editDraft.studentEmail.trim().toLowerCase(), student?.email.toLowerCase() ?? ""].filter(Boolean),
+          editDraft.program,
+          allUsers
+        );
+    if (peopleError) { showToast(peopleError, "error"); return; }
+    // Rows -> id columns. Row order is the sign order for the multi-member roles.
+    const idsFor = (role: string) => [...new Set(editPeople
+      .filter((p) => p.role === role && p.email.trim())
+      .map((p) => allUsers.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase())?.id)
+      .filter((x): x is string => !!x))];
+    try {
+      await adminUpdateSubmission(sub.id, {
       title:               editDraft.title.trim(),
-      advisorId:           editDraft.advisorId           || null,
+      advisorId:           idsFor("ADVISOR")[0]          ?? null,
       studentFullName:     editDraft.studentFullName      || null,
       studentCode:         editDraft.studentCode          || null,
       program:             editDraft.program              || null,
       studentEmail:        editDraft.studentEmail         || null,
       studentPhone:        editDraft.studentPhone         || null,
-      coAdvisorIds:        editDraft.coAdvisorIds.filter(Boolean),
+      coAdvisorIds:        idsFor("CO_ADVISOR"),
       programChairId:      resolvedProgramChair?.id        || null,
-      headCommitteeId:     editDraft.headCommitteeId      || null,
-      committeeIds:        editDraft.committeeIds.filter(Boolean),
-      invitedCommitteeIds: editDraft.invitedCommitteeIds.filter(Boolean),
+      headCommitteeId:     idsFor("HEAD_EXAM_COMMITTEE")[0] ?? null,
+      committeeIds:        idsFor("EXAM_COMMITTEE"),
+      invitedCommitteeIds: idsFor("INVITED_EXAM_COMMITTEE"),
       examDate:            editDraft.examDate             || null,
       examTime:            editDraft.examTime             || null,
       roomNeeded:          editDraft.roomNeeded,
       parkingNeeded:       editDraft.parkingNeeded,
       carPlate:            editDraft.carPlate             || null,
-    });
-    setEditMode(false);
+      });
+      setEditMode(false);
+    } catch (err) {
+      showToast(toUserErrorMessage(err, "บันทึกไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+    }
   }
 
   async function handleDelete() {
@@ -616,16 +626,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 space-y-4">
         <div className="flex items-start flex-wrap gap-3">
           <div className="flex-1 min-w-0 space-y-1">
-            {!editMode ? (
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
-            ) : (
-              <input
-                value={editDraft.title}
-                onChange={(e) => upd("title", e.target.value)}
-                className="w-full text-xl font-bold border-2 border-blue-400 rounded-xl px-3 py-2 focus:outline-none"
-                autoFocus
-              />
-            )}
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <SubmissionStatusBadge status={sub.status} />
@@ -781,105 +782,68 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
         {editMode && (
           <div className="border-t border-gray-100 pt-4 space-y-5">
 
-            {/* Student info */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-sm text-gray-500 font-medium"><User className="w-3.5 h-3.5" />ข้อมูลนิสิต</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <EField label="ชื่อ-นามสกุล"><input value={editDraft.studentFullName} onChange={(e) => upd("studentFullName", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                <EField label="รหัสนิสิต"><input value={editDraft.studentCode} onChange={(e) => upd("studentCode", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                <EField label="หลักสูตร">
-                  <select value={editDraft.program} onChange={(e) => upd("program", e.target.value)} className={EDIT_INPUT_CLS}>
-                    <option value="">— ไม่ระบุ —</option>
-                    {Object.entries(PROGRAM_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </EField>
-                <EField label="อีเมล"><input type="email" value={editDraft.studentEmail} onChange={(e) => upd("studentEmail", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                <EField label="เบอร์โทร"><input value={editDraft.studentPhone} onChange={(e) => upd("studentPhone", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-              </div>
-            </div>
+            {/* ข้อมูลวิทยานิพนธ์ / ข้อมูลนิสิต / ผู้รับผิดชอบ — same sections, fields and layout as the
+                student's draft form (ProposalDraftReview). Unlike the student, the admin may also
+                correct the student-info snapshot (name/code/email), so those are inputs, not
+                read-only. */}
+            <Section icon={<Info className="w-4 h-4" />} title="ข้อมูลวิทยานิพนธ์">
+              <Field label="ชื่อหัวข้อวิทยานิพนธ์" required>
+                <input
+                  value={editDraft.title}
+                  onChange={(e) => upd("title", e.target.value)}
+                  className={INPUT}
+                  placeholder="เช่น การพัฒนาระบบ..."
+                  autoFocus
+                />
+              </Field>
+            </Section>
 
-            {/* Committee */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-sm text-gray-500 font-medium"><Users className="w-3.5 h-3.5" />คณะกรรมการและผู้เกี่ยวข้อง</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <EField label="อาจารย์ที่ปรึกษา">
-                  <select value={editDraft.advisorId} onChange={(e) => upd("advisorId", e.target.value)} className={EDIT_INPUT_CLS}>
-                    <option value="">— ไม่ระบุ —</option>
-                    {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
+            <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="ชื่อ-นามสกุล">
+                  <input value={editDraft.studentFullName} onChange={(e) => upd("studentFullName", e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="รหัสนิสิต">
+                  <input value={editDraft.studentCode} onChange={(e) => upd("studentCode", e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="หลักสูตร" required>
+                  <select value={editDraft.program} onChange={(e) => upd("program", e.target.value)} className={INPUT + " bg-white"}>
+                    <option value="">— เลือกหลักสูตร —</option>
+                    {(Object.entries(PROGRAM_LABELS) as [string, string][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
                   </select>
-                </EField>
-                {[0, 1, 2].map((i) => (
-                  <EField key={i} label={`อาจารย์ที่ปรึกษาร่วม ${i + 1}`}>
-                    <select value={editDraft.coAdvisorIds[i] ?? ""} onChange={(e) => updArr("coAdvisorIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
-                      <option value="">— ไม่ระบุ —</option>
-                      {mixedCommittee.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
-                    </select>
-                  </EField>
-                ))}
-                <EField label="ประธานหลักสูตร">
-                  <div className={`${EDIT_INPUT_CLS} bg-gray-50 text-gray-700`}>
-                    {resolvedProgramChair
-                      ? formatUserName(resolvedProgramChair)
-                      : editDraft.program
-                        ? "— ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ —"
-                        : "— กรุณาเลือกหลักสูตรก่อน —"}
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    กำหนดตามหลักสูตรโดยอัตโนมัติ — แก้ไขได้ที่การ์ด &ldquo;จัดการประธานหลักสูตร&rdquo; ในแท็บจัดการผู้ใช้งาน
-                  </p>
-                </EField>
-                <EField label="ประธานกรรมการสอบ">
-                  <select value={editDraft.headCommitteeId} onChange={(e) => upd("headCommitteeId", e.target.value)} className={EDIT_INPUT_CLS}>
-                    <option value="">— ไม่ระบุ —</option>
-                    {headCandidates.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
-                  </select>
-                  <p className="text-[11px] text-gray-400 mt-0.5">เลือกจาก: {ACCOUNT_SCOPE_LABELS[headScope]} (ตามหลักสูตรที่เลือก)</p>
-                </EField>
-                {[0, 1, 2].map((i) => (
-                  <EField key={i} label={`กรรมการสอบ ${i + 1}`}>
-                    <select value={editDraft.committeeIds[i] ?? ""} onChange={(e) => updArr("committeeIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
-                      <option value="">— ไม่ระบุ —</option>
-                      {advisors.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
-                    </select>
-                  </EField>
-                ))}
+                </Field>
+                <ProgramChairAutoField program={editDraft.program} users={allUsers} />
+                <Field label="อีเมล">
+                  <input type="email" value={editDraft.studentEmail} onChange={(e) => upd("studentEmail", e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="เบอร์โทรศัพท์">
+                  <input value={editDraft.studentPhone} onChange={(e) => upd("studentPhone", e.target.value)} className={INPUT} placeholder="0812345678" />
+                </Field>
               </div>
+            </Section>
 
-              {/* Invited external committee — up to 3, sign sequentially in list order */}
-              <div className="border border-gray-200 rounded-xl p-3 space-y-2 bg-gray-50">
-                <p className="text-xs font-medium text-gray-500">กรรมการภายนอก</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {[0, 1, 2].map((i) => (
-                    <EField key={i} label={`กรรมการภายนอก ${i + 1}`}>
-                      <select value={editDraft.invitedCommitteeIds[i] ?? ""} onChange={(e) => updArr("invitedCommitteeIds", i, e.target.value)} className={EDIT_INPUT_CLS}>
-                        <option value="">— ไม่ระบุ —</option>
-                        {externals.map((a) => <option key={a.id} value={a.id}>{formatUserName(a)}</option>)}
-                      </select>
-                    </EField>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <Section icon={<Users className="w-4 h-4" />} title="ผู้รับผิดชอบวิทยานิพนธ์">
+              <CommitteePeopleEditor
+                people={editPeople}
+                setPeople={setEditPeople}
+                clearError={() => {}}
+                program={editDraft.program}
+              />
+            </Section>
 
-            {/* Exam schedule */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-sm text-gray-500 font-medium"><CalendarDays className="w-3.5 h-3.5" />กำหนดการสอบ</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <EField label="วันที่สอบ"><input type="date" value={editDraft.examDate} onChange={(e) => upd("examDate", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                <EField label="เวลา"><input type="time" value={editDraft.examTime} onChange={(e) => upd("examTime", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                <label className="flex items-center gap-2 cursor-pointer pt-4">
-                  <input type="checkbox" checked={editDraft.roomNeeded} onChange={(e) => upd("roomNeeded", e.target.checked)} className="w-4 h-4 rounded" />
-                  <span className="text-sm text-gray-700">ต้องการห้องประชุม</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={editDraft.parkingNeeded} onChange={(e) => upd("parkingNeeded", e.target.checked)} className="w-4 h-4 rounded" />
-                  <span className="text-sm text-gray-700">ต้องการที่จอดรถ</span>
-                </label>
-                {editDraft.parkingNeeded && (
-                  <EField label="ทะเบียนรถ"><input value={editDraft.carPlate} onChange={(e) => upd("carPlate", e.target.value)} className={EDIT_INPUT_CLS} /></EField>
-                )}
-              </div>
-            </div>
+            {/* Exam schedule — the same section the student uses. An admin may be correcting the
+                record after the exam, so a past date is allowed here. */}
+            <ExamLogisticsSection
+              examDate={editDraft.examDate}           setExamDate={(v) => upd("examDate", v)}
+              examTime={editDraft.examTime}           setExamTime={(v) => upd("examTime", v)}
+              roomNeeded={editDraft.roomNeeded}       setRoomNeeded={(v) => upd("roomNeeded", v)}
+              parkingNeeded={editDraft.parkingNeeded} setParkingNeeded={(v) => upd("parkingNeeded", v)}
+              carPlate={editDraft.carPlate}           setCarPlate={(v) => upd("carPlate", v)}
+              clearError={() => {}}
+              allowPastDate
+            />
           </div>
         )}
 
@@ -1277,13 +1241,3 @@ function AdminInfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const EDIT_INPUT_CLS = "w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white";
-
-function EField({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-xs text-gray-400">{label}</p>
-      {children}
-    </div>
-  );
-}

@@ -43,8 +43,8 @@ enum NameTitle {
 }
 
 enum FormType {
-  BW1A
-  BW1B
+  B1A
+  B1B
   B1C
   B1D
   B2

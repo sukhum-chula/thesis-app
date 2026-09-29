@@ -22,7 +22,7 @@ type StepSuggestion = { forms: FormType[]; label: string; multiUpload?: boolean;
 // Per-type step suggestions — keyed by submissionType → stepOrder
 const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
   PROPOSAL: {
-    1: { forms: ["BW1A", "BW1B", "FINANCE_ATTACH"], label: "บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ" },
+    1: { forms: ["B1A", "B1B", "FINANCE_ATTACH"], label: "บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ" },
     4: { forms: ["B1C", "B1D"], adminForms: ["FINANCE_DOC"], label: "บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)" },
   },
   THESIS_DEFENSE: {
@@ -47,7 +47,7 @@ const SUBMIT_LABEL: Record<string, Record<number, string>> = {
 
 // Non-SIGNED forms allowed for early upload per submission type
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
-  PROPOSAL:       ["BW1A", "BW1B", "FINANCE_ATTACH", "B1C", "B1D"],
+  PROPOSAL:       ["B1A", "B1B", "FINANCE_ATTACH", "B1C", "B1D"],
   THESIS_DEFENSE: ["B2", "B3", "FINANCE_ATTACH", "B4", "THESIS"],
 };
 
@@ -58,8 +58,8 @@ const FINANCE_ATTACH_TEMPLATE: Record<string, string> = {
 };
 
 const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
-  BW1A:           "กรอกข้อมูลให้ครบถ้วน และให้อาจารย์ที่ปรึกษาลงนามก่อนอัปโหลด",
-  BW1B:           "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
+  B1A:           "กรอกข้อมูลให้ครบถ้วน และให้อาจารย์ที่ปรึกษาลงนามก่อนอัปโหลด",
+  B1B:           "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
   FINANCE_ATTACH: "ดาวน์โหลดแบบฟอร์ม กรอกข้อมูลให้ครบถ้วน แล้วอัปโหลดไฟล์ที่กรอกเสร็จแล้ว",
   B1C:   "กรอกข้อมูลให้ครบถ้วน — กรรมการจะลงนามผ่านระบบหลังอัปโหลด",
   B1D:   "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
@@ -402,11 +402,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
           )}
 
           {/* Cancel — outside the IN_PROGRESS states (which already show their own cancel button
-              below): lets a PROPOSAL be started over even after REJECTED or already COMPLETED
-              (cancelling also cancels any defense created off it), and lets an abandoned DRAFT
-              (of either type) be given up on entirely. Requesting cancellation now requires
-              ADMIN accept/decline — see the pending banner above once requested. */}
-          {!sub.cancelRequested && (subType === "PROPOSAL" || subStatus === "DRAFT") && subStatus !== "IN_PROGRESS" && subStatus !== "CANCELLED" && (
+              below): lets a REJECTED PROPOSAL be started over (cancelling also cancels any defense
+              created off it), and lets an abandoned DRAFT (of either type) be given up on entirely.
+              Never offered once COMPLETED — a finished submission can't be cancelled. Requesting
+              cancellation requires ADMIN accept/decline — see the pending banner above once
+              requested. */}
+          {!sub.cancelRequested && (subType === "PROPOSAL" || subStatus === "DRAFT") && subStatus !== "IN_PROGRESS" && subStatus !== "CANCELLED" && subStatus !== "COMPLETED" && (
             <button
               onClick={() => setShowCancelModal(true)}
               className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 hover:border-gray-400 transition"

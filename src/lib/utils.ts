@@ -72,8 +72,8 @@ export function getRelatedSubmissions(
 }
 
 export const FORM_LABELS: Record<FormType, string> = {
-  BW1A:          "บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",
-  BW1B:          "บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",
+  B1A:          "บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",
+  B1B:          "บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",
   B1C:           "บ.วศ.1ค — รายงานความก้าวหน้า",
   B1D:           "บ.วศ.1ง — รายงานความก้าวหน้า (2)",
   B2:            "บ.2 — ออกหนังสือเชิญกรรมการ",
@@ -135,6 +135,21 @@ export function accountFitsScope(accountRoles: readonly string[], scope: Account
   if (scope === "INTERNAL") return internal;
   if (scope === "EXTERNAL") return external;
   return internal || external;
+}
+
+/** One person, one committee role: apart from ประธานหลักสูตร (PROGRAM_CHAIR), who may also sit in
+ *  any other position, no account may appear twice in a submission's committee — not in two
+ *  different roles, and not twice in the same one. `key` is whatever identifies the account on the
+ *  caller's side (an email on a people[] list, a user id on stored committee columns); compare it
+ *  normalized. Returns the index of the first entry that repeats an earlier one, or -1. */
+export function findDuplicateCommitteeMember(entries: { role: string; key: string }[]): number {
+  const seen = new Set<string>();
+  for (const [i, e] of entries.entries()) {
+    if (!e.key || e.role === "PROGRAM_CHAIR") continue;
+    if (seen.has(e.key)) return i;
+    seen.add(e.key);
+  }
+  return -1;
 }
 
 export const ACCOUNT_SCOPE_LABELS: Record<AccountScope, string> = {
@@ -325,8 +340,8 @@ export const STEP_LABELS: Record<StepStatus, string> = {
 };
 
 export const FORM_SHORT: Record<FormType, string> = {
-  BW1A:          "บ.วศ.1ก",
-  BW1B:          "บ.วศ.1ข",
+  B1A:          "บ.วศ.1ก",
+  B1B:          "บ.วศ.1ข",
   B1C:           "บ.วศ.1ค",
   B1D:           "บ.วศ.1ง",
   B2:            "บ.2",

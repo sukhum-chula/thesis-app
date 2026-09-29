@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
-import { buildWorkflowSteps } from "@/lib/workflowSteps";
-import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
+import { buildWorkflowSteps, planCommitteeStepSync, currentTurn } from "@/lib/workflowSteps";
+import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, validateResolvedCommitteeCounts, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
 import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
@@ -176,7 +176,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // PROPOSAL step 4: student and admin upload in parallel — only student docs required here;
       // FINANCE_DOC is checked separately and auto-advances the step when both sides are ready.
       const REQUIRED_UPLOADS: Record<string, Record<number, string[]>> = {
-        PROPOSAL:       { 1: ["BW1A", "BW1B", "FINANCE_ATTACH"], 4: ["B1C", "B1D"] },
+        PROPOSAL:       { 1: ["B1A", "B1B", "FINANCE_ATTACH"], 4: ["B1C", "B1D"] },
         THESIS_DEFENSE: { 1: ["B2", "B3", "FINANCE_ATTACH"], 9: ["SIGNED"], 16: ["B4", "THESIS"] },
       };
       const subType = sub.submissionType ?? "PROPOSAL";
@@ -525,6 +525,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (sub.status === "CANCELLED")
       return NextResponse.json({ error: "คำร้องนี้ถูกยกเลิกไปแล้ว" }, { status: 400 });
+    // A completed submission is a finished record — it can no longer be cancelled.
+    if (sub.status === "COMPLETED")
+      return NextResponse.json({ error: "คำร้องนี้เสร็จสิ้นแล้ว ไม่สามารถยกเลิกได้" }, { status: 400 });
     await prisma.submission.update({ where: { id }, data: { cancelRequested: true, cancelRequestedAt: now } });
     await notifyRole("ADMIN", sub, "นิสิตขอยกเลิกคำร้อง — รอการอนุมัติ", "warning");
   }
@@ -532,6 +535,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   else if (action === "accept_cancel") {
     if (!userRoles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (!(sub as any).cancelRequested) return NextResponse.json({ error: "ไม่มีคำขอยกเลิกที่รอดำเนินการ" }, { status: 400 });
+    // Defense-in-depth: a pending request freezes every other action, so a submission can't reach
+    // COMPLETED with one open — but a request filed before this rule existed could still be. The
+    // admin declines it instead, which clears the flag.
+    if (sub.status === "COMPLETED")
+      return NextResponse.json({ error: "คำร้องนี้เสร็จสิ้นแล้ว ไม่สามารถยกเลิกได้ — กรุณาปฏิเสธคำขอยกเลิก" }, { status: 400 });
 
     await prisma.workflowStep.updateMany({ where: { submissionId: id, status: "PENDING" }, data: { status: "SKIPPED" } });
     await prisma.submission.update({ where: { id }, data: { status: "CANCELLED", cancelRequested: false, cancelRequestedAt: null } });
@@ -603,28 +611,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const b = body;
     const nullOrVal = (v: unknown) => (v === undefined ? undefined : (v || null));
 
-    // Check the degree-dependent account-type rule against the state this save would leave behind,
-    // but only when it actually touches something that can break it. `program` counts: switching a
-    // submission to PHD invalidates an internal ประธานกรรมการสอบ without touching a committee field.
-    // Skipping the check otherwise means an unrelated edit (an exam date, say) is never blocked by a
-    // committee that predates the rule.
+    // Check the committee rules against the state this save would leave behind, but only when it
+    // actually touches something that can break them. `program` counts: switching a submission to
+    // PHD invalidates an internal ประธานกรรมการสอบ without touching a committee field. Skipping the
+    // check otherwise means an unrelated edit (an exam date, say) is never blocked by a committee
+    // that predates the rules.
     const touchesCommittee =
       b.advisorId !== undefined || b.headCommitteeId !== undefined || b.coAdvisorIds !== undefined ||
-      b.committeeIds !== undefined || b.invitedCommitteeIds !== undefined || b.program !== undefined;
+      b.committeeIds !== undefined || b.invitedCommitteeIds !== undefined || b.programChairId !== undefined ||
+      b.program !== undefined;
     if (touchesCommittee) {
+      const next = {
+        advisorId:           b.advisorId           !== undefined ? (b.advisorId || null)       : sub.advisorId,
+        headCommitteeId:     b.headCommitteeId     !== undefined ? (b.headCommitteeId || null) : sub.headCommitteeId,
+        programChairId:      b.programChairId      !== undefined ? (b.programChairId || null)  : sub.programChairId,
+        coAdvisorIds:        b.coAdvisorIds        !== undefined ? b.coAdvisorIds              : sub.coAdvisorIds,
+        committeeIds:        b.committeeIds        !== undefined ? b.committeeIds              : sub.committeeIds,
+        invitedCommitteeIds: b.invitedCommitteeIds !== undefined ? b.invitedCommitteeIds       : sub.invitedCommitteeIds,
+      };
+      // Role counts — only past DRAFT: a draft is allowed to be incomplete (the student's own draft
+      // save skips counts for the same reason), and it gets the full check when it's confirmed.
+      const countError = sub.status === "DRAFT" ? null : validateResolvedCommitteeCounts(next);
+      if (countError) return NextResponse.json({ error: countError }, { status: 400 });
       const committeeError = await validateResolvedCommitteeAccountRoles(
-        {
-          advisorId:           b.advisorId           !== undefined ? (b.advisorId || null)       : sub.advisorId,
-          headCommitteeId:     b.headCommitteeId     !== undefined ? (b.headCommitteeId || null) : sub.headCommitteeId,
-          coAdvisorIds:        b.coAdvisorIds        !== undefined ? b.coAdvisorIds              : sub.coAdvisorIds,
-          committeeIds:        b.committeeIds        !== undefined ? b.committeeIds              : sub.committeeIds,
-          invitedCommitteeIds: b.invitedCommitteeIds !== undefined ? b.invitedCommitteeIds       : sub.invitedCommitteeIds,
-        },
+        next,
         b.program !== undefined ? (b.program || null) : sub.program
       );
       if (committeeError) return NextResponse.json({ error: committeeError }, { status: 400 });
     }
-    await prisma.submission.update({
+    const submissionUpdate = prisma.submission.update({
       where: { id },
       data: {
         title:                b.title               ?? undefined,
@@ -646,6 +661,67 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         carPlate:             b.carPlate             !== undefined ? (b.carPlate             || null) : undefined,
       },
     });
+
+    // Multi-member steps snapshot their member list when built, and signing reads only that
+    // snapshot — bring every still-open step in line with the edited committee in the same
+    // transaction, so a step never keeps waiting on someone who is no longer on it.
+    const stepPatches = planCommitteeStepSync(
+      sub.workflowSteps as any[],
+      {
+        coAdvisorIds:        b.coAdvisorIds        !== undefined ? b.coAdvisorIds        : sub.coAdvisorIds,
+        committeeIds:        b.committeeIds        !== undefined ? b.committeeIds        : sub.committeeIds,
+        invitedCommitteeIds: b.invitedCommitteeIds !== undefined ? b.invitedCommitteeIds : sub.invitedCommitteeIds,
+      },
+      sub.status,
+      now
+    );
+    if (stepPatches.length === 0) {
+      await submissionUpdate;
+    } else {
+      await prisma.$transaction([
+        submissionUpdate,
+        ...stepPatches.map((p) => prisma.workflowStep.update({ where: { id: p.id }, data: p.data as any })),
+      ]);
+
+      // A sync can skip the rejected step (its last co-advisor removed) or approve the current one
+      // (its last unsigned member removed), so re-derive the status from the steps as they are now.
+      const updated = await prisma.submission.findUnique({
+        where: { id },
+        include: { workflowSteps: { orderBy: { stepOrder: "asc" } } },
+      });
+      if (updated) {
+        const hasRejected = updated.workflowSteps.some((s) => s.status === "REJECTED");
+        const hasPending  = updated.workflowSteps.some((s) => s.status === "PENDING");
+        const status = hasRejected ? "REJECTED" : hasPending ? "IN_PROGRESS" : "COMPLETED";
+        if (status !== updated.status)
+          await prisma.submission.update({ where: { id }, data: { status } });
+
+        // Tell whoever it's now waiting on, if the edit changed that.
+        const before = currentTurn(sub.workflowSteps as any[]);
+        const after  = currentTurn(updated.workflowSteps as any[]);
+        // (No cancel-request check needed: the top-level guard already refuses admin_update then.)
+        if (after && (after.stepId !== before?.stepId || after.memberId !== before?.memberId)) {
+          const turnStep = updated.workflowSteps.find((s) => s.id === after.stepId)!;
+          const stepName = getStepName(turnStep.stepOrder, updated.submissionType) || ROLE_LABELS[after.role as keyof typeof ROLE_LABELS];
+          const msg = `ถึงคิวของท่าน: ${stepName}`;
+          if (after.memberId) {
+            await prisma.notification.create({
+              data: { recipientId: after.memberId, message: msg, detail: updated.title, submissionId: id, type: "pending" },
+            });
+          } else {
+            await notifyRole(after.role, updated, msg, "pending");
+          }
+          try {
+            await sendStepEmail({ role: after.role, sub: updated, stepName, specificMemberId: after.memberId });
+          } catch (e) { console.error("[email/committee-edit]", e); }
+        }
+        if (status === "COMPLETED") {
+          await prisma.notification.create({
+            data: { recipientId: updated.studentId, message: "วิทยานิพนธ์ผ่านการอนุมัติครบทุกขั้นตอน 🎉", detail: updated.title, submissionId: id, type: "approved" },
+          });
+        }
+      }
+    }
   }
 
   else if (action === "admin_reset") {
@@ -655,6 +731,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // pre-cancel steps). This also makes reset the way to undo a cancelled submission.
     // CO_ADVISOR steps stay SKIPPED when the submission has no co-advisors.
     const hasCoAdvisors = ((sub.coAdvisorIds as string[]) ?? []).length > 0;
+    // Re-snapshot each multi-member step's member list from the submission's current committee —
+    // the lists were taken when the steps were built and may predate a committee edit.
+    for (const [role, ids] of [
+      ["CO_ADVISOR", sub.coAdvisorIds], ["EXAM_COMMITTEE", sub.committeeIds], ["INVITED_EXAM_COMMITTEE", sub.invitedCommitteeIds],
+    ] as const) {
+      await prisma.workflowStep.updateMany({
+        where: { submissionId: id, role },
+        data: { committeeMembers: [...new Set(((ids as string[]) ?? []).filter(Boolean))] },
+      });
+    }
     await prisma.workflowStep.updateMany({
       where: hasCoAdvisors ? { submissionId: id } : { submissionId: id, NOT: { role: "CO_ADVISOR" } },
       data: { status: "PENDING", actedAt: null, actedByName: null, actedById: null, notes: null, committeeActions: [] },

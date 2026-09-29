@@ -91,7 +91,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const STEP_SIGN_FORMS: Record<string, Record<number, string[]>> = {
     PROPOSAL: {
       // Step 2 (ADMIN approve) and step 10 (ADMIN verify) omitted — admin only clicks approve, no signing
-      3:  ["BW1A"],
+      3:  ["B1A"],
       5:  ["B1C"],
       6:  ["B1C"],
       7:  ["B1C"],           // CO_ADVISOR signs B1C
@@ -259,7 +259,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
         <div className="order-1 lg:order-none space-y-4">
           {/* Documents — all versions per form type (FileList handles dedup + history) */}
           {(() => {
-            const PROPOSAL_FORMS = ["BW1A", "BW1B", "B1C", "B1D"];
+            const PROPOSAL_FORMS = ["B1A", "B1B", "B1C", "B1D"];
             const relevantUploads = (sub.submissionType ?? "PROPOSAL") === "PROPOSAL"
               ? sub.uploads.filter((u) => PROPOSAL_FORMS.includes(u.formType))
               : sub.uploads;

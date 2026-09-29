@@ -2,9 +2,9 @@ import { StepStatus, SubmissionType } from "@/types";
 
 // PROPOSAL: 11 steps — บ.วศ.1ก/1ข then บ.วศ.1ค/1ง
 export const PROPOSAL_ROLES = [
-  "STUDENT",               // 1  upload BW1A + BW1B
+  "STUDENT",               // 1  upload B1A + B1B
   "ADMIN",                 // 2  approve
-  "PROGRAM_CHAIR",         // 3  sign BW1A → finance email
+  "PROGRAM_CHAIR",         // 3  sign B1A → finance email
   "STUDENT",               // 4  upload B1C + B1D
   "HEAD_EXAM_COMMITTEE",   // 5  sign B1C
   "ADVISOR",               // 6  sign B1C
@@ -59,4 +59,127 @@ export function buildWorkflowSteps(
       role === "CO_ADVISOR"              ? coAdvisorIds :
       role === "INVITED_EXAM_COMMITTEE"  ? invitedCommitteeIds : [],
   }));
+}
+
+// ─── Keeping multi-member steps in step with an edited committee ──────────────
+// A CO_ADVISOR/EXAM_COMMITTEE/INVITED_EXAM_COMMITTEE step snapshots its member list into
+// `committeeMembers` when the steps are built, and signing (sign/route.ts) reads only that
+// snapshot. So when an ADMIN edits the committee on a running submission (`admin_update`), every
+// step that is still open has to be brought in line, or it keeps waiting on the old people.
+
+export const MULTI_MEMBER_ROLES = ["CO_ADVISOR", "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE"] as const;
+
+type CommitteeAction = { userId: string; decision: string; [k: string]: unknown };
+type SyncableStep = {
+  id: string;
+  stepOrder: number;
+  role: string;
+  status: StepStatus | string;
+  committeeMembers: string[];
+  committeeActions: unknown;
+};
+export type StepSyncPatch = {
+  id: string;
+  data: {
+    status?: StepStatus;
+    committeeMembers?: string[];
+    committeeActions?: CommitteeAction[];
+    actedAt?: Date | null;
+    actedByName?: string | null;
+    actedById?: string | null;
+    notes?: string | null;
+  };
+};
+
+const ALL_APPROVED_LABEL: Record<string, string> = {
+  CO_ADVISOR: "อาจารย์ที่ปรึกษาร่วมครบทุกท่าน",
+  EXAM_COMMITTEE: "กรรมการสอบครบทุกท่าน",
+  INVITED_EXAM_COMMITTEE: "กรรมการภายนอกครบทุกท่าน",
+};
+
+/** Plans the step updates that bring a submission's open multi-member steps in line with its
+ *  (new) committee. Pure — the caller applies the patches and re-derives the submission status.
+ *
+ *  - Finished history (APPROVED steps, and SKIPPED steps before the current one) is never touched.
+ *  - An open step (PENDING, or the REJECTED step awaiting resubmit) gets the new member list.
+ *    Sign-offs by members who are still on it are kept; those of removed members are dropped. If
+ *    everyone left on the current step has already approved, it's approved on the spot — it
+ *    would otherwise sit waiting for a signature nobody can give.
+ *  - CO_ADVISOR is optional: removing every co-advisor SKIPS its open steps, and adding one
+ *    re-opens the SKIPPED co-advisor steps that are still ahead.
+ *  - A CANCELLED/COMPLETED/DRAFT submission is left alone (nothing open, or no steps yet);
+ *    admin_reset refreshes the member lists when a cancelled one is revived. */
+export function planCommitteeStepSync(
+  steps: SyncableStep[],
+  committee: { coAdvisorIds: string[]; committeeIds: string[]; invitedCommitteeIds: string[] },
+  submissionStatus: string,
+  now: Date
+): StepSyncPatch[] {
+  if (submissionStatus !== "IN_PROGRESS" && submissionStatus !== "REJECTED") return [];
+  const open = steps.filter((s) => s.status === "PENDING" || s.status === "REJECTED");
+  if (open.length === 0) return [];
+  const currentOrder = Math.min(...open.map((s) => s.stepOrder));
+
+  const membersFor = (role: string) =>
+    role === "CO_ADVISOR" ? committee.coAdvisorIds
+    : role === "EXAM_COMMITTEE" ? committee.committeeIds
+    : committee.invitedCommitteeIds;
+  const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const cleared = { committeeActions: [], actedAt: null, actedByName: null, actedById: null, notes: null };
+
+  const patches: StepSyncPatch[] = [];
+  for (const step of steps) {
+    if (!(MULTI_MEMBER_ROLES as readonly string[]).includes(step.role)) continue;
+    const members = [...new Set(membersFor(step.role).filter(Boolean))];
+    const actions = ((step.committeeActions as CommitteeAction[] | null) ?? []);
+
+    if (step.status === "SKIPPED") {
+      if (step.role === "CO_ADVISOR" && members.length > 0 && step.stepOrder > currentOrder)
+        patches.push({ id: step.id, data: { status: "PENDING", committeeMembers: members, ...cleared } });
+      continue;
+    }
+    if (step.status !== "PENDING" && step.status !== "REJECTED") continue; // APPROVED — history
+
+    if (members.length === 0) {
+      // Only reachable for CO_ADVISOR: the admin edit's count check requires ≥1 of the others.
+      patches.push({ id: step.id, data: { status: "SKIPPED", committeeMembers: [], ...cleared } });
+      continue;
+    }
+
+    if (step.status === "REJECTED") {
+      // The student's resubmit clears the sign-offs anyway; only the member list matters here.
+      if (!sameList(step.committeeMembers, members))
+        patches.push({ id: step.id, data: { committeeMembers: members } });
+      continue;
+    }
+
+    const kept = actions.filter((a) => members.includes(a.userId));
+    const allApproved = step.stepOrder === currentOrder &&
+      members.every((m) => kept.some((a) => a.userId === m && a.decision === "APPROVED"));
+    if (allApproved) {
+      const last = kept[kept.length - 1];
+      patches.push({ id: step.id, data: {
+        status: "APPROVED", committeeMembers: members, committeeActions: kept,
+        actedAt: now, actedByName: ALL_APPROVED_LABEL[step.role], actedById: last?.userId ?? null,
+      } });
+    } else if (!sameList(step.committeeMembers, members) || kept.length !== actions.length) {
+      patches.push({ id: step.id, data: { committeeMembers: members, committeeActions: kept } });
+    }
+  }
+  return patches;
+}
+
+/** Who the submission is waiting on right now: the lowest open step, and for a multi-member step
+ *  the first member in sign order who hasn't approved yet. Used to tell whether a committee edit
+ *  changed whose turn it is, so the new person can be notified. */
+export function currentTurn(steps: SyncableStep[]): { stepId: string; role: string; memberId?: string } | null {
+  const step = [...steps].sort((a, b) => a.stepOrder - b.stepOrder)
+    .find((s) => s.status === "PENDING" || s.status === "REJECTED");
+  if (!step || step.status === "REJECTED") return null; // REJECTED waits on the student's resubmit
+  if (!(MULTI_MEMBER_ROLES as readonly string[]).includes(step.role)) return { stepId: step.id, role: step.role };
+  const actions = ((step.committeeActions as CommitteeAction[] | null) ?? []);
+  const memberId = step.committeeMembers.find(
+    (m) => !actions.some((a) => a.userId === m && a.decision === "APPROVED")
+  );
+  return { stepId: step.id, role: step.role, memberId };
 }

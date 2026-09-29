@@ -5,6 +5,7 @@ import { useApp, SubmissionFormData } from "@/context/AppContext";
 import {
   PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate, formatUserName,
   degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
+  findDuplicateCommitteeMember,
 } from "@/lib/utils";
 import { ProgramType } from "@/types";
 import { User, Users, CalendarDays, Info, X, Plus, BookOpen, GraduationCap, AlertCircle, Lock, GripVertical } from "lucide-react";
@@ -141,7 +142,23 @@ export function validateNoInvalidRows(
       ? `บุคคลที่ ${i + 1} (${role}): บัญชีเดิมถูกลบออกจากระบบแล้ว กรุณาเลือกผู้อื่นหรือลบแถวนี้ก่อนบันทึก`
       : `บุคคลที่ ${i + 1} (${role}): บัญชีเดิมไม่ตรงตามเงื่อนไขของหลักสูตรที่เลือก กรุณาเลือกผู้อื่นหรือลบแถวนี้ก่อนบันทึก`;
   }
+  // One person, one committee role (ประธานหลักสูตร excepted) — a mistake rather than an omission,
+  // so it blocks a plain save too, same as an unusable account above.
+  const dup = duplicateRowIndex(people);
+  if (dup >= 0) {
+    const p = people[dup];
+    return `บุคคลที่ ${dup + 1}: "${p.name.trim() || p.email.trim()}" ถูกระบุในคณะกรรมการแล้ว — ` +
+           "กรรมการแต่ละท่านดำรงตำแหน่งได้เพียงตำแหน่งเดียว (ยกเว้นประธานหลักสูตร)";
+  }
   return null;
+}
+
+/** Index of the first row whose account already fills an earlier row, or -1. Rows with no role
+ *  or account picked yet are ignored. */
+function duplicateRowIndex(people: Person[]): number {
+  return findDuplicateCommitteeMember(
+    people.map((p) => ({ role: p.role, key: p.role ? p.email.trim().toLowerCase() : "" }))
+  );
 }
 
 // Shared shape/format/role-count validation used by both ProposalForm and DefenseForm — mirrors
@@ -155,7 +172,6 @@ export function validatePeopleClient(
   const invalidError = validateNoInvalidRows(people, program, users);
   if (invalidError) return invalidError;
   const degree = degreeOfProgram(program);
-  const seenRoleEmail = new Set<string>();
   for (const [i, p] of people.entries()) {
     if (!p.name.trim())  return `กรุณาระบุชื่อ-นามสกุลของบุคคลที่ ${i + 1}`;
     if (!p.email.trim()) return `กรุณาระบุอีเมลของบุคคลที่ ${i + 1}`;
@@ -170,9 +186,6 @@ export function validatePeopleClient(
       return `${ROLE_LABELS[p.role] ?? p.role} ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${p.name.trim() || p.email.trim()}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
     const email = p.email.trim().toLowerCase();
     if (ownEmails.includes(email)) return `บุคคลที่ ${i + 1}: ไม่สามารถใช้อีเมลของท่านเองเป็นกรรมการได้`;
-    const key = `${p.role}:${email}`;
-    if (seenRoleEmail.has(key)) return `บุคคลที่ ${i + 1}: อีเมลนี้ถูกเพิ่มในบทบาทเดียวกันแล้ว`;
-    seenRoleEmail.add(key);
   }
   const count = (r: string) => people.filter((p) => p.role === r).length;
   if (count("PROGRAM_CHAIR") !== 1)          return "ต้องระบุประธานหลักสูตร 1 คน (เพิ่มได้เพียง 1 คนเท่านั้น)";
@@ -713,6 +726,7 @@ function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) 
 export function ExamLogisticsSection({
   examDate, setExamDate, examTime, setExamTime,
   roomNeeded, setRoomNeeded, parkingNeeded, setParkingNeeded, carPlate, setCarPlate, clearError,
+  allowPastDate = false,
 }: {
   examDate: string; setExamDate: (v: string) => void;
   examTime: string; setExamTime: (v: string) => void;
@@ -720,12 +734,14 @@ export function ExamLogisticsSection({
   parkingNeeded: boolean; setParkingNeeded: (v: boolean) => void;
   carPlate: string; setCarPlate: (v: string) => void;
   clearError: () => void;
+  /** ADMIN's submission edit only — correcting a record after the exam needs a past date. */
+  allowPastDate?: boolean;
 }) {
   return (
     <Section icon={<CalendarDays className="w-4 h-4" />} title="ข้อมูลการสอบ">
       <div className="grid sm:grid-cols-2 gap-4">
         <Field label="วันที่สอบ" required>
-          <input type="date" value={examDate} min={new Date().toISOString().split("T")[0]} onChange={(e) => { setExamDate(e.target.value); clearError(); }} className={INPUT} />
+          <input type="date" value={examDate} min={allowPastDate ? undefined : new Date().toISOString().split("T")[0]} onChange={(e) => { setExamDate(e.target.value); clearError(); }} className={INPUT} />
         </Field>
         <Field label="เวลาสอบ" required>
           <TimeSelect value={examTime} onChange={(v) => { setExamTime(v); clearError(); }} />
@@ -899,7 +915,17 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
       <div className="space-y-2">
         {people.map((p, i) => {
           const rowScope = committeeRoleScope(p.role, degree);
-          const accounts = accountsFor(p.role);
+          const ownEmail = p.email.trim().toLowerCase();
+          // One person, one committee role: an account already picked on another row isn't
+          // offered again. The row's own pick always stays listed, so a duplicate carried in from
+          // older data still shows who it is (flagged below) instead of going blank.
+          const takenElsewhere = new Set(
+            people.filter((q, j) => j !== i && q.role && q.email.trim()).map((q) => q.email.trim().toLowerCase())
+          );
+          const isDuplicate = !!ownEmail && takenElsewhere.has(ownEmail);
+          const accounts = accountsFor(p.role).filter(
+            (a) => a.email.toLowerCase() === ownEmail || !takenElsewhere.has(a.email.toLowerCase())
+          );
           // Match the selected account by email (state stores name/email/phone, not the id).
           const selectedAccount = accounts.find((a) => a.email.toLowerCase() === p.email.trim().toLowerCase());
           // Either cleared at re-open by buildPeopleFromSubmission() (carrying `invalid`), or still
@@ -949,7 +975,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                     value={selectedAccount?.id ?? stillSelected?.id ?? ""}
                     onChange={(e) => selectAccount(i, e.target.value)}
                     disabled={!p.role}
-                    className={INPUT + " bg-white disabled:opacity-50" + (invalid ? " border-red-400 bg-red-50" : "")}
+                    className={INPUT + " bg-white disabled:opacity-50" + (invalid || isDuplicate ? " border-red-400 bg-red-50" : "")}
                     aria-label={p.role ? ACCOUNT_SCOPE_LABELS[rowScope] : "รายชื่อ"}
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
@@ -968,6 +994,10 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                         ? "บัญชีที่เคยเลือกไว้ถูกลบออกจากระบบแล้ว"
                         : `บัญชีที่เคยเลือกไว้ไม่ตรงตามเงื่อนไขของหลักสูตรที่เลือก (ต้องเป็น${ACCOUNT_SCOPE_LABELS[rowScope]})`}
                       {" "}— กรุณาเลือกผู้อื่นหรือลบแถวนี้ ก่อนจึงจะบันทึกได้
+                    </p>
+                  ) : isDuplicate ? (
+                    <p className="text-xs text-red-600 font-medium">
+                      บุคคลนี้ถูกระบุในตำแหน่งอื่นแล้ว — กรรมการแต่ละท่านดำรงตำแหน่งได้เพียงตำแหน่งเดียว กรุณาเลือกผู้อื่นหรือลบแถวนี้
                     </p>
                   ) : (
                     <p className="text-xs text-gray-400">เลือกจาก: {ACCOUNT_SCOPE_LABELS[rowScope]}</p>

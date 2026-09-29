@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!file || !submissionId || !formType)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const ALLOWED_FORM_TYPES = ["BW1A", "BW1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"];
+  const ALLOWED_FORM_TYPES = ["B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"];
   if (!ALLOWED_FORM_TYPES.includes(formType))
     return NextResponse.json({ error: "Invalid form type" }, { status: 400 });
 

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   isValidEmail, isValidThaiPhone, ROLE_LABELS, formatUserName,
   degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
+  findDuplicateCommitteeMember,
 } from "@/lib/utils";
 
 export type PersonInput = { name?: string; email?: string; role?: string; phone?: string };
@@ -26,7 +27,6 @@ export function validatePeople(people: PersonInput[], studentOwnEmails: Set<stri
   if (people.length === 0)
     return "กรุณาระบุอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์";
 
-  const seenRoleEmail = new Set<string>();
   for (const p of people) {
     if (!p.name?.trim() || !p.email?.trim() || !p.role || !(PERSON_ROLES as readonly string[]).includes(p.role))
       return "กรุณากรอกชื่อ อีเมล และบทบาทของกรรมการให้ครบทุกคน";
@@ -41,12 +41,9 @@ export function validatePeople(people: PersonInput[], studentOwnEmails: Set<stri
     // A committee person may not be the student themselves
     if (studentOwnEmails.has(email))
       return "ไม่สามารถใช้อีเมลของนิสิตเป็นกรรมการได้";
-    // Same email may hold multiple roles, but not the SAME role twice (breaks sequential signing)
-    const key = `${p.role}:${email}`;
-    if (seenRoleEmail.has(key))
-      return "อีเมลนี้ถูกเพิ่มในบทบาทเดียวกันซ้ำ";
-    seenRoleEmail.add(key);
   }
+  const dupError = duplicateMemberError(people);
+  if (dupError) return dupError;
   const count = (r: string) => people.filter((p) => p.role === r).length;
   if (count("PROGRAM_CHAIR") !== 1) return "ต้องระบุประธานหลักสูตร 1 คน (เพิ่มได้เพียง 1 คนเท่านั้น)";
   if (count("ADVISOR") !== 1) return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
@@ -63,7 +60,6 @@ export function validatePeople(people: PersonInput[], studentOwnEmails: Set<stri
  *  a duplicate role+account, an unrecognized role, an overlong name/phone), since those aren't
  *  "incomplete", they're mistakes. */
 export function validatePeopleLenient(people: PersonInput[], studentOwnEmails: Set<string>): string | null {
-  const seenRoleEmail = new Set<string>();
   for (const p of people) {
     if (!p.role || !p.email?.trim()) continue; // not filled in yet — fine for a draft
     if (!(PERSON_ROLES as readonly string[]).includes(p.role)) return "บทบาทของกรรมการไม่ถูกต้อง";
@@ -72,11 +68,22 @@ export function validatePeopleLenient(people: PersonInput[], studentOwnEmails: S
     if (p.phone?.trim() && !isValidThaiPhone(p.phone)) return "เบอร์โทรศัพท์ของกรรมการไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
     const email = p.email.trim().toLowerCase();
     if (studentOwnEmails.has(email)) return "ไม่สามารถใช้อีเมลของนิสิตเป็นกรรมการได้";
-    const key = `${p.role}:${email}`;
-    if (seenRoleEmail.has(key)) return "อีเมลนี้ถูกเพิ่มในบทบาทเดียวกันซ้ำ";
-    seenRoleEmail.add(key);
   }
-  return null;
+  // A person in two positions is a mistake, not an omission — rejected on a draft save too.
+  return duplicateMemberError(people);
+}
+
+/** One person, one committee role (ประธานหลักสูตร excepted) — see findDuplicateCommitteeMember().
+ *  Rows with no role or email yet are ignored, so an incomplete draft is unaffected. */
+function duplicateMemberError(people: PersonInput[]): string | null {
+  const filled = people.filter((p) => p.role && p.email?.trim());
+  const i = findDuplicateCommitteeMember(
+    filled.map((p) => ({ role: p.role!, key: p.email!.trim().toLowerCase() }))
+  );
+  if (i < 0) return null;
+  const p = filled[i];
+  return `"${p.name?.trim() || p.email!.trim()}" ถูกระบุในคณะกรรมการมากกว่า 1 ตำแหน่ง — ` +
+         "กรรมการแต่ละท่านดำรงตำแหน่งได้เพียงตำแหน่งเดียว (ยกเว้นประธานหลักสูตร)";
 }
 
 /** Degree-dependent account-type criterion: each committee role may only be filled by a certain
@@ -121,7 +128,8 @@ export async function validateCommitteeAccountRoles(
   return null;
 }
 
-/** The same degree-dependent account-type rule as validateCommitteeAccountRoles(), but checked
+/** The same degree-dependent account-type rule as validateCommitteeAccountRoles() — plus the
+ *  one-person-one-role rule validatePeople() applies — but checked
  *  against committee ids already stored on (or about to be written to) a submission row rather
  *  than a people[] array of emails. Used by the ADMIN submission-edit save, which writes those
  *  columns directly and had no committee validation of any kind before 2026-09-15.
@@ -153,6 +161,15 @@ export async function validateResolvedCommitteeAccountRoles(
   });
   const byId = new Map(accounts.map((u) => [u.id, u]));
 
+  // One person, one committee role. programChairId is never in `pairs`, so the chair's exemption
+  // falls out naturally.
+  const dup = findDuplicateCommitteeMember(pairs.map(([role, id]) => ({ role, key: id })));
+  if (dup >= 0) {
+    const u = byId.get(pairs[dup][1]);
+    return `"${u ? formatUserName(u) : pairs[dup][1]}" ถูกระบุในคณะกรรมการมากกว่า 1 ตำแหน่ง — ` +
+           "กรรมการแต่ละท่านดำรงตำแหน่งได้เพียงตำแหน่งเดียว (ยกเว้นประธานหลักสูตร)";
+  }
+
   for (const [role, id] of pairs) {
     const u = byId.get(id);
     if (!u) continue; // dangling id — pre-existing drift, not this save's doing
@@ -160,6 +177,26 @@ export async function validateResolvedCommitteeAccountRoles(
     if (!accountFitsScope(u.roles as string[], scope))
       return `${ROLE_LABELS[role] ?? role} ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${formatUserName(u)}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
   }
+  return null;
+}
+
+/** Role-count rule — the same counts validatePeople() enforces on a people[] list — checked
+ *  against committee ids already stored on (or about to be written to) a submission row. Used by
+ *  the ADMIN submission-edit save on any non-DRAFT submission, so an admin can no longer leave a
+ *  running submission with, say, no อาจารย์ที่ปรึกษา. Pure — no DB access. Singular roles are
+ *  structurally at most 1 here (one id column each), so only the "missing" side needs checking. */
+export function validateResolvedCommitteeCounts(committee: {
+  advisorId?: string | null;
+  headCommitteeId?: string | null;
+  programChairId?: string | null;
+  committeeIds?: string[];
+  invitedCommitteeIds?: string[];
+}): string | null {
+  if (!committee.programChairId)  return "ต้องระบุประธานหลักสูตร 1 คน (กำหนดประธานหลักสูตรของหลักสูตรนี้ที่แท็บ \"ตั้งค่าระบบ\" ก่อน)";
+  if (!committee.advisorId)       return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
+  if (!committee.headCommitteeId) return "ต้องระบุประธานกรรมการสอบ 1 คน";
+  if (!(committee.committeeIds ?? []).some(Boolean))        return "ต้องระบุกรรมการสอบอย่างน้อย 1 คน";
+  if (!(committee.invitedCommitteeIds ?? []).some(Boolean)) return "ต้องระบุกรรมการภายนอกอย่างน้อย 1 คน";
   return null;
 }
 

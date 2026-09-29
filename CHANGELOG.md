@@ -5,6 +5,49 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-09-29
+
+- **Admin submission edit now uses the student's committee editor.** `AdminSubmissionPanel`'s edit
+  mode dropped its fixed-slot dropdowns (max 3 per multi-member role — a 4th member was silently
+  lost on save) for the same `CommitteePeopleEditor`/`ProgramChairAutoField`/`ExamLogisticsSection`
+  the student's draft forms render. `ExamLogisticsSection` gained an `allowPastDate` prop for this
+  caller. The rest of the edit form followed: ข้อมูลวิทยานิพนธ์ (title moved out of the header's
+  inline input) and ข้อมูลนิสิต now use the student form's `Section`/`Field`/`INPUT` layout; the
+  panel's own `EField`/`EDIT_INPUT_CLS` helpers were removed as unused. Build clean, lint count
+  unchanged (pre-existing only); not browser-verified.
+
+- **Approval steps now follow an admin's committee edit.** Multi-member steps (CO_ADVISOR/
+  EXAM_COMMITTEE/INVITED_EXAM_COMMITTEE) snapshot their member list at build time and signing reads
+  only that snapshot, so editing the committee on a running submission left its steps waiting on
+  the old members (and adding a co-advisor never un-skipped the co-advisor steps). `admin_update`
+  now re-syncs every open step via the new pure `planCommitteeStepSync()` in the same transaction,
+  re-derives the submission status, and notifies the person whose turn it now is; `admin_reset`
+  re-snapshots the lists too. Planner checked against 11 scenarios with a throwaway `tsx` script;
+  `npm run build` clean; not browser-verified.
+
+- **Admin submission edit now enforces committee role counts.** `admin_update` checked account types
+  only, so an admin could save a running submission with no อาจารย์ที่ปรึกษา, ประธานกรรมการสอบ,
+  ประธานหลักสูตร, กรรมการสอบ or กรรมการภายนอก. New pure `validateResolvedCommitteeCounts()`
+  (`src/lib/committee.ts`) checks the post-save state on any non-DRAFT submission; `programChairId`
+  now also counts as a committee change for triggering the checks. `npm run build` clean; not
+  browser-verified.
+
+- **A completed submission can no longer be cancelled.** `request_cancel` used to refuse only
+  `CANCELLED`, so a student could ask to cancel a finished proposal (the cancel button was shown
+  on COMPLETED proposals) and an admin could accept it. `request_cancel` and `accept_cancel` now
+  both return 400 for `COMPLETED`, and `StudentSubmissionActions` hides the button. `npm run build`
+  clean; not browser-verified.
+
+- **One person, one committee role.** Apart from the ประธานหลักสูตร, who may also hold one other
+  position, an account can now appear only once in a submission's committee — previously the same
+  person could fill several different roles (e.g. อาจารย์ที่ปรึกษา + กรรมการสอบ) and only a repeat
+  in the *same* role was rejected. Enforced in `validatePeople`/`validatePeopleLenient`
+  (create, draft save and confirm), `admin_update`, `CommitteePeopleEditor` (already-picked accounts
+  are no longer offered; a legacy duplicate is flagged) and `AdminSubmissionPanel` (same, plus its
+  save now reports server errors instead of failing silently). Shared helper
+  `findDuplicateCommitteeMember()` in `src/lib/utils.ts`. `npm run build` clean; not yet
+  browser-verified.
+
 ## 2026-09-15
 
 - **Removed the `pendingPeople` DRAFT flavor entirely; drafts now heal themselves on re-open and

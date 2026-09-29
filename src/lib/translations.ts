@@ -14,8 +14,8 @@ export const TH_EN: [string, string][] = [
   ["หนังสือเชิญกรรมการสอบ",                     "Exam Committee Invitation Letter"],
   ["แบบประเมินวิทยานิพนธ์ดีมาก",               "Excellent Thesis Evaluation Form"],
   ["วิทยานิพนธ์ฉบับสมบูรณ์",                    "Complete Thesis"],
-  ["บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",         "BW1A — Thesis Topic Proposal"],
-  ["บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",       "BW1B — Thesis Topic Approval"],
+  ["บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",         "B1A — Thesis Topic Proposal"],
+  ["บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",       "B1B — Thesis Topic Approval"],
   ["บ.วศ.1ค — รายงานความก้าวหน้า",             "B1C — Progress Report"],
   ["บ.วศ.1ง — รายงานความก้าวหน้า (2)",         "B1D — Progress Report (2)"],
   ["บ.2 — ออกหนังสือเชิญกรรมการ",              "B2 — Committee Invitation Letter"],
@@ -23,10 +23,10 @@ export const TH_EN: [string, string][] = [
   ["บ.4 — ลงนามอนุมัติวิทยานิพนธ์",            "B4 — Thesis Approval Signature"],
 
   // ── PROPOSAL step names ──────────────────────────────────────────────────────
-  ["นิสิตอัปโหลด บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ", "Student uploads BW1A + BW1B + Finance Attachment"],
+  ["นิสิตอัปโหลด บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ", "Student uploads B1A + B1B + Finance Attachment"],
   ["นิสิตอัปโหลด บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",          "Student uploads B1C + B1D (fully completed)"],
   ["เจ้าหน้าที่ตรวจรับและอนุมัติ",                                    "Department Staff reviews and approves"],
-  ["ประธานหลักสูตรลงนาม บ.วศ.1ก",                                     "Program Chair signs BW1A"],
+  ["ประธานหลักสูตรลงนาม บ.วศ.1ก",                                     "Program Chair signs B1A"],
   ["ประธานกรรมการสอบลงนาม บ.วศ.1ค",                                    "Head of Exam Committee signs B1C"],
   ["อาจารย์ที่ปรึกษาร่วมลงนาม บ.วศ.1ค",                              "Co-Advisor signs B1C"],
   ["กรรมการภายนอกลงนาม บ.วศ.1ค",                                       "External Committee Member signs B1C"],
@@ -178,7 +178,7 @@ export const TH_EN: [string, string][] = [
   ["ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",                                   "Must be signed by the student before uploading"],
 
   // Student submit step descriptions
-  ["บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ", "BW1A + BW1B + Finance Attachment"],
+  ["บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ", "B1A + B1B + Finance Attachment"],
   ["บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",          "B1C + B1D (fully completed)"],
   ["แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต)", "Presentation Report (fill in and sign as student)"],
   ["บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)", "B4 (fully completed) + Complete Thesis (from e-thesis with barcode)"],
