@@ -21,8 +21,8 @@ function mapSub(s: any) {
 
 /** Get-or-create the student's THESIS_DEFENSE draft for their completed, not-yet-used PROPOSAL —
  *  called as a side effect when the student opens the "สอบวิทยานิพนธ์" tab. Committee/student info
- *  is imported straight onto the row (never through pendingPeople, since it's already resolved on
- *  the source proposal) so it lands in DRAFT with no workflow steps, purely for the student to
+ *  is imported straight onto the row (already resolved on the source proposal) so it lands in
+ *  DRAFT with no workflow steps, purely for the student to
  *  review/edit before confirming via PATCH .../[id] action "save_defense_draft" (confirm: true).
  *  Idempotent — a second call while the draft still exists just returns it. */
 export async function POST() {

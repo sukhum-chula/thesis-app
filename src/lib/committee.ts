@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
-  isValidEmail, isValidThaiPhone, ROLE_LABELS,
+  isValidEmail, isValidThaiPhone, ROLE_LABELS, formatUserName,
   degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
 } from "@/lib/utils";
 
@@ -84,13 +84,14 @@ export function validatePeopleLenient(people: PersonInput[], studentOwnEmails: S
  *  (see committeeRoleScope() in src/lib/utils.ts for the full table). Unlike validatePeople() this
  *  has to hit the DB — the rule is about the *account* behind an email, not the row's own fields.
  *
- *  Rows whose email has no account yet are skipped: a missing account is resolvePeople()'s
- *  business (it becomes a DRAFT with pendingPeople), not a composition error. Only called on the
- *  strict path (`confirm: true` / submission creation) — a draft save stays lenient, so a student
- *  can still save and come back to fix an imported committee that no longer satisfies the rule. */
+ *  Rows with no role or no email yet are always skipped — a draft may be incomplete. A row that
+ *  IS filled in but whose account has vanished is skipped too by default (resolvePeople() reports
+ *  that with a better message); pass `requireAccount: true` to reject it here instead, which is
+ *  what the draft-save path does so an unusable member can never be silently dropped. */
 export async function validateCommitteeAccountRoles(
   people: PersonInput[],
-  program: string | null | undefined
+  program: string | null | undefined,
+  opts: { requireAccount?: boolean } = {}
 ): Promise<string | null> {
   const degree = degreeOfProgram(program);
   const filled = people.filter((p) => p.role && p.email?.trim());
@@ -105,11 +106,59 @@ export async function validateCommitteeAccountRoles(
 
   for (const p of filled) {
     const accountRoles = rolesByEmail.get(p.email!.trim().toLowerCase());
-    if (!accountRoles) continue; // no account yet — handled by resolvePeople()
+    if (!accountRoles) {
+      // `requireAccount` is what the otherwise-lenient draft save passes: a filled-in row whose
+      // account has vanished used to be dropped silently, quietly shrinking the committee. On
+      // every other path a missing account is resolvePeople()'s to report.
+      if (!opts.requireAccount) continue;
+      return `ไม่พบบัญชีของ "${p.name?.trim() || p.email!.trim()}" ในระบบ (อาจถูกลบไปแล้ว) กรุณาเลือกผู้อื่นหรือลบแถวนี้ก่อนบันทึก`;
+    }
     const scope = committeeRoleScope(p.role!, degree);
     if (!accountFitsScope(accountRoles, scope))
       return `${ROLE_LABELS[p.role!] ?? p.role} ของ${degree === "DOCTORAL" ? "หลักสูตรปริญญาเอก" : "หลักสูตรปริญญาโท"}` +
              ` ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${p.name?.trim() || p.email!.trim()}" ไม่ตรงตามเงื่อนไข`;
+  }
+  return null;
+}
+
+/** The same degree-dependent account-type rule as validateCommitteeAccountRoles(), but checked
+ *  against committee ids already stored on (or about to be written to) a submission row rather
+ *  than a people[] array of emails. Used by the ADMIN submission-edit save, which writes those
+ *  columns directly and had no committee validation of any kind before 2026-09-15.
+ *
+ *  A dangling id (the account was deleted — these columns are not foreign keys) is skipped rather
+ *  than reported: that is pre-existing data drift, not something this save introduced. */
+export async function validateResolvedCommitteeAccountRoles(
+  committee: {
+    advisorId?: string | null;
+    headCommitteeId?: string | null;
+    coAdvisorIds?: string[];
+    committeeIds?: string[];
+    invitedCommitteeIds?: string[];
+  },
+  program: string | null | undefined
+): Promise<string | null> {
+  const degree = degreeOfProgram(program);
+  const pairs: [string, string][] = []; // [role, userId]
+  if (committee.advisorId) pairs.push(["ADVISOR", committee.advisorId]);
+  if (committee.headCommitteeId) pairs.push(["HEAD_EXAM_COMMITTEE", committee.headCommitteeId]);
+  for (const id of committee.coAdvisorIds ?? []) if (id) pairs.push(["CO_ADVISOR", id]);
+  for (const id of committee.committeeIds ?? []) if (id) pairs.push(["EXAM_COMMITTEE", id]);
+  for (const id of committee.invitedCommitteeIds ?? []) if (id) pairs.push(["INVITED_EXAM_COMMITTEE", id]);
+  if (pairs.length === 0) return null;
+
+  const accounts = await prisma.user.findMany({
+    where: { id: { in: [...new Set(pairs.map(([, id]) => id))] } },
+    select: { id: true, title: true, name: true, roles: true },
+  });
+  const byId = new Map(accounts.map((u) => [u.id, u]));
+
+  for (const [role, id] of pairs) {
+    const u = byId.get(id);
+    if (!u) continue; // dangling id — pre-existing drift, not this save's doing
+    const scope = committeeRoleScope(role, degree);
+    if (!accountFitsScope(u.roles as string[], scope))
+      return `${ROLE_LABELS[role] ?? role} ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${formatUserName(u)}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
   }
   return null;
 }

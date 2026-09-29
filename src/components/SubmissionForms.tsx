@@ -36,6 +36,13 @@ export interface Person {
   email: string;
   role: string;
   phone: string;
+  /** Set by buildPeopleFromSubmission() when a committee member stored on the submission can no
+   *  longer be used: "MISSING" = the account was deleted since the draft was saved, "SCOPE" = the
+   *  account still exists but no longer satisfies the degree rule (e.g. an internal professor in
+   *  ประธานกรรมการสอบ after the หลักสูตร was switched to PHD). The account is cleared off the row
+   *  so the student re-picks, and both saving and confirming are blocked until they do. Cleared
+   *  the moment the row's role or account is changed. */
+  invalid?: "MISSING" | "SCOPE";
 }
 
 const emptyPerson = (role = ""): Person => ({ name: "", email: "", role, phone: "" });
@@ -99,6 +106,44 @@ export function ProgramChairAutoField({ program, users }: {
   );
 }
 
+/** Blocks saving *and* confirming while any row still carries an unusable account — the student
+ *  must re-pick or delete the row. Deliberately applies to the otherwise-lenient "บันทึกฉบับร่าง"
+ *  path too: an unusable member used to be dropped silently on save, quietly shrinking the
+ *  committee without telling anyone. Returns a Thai error, or null. */
+export function rowInvalidReason(
+  p: Person,
+  program: string | "",
+  users: ReturnType<typeof useApp>["users"]
+): Person["invalid"] {
+  // Marked at re-open by buildPeopleFromSubmission() — the account was already cleared off the row.
+  if (p.invalid) return p.invalid;
+  // Still selected, but the หลักสูตร was switched after it was picked (moving to PHD makes an
+  // internal ประธานกรรมการสอบ illegal). Derived rather than stored, so it tracks the live program
+  // with no effect writing back into state.
+  if (!p.role || !p.email.trim() || users.length === 0) return undefined;
+  const account = users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase());
+  if (!account) return undefined; // a vanished account is reported by the save path, not here
+  return accountFitsScope(account.roles, committeeRoleScope(p.role, degreeOfProgram(program)))
+    ? undefined
+    : "SCOPE";
+}
+
+export function validateNoInvalidRows(
+  people: Person[],
+  program: string | "",
+  users: ReturnType<typeof useApp>["users"]
+): string | null {
+  for (const [i, p] of people.entries()) {
+    const invalid = rowInvalidReason(p, program, users);
+    if (!invalid) continue;
+    const role = ROLE_LABELS[p.role] ?? p.role;
+    return invalid === "MISSING"
+      ? `บุคคลที่ ${i + 1} (${role}): บัญชีเดิมถูกลบออกจากระบบแล้ว กรุณาเลือกผู้อื่นหรือลบแถวนี้ก่อนบันทึก`
+      : `บุคคลที่ ${i + 1} (${role}): บัญชีเดิมไม่ตรงตามเงื่อนไขของหลักสูตรที่เลือก กรุณาเลือกผู้อื่นหรือลบแถวนี้ก่อนบันทึก`;
+  }
+  return null;
+}
+
 // Shared shape/format/role-count validation used by both ProposalForm and DefenseForm — mirrors
 // (but is a separate copy of) the server-side check in src/lib/committee.ts's validatePeople().
 export function validatePeopleClient(
@@ -107,6 +152,8 @@ export function validatePeopleClient(
   program: string | "",
   users: ReturnType<typeof useApp>["users"]
 ): string | null {
+  const invalidError = validateNoInvalidRows(people, program, users);
+  if (invalidError) return invalidError;
   const degree = degreeOfProgram(program);
   const seenRoleEmail = new Set<string>();
   for (const [i, p] of people.entries()) {
@@ -361,16 +408,35 @@ export function ProposalForm({
 // edits a prefilled list instead of starting from scratch. Never mutates the source submission.
 export function buildPeopleFromSubmission(
   p: ReturnType<typeof useApp>["submissions"][number],
-  users: ReturnType<typeof useApp>["users"]
+  users: ReturnType<typeof useApp>["users"],
+  program: string | "" = p.program ?? ""
 ): Person[] {
-  const nameOf  = (id?: string | null) => { const u = users.find((u) => u.id === id); return u ? formatUserName(u) : ""; };
-  const emailOf = (id?: string | null) => users.find((u) => u.id === id)?.email ?? "";
+  const degree = degreeOfProgram(program);
+  // `users` is empty while the app is still loading its first fetch. We cannot tell that apart
+  // from "every account was deleted", so in that state nothing is marked invalid — flagging rows
+  // here would block saving on a perfectly good draft for as long as the fetch takes.
+  const loaded = users.length > 0;
+
+  const row = (id: string, role: string): Person => {
+    const u = users.find((x) => x.id === id);
+    if (!u) {
+      // Account deleted since the draft was saved (committee id columns are not FKs, so the id
+      // simply dangles) — drop it off the row and make the student re-pick.
+      return loaded
+        ? { name: "", email: "", role, phone: "", invalid: "MISSING" }
+        : { name: "", email: "", role, phone: "" };
+    }
+    if (loaded && !accountFitsScope(u.roles, committeeRoleScope(role, degree)))
+      return { name: "", email: "", role, phone: "", invalid: "SCOPE" };
+    return { name: formatUserName(u), email: u.email, role, phone: u.phone ?? "" };
+  };
+
   const result: Person[] = [];
-  if (p.advisorId) result.push({ name: nameOf(p.advisorId), email: emailOf(p.advisorId), role: "ADVISOR", phone: "" });
-  for (const id of p.coAdvisorIds ?? []) result.push({ name: nameOf(id), email: emailOf(id), role: "CO_ADVISOR", phone: "" });
-  if (p.headCommitteeId) result.push({ name: nameOf(p.headCommitteeId), email: emailOf(p.headCommitteeId), role: "HEAD_EXAM_COMMITTEE", phone: "" });
-  for (const id of p.committeeIds ?? []) result.push({ name: nameOf(id), email: emailOf(id), role: "EXAM_COMMITTEE", phone: "" });
-  for (const id of p.invitedCommitteeIds ?? []) result.push({ name: nameOf(id), email: emailOf(id), role: "INVITED_EXAM_COMMITTEE", phone: "" });
+  if (p.advisorId) result.push(row(p.advisorId, "ADVISOR"));
+  for (const id of p.coAdvisorIds ?? []) result.push(row(id, "CO_ADVISOR"));
+  if (p.headCommitteeId) result.push(row(p.headCommitteeId, "HEAD_EXAM_COMMITTEE"));
+  for (const id of p.committeeIds ?? []) result.push(row(id, "EXAM_COMMITTEE"));
+  for (const id of p.invitedCommitteeIds ?? []) result.push(row(id, "INVITED_EXAM_COMMITTEE"));
   // PROGRAM_CHAIR is deliberately excluded — it's never an editable row, see resolveProgramChair().
   return result.length ? result : [emptyPerson()];
 }
@@ -413,7 +479,7 @@ export function DefenseForm({
   useEffect(() => {
     if (!selected) { setPeople([]); return; }
     setTitle((v) => v || selected.title);
-    setPeople(buildPeopleFromSubmission(selected, users));
+    setPeople(buildPeopleFromSubmission(selected, users, selected.program ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
@@ -763,6 +829,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
   const degree = degreeOfProgram(program);
   const professors = users.filter((u) => u.roles.includes("PROFESSOR"));
   const externals  = users.filter((u) => u.roles.includes("EXTERNAL"));
+
   // Tracks the row being dragged — a plain ref (not state) since it never needs to trigger a
   // re-render on its own, only on drop (via setPeople).
   const dragIndex = useRef<number | null>(null);
@@ -775,7 +842,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
   }
 
   function updatePerson(index: number, patch: Partial<Person>) {
-    setPeople((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+    setPeople((prev) => prev.map((p, i) => (i === index ? { ...p, invalid: undefined, ...patch } : p)));
     clearError();
   }
   function selectAccount(index: number, userId: string) {
@@ -835,10 +902,12 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
           const accounts = accountsFor(p.role);
           // Match the selected account by email (state stores name/email/phone, not the id).
           const selectedAccount = accounts.find((a) => a.email.toLowerCase() === p.email.trim().toLowerCase());
-          // A row can still hold an account that no longer fits the rule — a committee imported
-          // from a proposal, or a หลักสูตร switched after the pick. Keep it visible in the picker
-          // instead of silently blanking it, and flag the row so the student sees what to change.
-          const outOfScope = !selectedAccount && p.email.trim()
+          // Either cleared at re-open by buildPeopleFromSubmission() (carrying `invalid`), or still
+          // selected but made illegal by a หลักสูตร switch since it was picked — rowInvalidReason()
+          // covers both. In the second case the account is still on the row, so keep it listed
+          // (marked) rather than showing a blank picker with no clue who has to be replaced.
+          const invalid = rowInvalidReason(p, program, users);
+          const stillSelected = invalid === "SCOPE" && p.email.trim()
             ? users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase())
             : undefined;
           return (
@@ -877,15 +946,15 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                     ))}
                   </select>
                   <select
-                    value={selectedAccount?.id ?? outOfScope?.id ?? ""}
+                    value={selectedAccount?.id ?? stillSelected?.id ?? ""}
                     onChange={(e) => selectAccount(i, e.target.value)}
                     disabled={!p.role}
-                    className={INPUT + " bg-white disabled:opacity-50" + (outOfScope ? " border-red-300" : "")}
+                    className={INPUT + " bg-white disabled:opacity-50" + (invalid ? " border-red-400 bg-red-50" : "")}
                     aria-label={p.role ? ACCOUNT_SCOPE_LABELS[rowScope] : "รายชื่อ"}
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
-                    {outOfScope && (
-                      <option value={outOfScope.id}>{formatUserName(outOfScope)} (ไม่ตรงตามเงื่อนไข)</option>
+                    {stillSelected && (
+                      <option value={stillSelected.id}>{formatUserName(stillSelected)} (ไม่ตรงตามเงื่อนไข)</option>
                     )}
                     {accounts.map((a) => (
                       <option key={a.id} value={a.id}>{formatUserName(a)}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
@@ -893,9 +962,12 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                   </select>
                 </div>
                 {p.role && (
-                  outOfScope ? (
-                    <p className="text-xs text-red-600">
-                      {ROLE_LABELS[p.role] ?? p.role}ของหลักสูตรนี้ต้องเป็น{ACCOUNT_SCOPE_LABELS[rowScope]} — กรุณาเลือกใหม่
+                  invalid ? (
+                    <p className="text-xs text-red-600 font-medium">
+                      {invalid === "MISSING"
+                        ? "บัญชีที่เคยเลือกไว้ถูกลบออกจากระบบแล้ว"
+                        : `บัญชีที่เคยเลือกไว้ไม่ตรงตามเงื่อนไขของหลักสูตรที่เลือก (ต้องเป็น${ACCOUNT_SCOPE_LABELS[rowScope]})`}
+                      {" "}— กรุณาเลือกผู้อื่นหรือลบแถวนี้ ก่อนจึงจะบันทึกได้
                     </p>
                   ) : (
                     <p className="text-xs text-gray-400">เลือกจาก: {ACCOUNT_SCOPE_LABELS[rowScope]}</p>

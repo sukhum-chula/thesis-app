@@ -8,7 +8,7 @@ import { ProgramType } from "@/types";
 import { BookOpen, Info, User, Users, Save, Send, Sparkles, XCircle, Trash2 } from "lucide-react";
 import {
   FormHeader, Section, Field, ReadOnlyField, ExamLogisticsSection, ConfirmCheckbox,
-  CommitteePeopleEditor, buildPeopleFromSubmission, initialPeople, validatePeopleClient, INPUT,
+  CommitteePeopleEditor, buildPeopleFromSubmission, validateNoInvalidRows, initialPeople, validatePeopleClient, INPUT,
   resolveProgramChair, withProgramChair, ProgramChairAutoField,
   type Person,
 } from "@/components/SubmissionForms";
@@ -31,7 +31,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
   const [program,       setProgram]       = useState<ProgramType | "">((sub?.program as ProgramType) ?? "");
   const [studentPhone,  setStudentPhone]  = useState(sub?.studentPhone ?? "");
   const [people,        setPeople]        = useState<Person[]>(() =>
-    hasCommittee && sub ? buildPeopleFromSubmission(sub, users) : initialPeople()
+    hasCommittee && sub ? buildPeopleFromSubmission(sub, users, program) : initialPeople()
   );
   const [examDate,      setExamDate]      = useState(sub?.examDate ?? "");
   const [examTime,      setExamTime]      = useState(sub?.examTime ?? "");
@@ -68,6 +68,8 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
   // that's a mistake rather than something left for later. Full completeness is only required to
   // confirm (see validate() above).
   function validateForSave(): string | null {
+    const invalidError = validateNoInvalidRows(people, program, users);
+    if (invalidError) return invalidError;
     if (studentPhone.trim() && !isValidThaiPhone(studentPhone)) return "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
     if (examDate.trim() && examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
     return null;

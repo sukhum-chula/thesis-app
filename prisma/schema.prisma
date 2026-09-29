@@ -163,9 +163,6 @@ model Submission {
   submissionType SubmissionType?
   status         SubmissionStatus @default(DRAFT)
   adminNote      String?
-  // Raw {name,email,role,phone}[] the student entered while status=DRAFT (some committee person
-  // has no account yet); cleared once resolved and the real committee fields below are set.
-  pendingPeople  Json?
   // Student-requested cancellation, pending ADMIN accept/decline — the submission's own `status`
   // does not change until then, and normal workflow actions are frozen while this is true.
   cancelRequested   Boolean   @default(false)

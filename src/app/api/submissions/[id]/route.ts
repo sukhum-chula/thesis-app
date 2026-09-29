@@ -5,7 +5,7 @@ import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName } from "@/lib/
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
-import { validatePeople, validateCommitteeAccountRoles, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
+import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
 import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
 
 function mapSub(s: any) {
@@ -568,44 +568,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
-  else if (action === "continue_draft") {
-    if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (sub.status !== "DRAFT") return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่าง" }, { status: 400 });
-
-    const pendingPeople = (sub.pendingPeople as PersonInput[] | null) ?? [];
-    const result = await resolvePeople(pendingPeople);
-    if (!result.ok)
-      return NextResponse.json(
-        { error: `ยังมีกรรมการที่ยังไม่มีบัญชีในระบบ: ${result.missingEmails.join(", ")}` },
-        { status: 400 }
-      );
-
-    // An ADMIN may already have edited this DRAFT's committee fields directly (the admin
-    // submission-edit form writes these same columns) before the student got around to
-    // continuing — never clobber that with the original pendingPeople resolution, only fill
-    // in whichever fields are still unset.
-    const advisorId           = sub.advisorId           ?? result.advisorId;
-    const headCommitteeId     = sub.headCommitteeId     ?? result.headCommitteeId;
-    const programChairId      = sub.programChairId      ?? result.programChairId;
-    const coAdvisorIds        = sub.coAdvisorIds.length        ? sub.coAdvisorIds        : result.coAdvisorIds;
-    const committeeIds        = sub.committeeIds.length        ? sub.committeeIds        : result.committeeIds;
-    const invitedCommitteeIds = sub.invitedCommitteeIds.length ? sub.invitedCommitteeIds : result.invitedCommitteeIds;
-
-    await prisma.submission.update({
-      where: { id },
-      data: {
-        status: "IN_PROGRESS",
-        pendingPeople: null as any,
-        advisorId, headCommitteeId, committeeIds, coAdvisorIds, invitedCommitteeIds,
-        programChairId,
-      },
-    });
-    await prisma.workflowStep.createMany({
-      data: buildWorkflowSteps(sub.submissionType, coAdvisorIds, committeeIds, invitedCommitteeIds)
-        .map((s) => ({ ...s, submissionId: id })),
-    });
-  }
-
   else if (action === "resubmit") {
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const rejectedStep = sub.workflowSteps.find((s: any) => s.status === "REJECTED");
@@ -640,6 +602,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!userRoles.includes("ADMIN")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const b = body;
     const nullOrVal = (v: unknown) => (v === undefined ? undefined : (v || null));
+
+    // Check the degree-dependent account-type rule against the state this save would leave behind,
+    // but only when it actually touches something that can break it. `program` counts: switching a
+    // submission to PHD invalidates an internal ประธานกรรมการสอบ without touching a committee field.
+    // Skipping the check otherwise means an unrelated edit (an exam date, say) is never blocked by a
+    // committee that predates the rule.
+    const touchesCommittee =
+      b.advisorId !== undefined || b.headCommitteeId !== undefined || b.coAdvisorIds !== undefined ||
+      b.committeeIds !== undefined || b.invitedCommitteeIds !== undefined || b.program !== undefined;
+    if (touchesCommittee) {
+      const committeeError = await validateResolvedCommitteeAccountRoles(
+        {
+          advisorId:           b.advisorId           !== undefined ? (b.advisorId || null)       : sub.advisorId,
+          headCommitteeId:     b.headCommitteeId     !== undefined ? (b.headCommitteeId || null) : sub.headCommitteeId,
+          coAdvisorIds:        b.coAdvisorIds        !== undefined ? b.coAdvisorIds              : sub.coAdvisorIds,
+          committeeIds:        b.committeeIds        !== undefined ? b.committeeIds              : sub.committeeIds,
+          invitedCommitteeIds: b.invitedCommitteeIds !== undefined ? b.invitedCommitteeIds       : sub.invitedCommitteeIds,
+        },
+        b.program !== undefined ? (b.program || null) : sub.program
+      );
+      if (committeeError) return NextResponse.json({ error: committeeError }, { status: 400 });
+    }
     await prisma.submission.update({
       where: { id },
       data: {
@@ -773,12 +757,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Blank PROPOSAL draft (see POST /api/submissions/auto-draft-proposal) — the student fills in
   // the title/program/committee/exam logistics here, either just saving (confirm: false, stays
-  // DRAFT) or confirming (confirm: true — starts the real workflow). Never touches
-  // pendingPeople-style DRAFTs (those are gated out below), since this draft never went through
-  // that path in the first place.
+  // DRAFT) or confirming (confirm: true — starts the real workflow).
   else if (action === "save_proposal_draft") {
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (sub.submissionType !== "PROPOSAL" || sub.status !== "DRAFT" || ((sub.pendingPeople as any[] | null)?.length ?? 0) > 0)
+    if (sub.submissionType !== "PROPOSAL" || sub.status !== "DRAFT")
       return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่างที่รอกรอกข้อมูล" }, { status: 400 });
 
     const confirm = body.confirm === true;
@@ -837,6 +819,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!confirm) {
       const peopleError = validatePeopleLenient(people, studentOwnEmails);
       if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      // A draft may be incomplete, but it may not carry a member who cannot be used — a deleted
+      // account, or one that no longer fits the degree rule. Those used to be dropped silently.
+      const invalidError = await validateCommitteeAccountRoles(people, program, { requireAccount: true });
+      if (invalidError) return NextResponse.json({ error: invalidError }, { status: 400 });
       const partial = await resolvePeoplePartial(people);
 
       await prisma.submission.update({
@@ -893,12 +879,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Auto-imported THESIS_DEFENSE draft (see POST /api/submissions/auto-draft-defense) — the
   // student reviews/edits the imported committee + fills in exam logistics here, either just
   // saving (confirm: false, stays DRAFT) or confirming (confirm: true — starts the real workflow,
-  // same resolution pipeline as a normal creation). Never touches pendingPeople-style DRAFTs
-  // (those are gated out below), since this draft's committee was already fully resolved at
-  // import time.
+  // same resolution pipeline as a normal creation).
   else if (action === "save_defense_draft") {
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (sub.submissionType !== "THESIS_DEFENSE" || sub.status !== "DRAFT" || ((sub.pendingPeople as any[] | null)?.length ?? 0) > 0)
+    if (sub.submissionType !== "THESIS_DEFENSE" || sub.status !== "DRAFT")
       return NextResponse.json({ error: "คำร้องนี้ไม่ใช่ฉบับร่างที่นำเข้าอัตโนมัติ" }, { status: 400 });
 
     const confirm = body.confirm === true;
@@ -947,6 +931,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!confirm) {
       const peopleError = validatePeopleLenient(people, studentOwnEmails);
       if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
+      // Same rule as the proposal draft above — an unusable member blocks the save outright.
+      const invalidError = await validateCommitteeAccountRoles(people, sub.program, { requireAccount: true });
+      if (invalidError) return NextResponse.json({ error: invalidError }, { status: 400 });
       const partial = await resolvePeoplePartial(people);
 
       await prisma.submission.update({

@@ -124,12 +124,13 @@ Roughly in priority order:
    signing + emails; draft-save leniency round-trip (empty save, partial save, reload); the
    responsive admin user-list header at `xl`+ desktop width and true mobile width; the
    email-result-reporting fix's *failure* branch for passcode-reset/email-change and for the
-   `pending-professors`/`/super-dashboard` add-user forms specifically; `/professor-dashboard`'s
+   `/super-dashboard` add-user form specifically; `/professor-dashboard`'s
    rework as a real PROFESSOR account; the name-title split and editable-login-email features
    end-to-end; the degree-dependent committee composition rules (2026-09-15) — confirm the
    ประธานกรรมการสอบ dropdown really switches to externals-only when หลักสูตร is set to `PHD`,
-   and that a defense draft importing a now-invalid committee still saves but refuses to
-   confirm.
+   and that a defense draft importing a now-invalid committee clears the bad row on re-open and
+   refuses BOTH save and confirm until it is re-picked (2026-09-15 rework — the earlier
+   still-saves-but-refuses-to-confirm behaviour was deliberately reversed).
 5. **Fix the outgoing-mail quota problem** (see warning above) — pick one of the three options and
    do it, rather than continuing to absorb Gmail's daily cap.
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against

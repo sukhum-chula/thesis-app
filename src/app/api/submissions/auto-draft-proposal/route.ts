@@ -21,11 +21,9 @@ function mapSub(s: any) {
 }
 
 /** Get-or-create the student's blank PROPOSAL draft — called when the student clicks "สร้าง"
- *  on the disabled template shown before any proposal exists. Unlike the pendingPeople DRAFT
- *  flavor (unresolved committee emails), this draft starts with no committee/program/exam info
- *  at all — only the student's own account fields are pre-filled — so it's told apart the same
- *  way an auto-draft defense is: `status === "DRAFT" && no pendingPeople entries`. The student
- *  then fills it in and saves/confirms via PATCH .../[id] action "save_proposal_draft".
+ *  on the disabled template shown before any proposal exists. It starts with no committee/program/
+ *  exam info at all — only the student's own account fields are pre-filled. The student then fills
+ *  it in and saves/confirms via PATCH .../[id] action "save_proposal_draft".
  *  Idempotent — a second call while a non-cancelled PROPOSAL already exists just returns it. */
 export async function POST() {
   const session = await auth();

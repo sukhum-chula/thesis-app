@@ -93,7 +93,7 @@ a generated one** (still `generatePassword()`, `src/lib/utils.ts` — 6 chars, p
 then edit it before submitting — the shared `PasscodeField` component (`src/components/
 PasscodeField.tsx`) renders this input + generate-button pair and is reused by `AdminUsersPanel`'s
 add-user modal, `UserDetailPanel`'s and `/super-dashboard`'s reset-passcode dialogs, and the
-`/dashboard/admin/pending-professors` quick-create form. The field is pre-filled with a freshly
+and `UserDetailPanel`'s reset dialog. The field is pre-filled with a freshly
 generated value each time a modal opens, so "just click submit" still reproduces the old
 always-generated behavior — typing over it is what's new.
 
@@ -132,13 +132,13 @@ Thai text, same pattern as `Role` — client code only ever sees/sends the Engli
 `NAME_TITLES`, nullable to clear it). Every admin-facing account create/edit form has a
 "คำนำหน้าชื่อ" `<select>` (values from `NAME_TITLES`, defaulting to "— ไม่มี —") next to the name
 field: `AdminUsersPanel`'s add-user modal, `UserProfileHeader`'s edit modal, `/super-dashboard`'s
-add-admin form, and `/dashboard/admin/pending-professors`'s quick-create form.
+add-admin form.
 
 `formatUserName()` is threaded through every surface that displays a name from a live `User`
 record: all dashboards, `SubmissionInfoPanel`, `RoleSubmissionDetail`, `WorkflowTimeline`,
 `CommitteeSignPanel`, and `CommitteePeopleEditor`'s account-picker `<select>` — picking an account
 there writes `formatUserName(account)` into that row's `Person.name`, so the title is baked into
-`people[]`/`pendingPeople`/the auto-injected `PROGRAM_CHAIR` entry exactly as it would have been
+`people[]`/the auto-injected `PROGRAM_CHAIR` entry exactly as it would have been
 before the split. It also covers every outgoing email (`src/lib/email.ts`'s recipient/greeting
 names, `sendWelcomeEmail`/`sendPasscodeResetEmail`/`sendFinanceEmail`/`sendExamReminderEmail`) and
 `WorkflowStep.actedByName`/committee-sign-action snapshots taken at approve/reject time
@@ -149,7 +149,7 @@ flows through the same NextAuth session/JWT pipeline as `roles`/`studentId` (`sr
 **Deliberately not touched** — historical denormalized text snapshots that have no parallel title
 column to go with them, so fixing this properly would mean new schema columns, not a display-layer
 change: `Submission.studentFullName` (student-info snapshot taken at submission-creation time), and
-any `pendingPeople[].name` entry recorded before that person had an account. (The invited-committee
+(The invited-committee
 snapshot fields this bullet used to also list — `invitedProfName`/`invitedProfAffiliation`/
 `invitedProfEmail`/`invitedProfPhone` — were removed 2026-09-09 when `INVITED_EXAM_COMMITTEE` moved
 to multi-member support; see "Multiple external committee members" below.)
@@ -231,34 +231,69 @@ changes. An admin can no longer set an arbitrary professor as one submission's p
 this form; to change it they reassign the program-level chair via "ตั้งค่าระบบ" instead. Saving the
 edit writes that resolved id (or `null` if the program has no chair assigned) as `programChairId`.
 
-### Committee accounts must pre-exist — DRAFT + admin approval (unified creation route 2026-09-07)
-Every person named in `people[]` (both PROPOSAL creation and defense committee edits) must already
-have an account — the API no longer auto-creates one. Validation/resolution lives in
-`src/lib/committee.ts` (`validatePeople` for shape/role-count checks, `resolvePeople` for the
-account lookup — it never creates a user). If any email doesn't resolve, `POST /api/submissions`
-saves the submission as `status: "DRAFT"` with the raw entries in `pendingPeople` (JSON) and
-**no workflow steps** — nothing is created until it's resolved. All admins are notified.
+### Committee accounts must pre-exist — and can no longer be named before they do (2026-09-15)
+Every person in `people[]` must already have an account, and **the student can no longer name one
+that doesn't**: `CommitteePeopleEditor` offers existing accounts only, and the single way a new
+committee account comes into being is a STUDENT's EXTERNAL-account request (see "EXTERNAL account
+requests" below), which an ADMIN approves. A student cannot request a `PROFESSOR` account —
+internal faculty accounts are created by an ADMIN out of band.
 
-An ADMIN resolves these directly from `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
-both `/admin-dashboard`'s "จัดการผู้ใช้งาน" tab and the standalone `/dashboard/admin/users`): every
-unresolved committee email — grouped by email across all DRAFT submissions, since the same person
-may be named on several — renders as an amber card **at the top of the user list itself** (not a
-separate page), each with one "เพิ่มผู้ใช้" button. Clicking it opens the exact same "เพิ่มผู้ใช้งาน"
-modal used to create any account, pre-filled with that person's name/email and role defaulted to
-PROFESSOR — creation goes through the same `POST /api/users` route as any other new user (see
-"Account creation & passcodes" above), so the "notify any student whose draft this was blocking"
-check now lives server-side in that one route rather than a dedicated endpoint. The standalone
-`/dashboard/admin/pending-professors` page (still linked from the `/admin-dashboard` submissions
-tab's amber task card, and from the always-visible "รอสร้างบัญชีให้อาจารย์/กรรมการ" list) still
-works as an alternate entry point, calling the same `superAdminAddUser`/`POST /api/users` path.
-Once every person on a draft has an account, the resolved student is notified, and must return and
-call `action: "continue_draft"` (their own explicit action — nothing auto-finalizes) to resolve the
-committee fields, build the workflow steps (`src/lib/workflowSteps.ts`), and flip the submission to
-`IN_PROGRESS`. **`continue_draft` only fills in fields still unset on the row** — it never
-overwrites a committee field an ADMIN already set directly via the submission edit form while the
-row sat in DRAFT (see `src/app/api/submissions/[id]/route.ts`'s `continue_draft` handler); the
-distinguishing signal is `pendingPeople` being empty/null vs. carrying entries, not the row's other
-committee-field values.
+Validation/resolution lives in `src/lib/committee.ts` (`validatePeople` for shape/role-count
+checks, `resolvePeople` for the account lookup — it never creates a user). An email that doesn't
+resolve now means one thing only: the account was **deleted between page load and submit**. That is
+reported as a plain 400 naming the emails.
+
+**The `pendingPeople` DRAFT flavor is gone** (removed 2026-09-15). A submission naming a
+committee person with no account used to be saved as `status: "DRAFT"` with the raw entries in a
+`pendingPeople` JSON column and no workflow steps, all admins notified; an ADMIN then created the
+account from an amber card at the top of `AdminUsersPanel`, or from a standalone
+`/dashboard/admin/pending-professors` page, and the student finalized it with
+`action: "continue_draft"`. All of it — the column, the action, `AppContext.continueDraft`, the
+amber cards, the `/admin-dashboard` count card, the standalone page, and the
+notify-students-whose-draft-is-unblocked pass in `POST /api/users` — was removed once a student
+could no longer produce that state. Two defects died with it: the account-creation modal defaulted
+every such person to `PROFESSOR` even when they were named as กรรมการภายนอก, and `continue_draft`
+resolved and finalized a committee **without re-checking account types**, so a submission could
+reach `IN_PROGRESS` violating the degree rule (see "Committee composition by degree" below).
+
+**`DRAFT` now has exactly one meaning**: a submission the student is still filling in — a blank
+PROPOSAL (`POST /api/submissions/auto-draft-proposal`) or a defense imported from a completed
+proposal (`POST /api/submissions/auto-draft-defense`). Both route to their editable review
+component (`ProposalDraftReview` / `DefenseDraftReview`), never to a "waiting for accounts" banner.
+`isAutoDraftProposal`/`isAutoDraftDefense` in `student-dashboard/page.tsx` are now just
+`status === "DRAFT"`, kept as named predicates for readability.
+
+### Re-opening a draft heals an unusable committee member (2026-09-15)
+A draft can sit for weeks, so a committee member stored on it may stop being usable — the account
+was deleted (committee id columns are not FKs, so the id simply dangles), or the หลักสูตร was
+switched and the account no longer satisfies the degree rule. On re-open, `buildPeopleFromSubmission`
+(`src/components/SubmissionForms.tsx`) **clears that account off its row** and marks the row
+`invalid: "MISSING" | "SCOPE"` (`Person.invalid`). The row keeps its role, shows an empty picker
+and a red explanation, and the student re-picks or deletes it.
+
+The same thing can happen **without** re-opening: switching the หลักสูตร mid-edit can make an
+already-picked row illegal (moving to PHD outlaws an internal ประธานกรรมการสอบ). That case is
+*derived*, not stored — `rowInvalidReason(person, program, users)` returns the row's stored
+`invalid` marker if it has one, else re-checks the live program — so it tracks the selector with no
+effect writing back into state. The account is still on the row there, so the picker keeps it
+listed marked "(ไม่ตรงตามเงื่อนไข)" rather than going blank with no clue who must be replaced.
+
+While any row is marked, **both buttons refuse** — `validateNoInvalidRows(people, program, users)` is called by the draft
+components' strict `validate()` *and* their lenient `validateForSave()`. This is a deliberate
+exception to "a plain save is allowed to be incomplete" (see "Draft save vs. confirm validation"
+below): an unusable member is a mistake, not an omission, and it used to be **dropped silently on
+save**, shrinking the committee without telling anyone. Editing a row's role or account clears the
+marker.
+
+Server-side the same rule is enforced by `validateCommitteeAccountRoles(people, program,
+{ requireAccount: true })` on both `save_proposal_draft` and `save_defense_draft`'s `confirm: false`
+branches — a filled-in row whose account has vanished, or no longer fits the degree, is a 400
+rather than a silent drop by `resolvePeoplePartial`. Rows with no role or no account picked yet are
+still skipped, so a genuinely incomplete draft still saves.
+
+**Guard**: `buildPeopleFromSubmission` marks nothing while `users` is still empty (the app's first
+fetch hasn't landed) — an empty account list is indistinguishable from "every account was deleted",
+and flagging there would block saving a perfectly good draft for the length of the fetch.
 
 ### Cancellation — student requests, ADMIN accepts or declines
 `action: "request_cancel"` (student-only) no longer cancels immediately — it sets
@@ -313,7 +348,7 @@ THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]
 
 ### Admin dashboard (`src/app/admin-dashboard/page.tsx`) — ADMIN's landing page
 `/dashboard/admin` (old path) now just redirects here. `src/app/dashboard/admin/[id]/page.tsx`
-(submission detail) and `src/app/dashboard/admin/pending-professors/page.tsx` still live under the
+(submission detail) still lives under the
 old `/dashboard/admin/` path; only the exact-match overview page moved.
 
 **No `DashboardHeader`** (removed 2026-09-06) — the page starts directly with its content; the
@@ -331,8 +366,6 @@ the outer page, which used to shift the whole layout when the browser's own scro
    - **"งานที่ต้องดำเนินการ"** orange task box — cancellation requests (`cancel_request` type)
      always sort first, then PENDING-on-ADMIN steps, then the PROPOSAL step-4 finance-upload task;
      each card links directly to the submission
-   - **"รอสร้างบัญชีให้อาจารย์/กรรมการ"** amber count card — only shown when any DRAFT submission
-     has an unresolved `pendingPeople` email; links to `/dashboard/admin/pending-professors`
    - **Type filter pills** (ทุกประเภท/โครงร่าง/สอบวิทยานิพนธ์), **search bar**, **status filter
      tabs** (All/DRAFT/IN_PROGRESS/COMPLETED/REJECTED/CANCELLED, each with a count badge — these
      badges are what replaced the old header's stat pills, so nothing was lost when the header was
@@ -441,7 +474,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Role | Thai | Key Actions |
 |---|---|---|
 | Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passcodes. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission. As of 2026-09-06 it CAN view (read-only oversight, not act on) a full directory of every account including STUDENT/PROFESSOR via `GET /api/super-admin/users`, and a full list of every submission via `GET /api/super-admin/submissions` (no detail-page link, no actions); the older counts-only `GET /api/super-admin/stats` was removed as redundant once these two list endpoints shipped |
-| Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student, create the missing accounts for a committee person named on a DRAFT submission (`/dashboard/admin/pending-professors`), accept/decline student cancellation requests. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
+| Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student, approve/reject STUDENT requests for a new EXTERNAL committee account, accept/decline student cancellation requests. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students — always an internal `PROFESSOR` account, both degrees |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE); may be an internal `PROFESSOR` or an `EXTERNAL` account, both degrees |
@@ -494,8 +527,7 @@ shape is still `{name, email, role, phone?}[]`, identical to before, so server-s
 (`src/lib/committee.ts`'s `resolvePeople`, email lookup only, never creates an account) is
 unchanged — since every option in the dropdown is already a real account, an unresolved email is
 now only a theoretical race (account deleted between page load and submit), but the
-`DRAFT`/`pendingPeople` fallback (see "Committee accounts must pre-exist" above) still exists as
-defense-in-depth. **PROGRAM_CHAIR is
+submit is reported as a plain 400 (see "Committee accounts must pre-exist" above). **PROGRAM_CHAIR is
 never a row in this editor at all** — the student's own account-level `Role` for creating a
 submission has nothing to do with it; instead `resolveProgramChair()`/`ProgramChairAutoField`
 auto-resolve and display (read-only) whichever `PROFESSOR`'s `programChairFor` array includes the
@@ -584,13 +616,19 @@ program's admin-designated chair, and `POST /api/admin/program-chairs` already r
   check that has to hit the DB, since the rule is about the *account* behind an email rather than
   the row's own fields. Called on the strict path only: `POST /api/submissions`, and
   `save_proposal_draft`/`save_defense_draft` with `confirm: true`. A row whose email has no account
-  yet is skipped (that's still `resolvePeople`'s DRAFT/`pendingPeople` business, not a composition
-  error).
-- **Deliberately not enforced on the lenient path** (`confirm: false`) or in `continue_draft`, even
-  though a wrong account type is a mistake rather than an incompleteness: a draft must stay saveable
-  so a student can come back and fix an imported committee that no longer satisfies the rule, and
-  `continue_draft` gives them no editor to fix it with. Both paths were strictly validated at the
-  point the committee was confirmed, so nothing reaches `IN_PROGRESS` unchecked.
+  yet is skipped on the strict path (`resolvePeople` reports it with a better message); the draft-save
+  path passes `requireAccount: true` so it is rejected there instead of silently dropped.
+- **Enforced on the draft-save path too** (2026-09-15, reversing the original decision): a draft
+  save rejects a filled-in row whose account is unusable rather than dropping it silently, and the
+  editor clears such a row on re-open so the student has something to act on — see "Re-opening a
+  draft heals an unusable committee member" above. `continue_draft`, which finalized a committee
+  with no account-type check at all, no longer exists.
+- **Also enforced on `admin_update`** — the ADMIN submission-edit save writes every committee id
+  column directly and had no committee validation of any kind. `validateResolvedCommitteeAccountRoles()`
+  (`src/lib/committee.ts`) checks the state the save would leave behind, but only when the request
+  touches a committee field **or `program`** (switching to PHD invalidates an internal
+  ประธานกรรมการสอบ without touching a committee field), so an unrelated edit is never blocked by a
+  committee that predates the rule.
 - **Operational prerequisite**: a `PHD` submission now cannot be confirmed until at least one
   `EXTERNAL` account exists to chair the exam committee (and every degree already needed one for
   กรรมการภายนอก). See "EXTERNAL account requests" above for how those accounts get created.
@@ -773,7 +811,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
 - **One active proposal per student, defense created from a completed one** — a new PROPOSAL is blocked while an existing one is anything other than `CANCELLED`; a THESIS_DEFENSE requires a `COMPLETED`, non-cancelled source proposal (`sourceProposalId`) and imports (editable, independent copy) its committee. See "Proposal-first" above.
-- **Every committee person must already have an account** — `POST /api/submissions` never auto-creates one; an email that doesn't resolve saves the submission as `DRAFT` (`pendingPeople` JSON, no workflow steps) until an ADMIN creates the account (one click from the top of `AdminUsersPanel`'s user list, or via `/dashboard/admin/pending-professors`) and the student calls `continue_draft`. See "Committee accounts must pre-exist" above.
+- **Every committee person must already have an account, and the editor only offers existing ones** — `POST /api/submissions` never auto-creates one, and an email that doesn't resolve (the account was deleted between page load and submit) is a plain 400. The only path to a new committee account is a STUDENT's EXTERNAL-account request, approved by an ADMIN. See "Committee accounts must pre-exist" above.
 - **Cancellation is a two-step admin-gated request**, not an immediate student action — `request_cancel` only sets `cancelRequested` and freezes all other actions on that submission; only ADMIN's `accept_cancel`/`decline_cancel` actually resolves it. See "Cancellation — student requests, ADMIN accepts or declines" above.
 
 ## UI conventions (recent)
@@ -811,11 +849,10 @@ carries (or now carries) its own "กลับ"/"ย้อนกลับ" back-
 - PROFESSOR's submission detail page already had one (`RoleSubmissionDetail`'s `backPath`) — no
   entry point needed.
 - SUPER_ADMIN has no sub-pages under `/super-dashboard` — no entry point needed.
-- ADMIN's `/dashboard/admin/[id]` and `/dashboard/admin/pending-professors` already had their own
+- ADMIN's `/dashboard/admin/[id]` already had its own
   back-links. `/dashboard/admin/users` did not — a "ย้อนกลับ" link was added there — and its only
   entry point (the old "ผู้ใช้งานในระบบ" nav link) was replaced with a persistent card on
-  `/admin-dashboard` itself (right under the header), same pattern as the existing
-  "รอสร้างบัญชีให้อาจารย์/กรรมการ" card.
+  `/admin-dashboard` itself (right under the header).
 
 **Logout** is always labeled "Logout" (not the Thai "ออกจากระบบ") everywhere it appears.
 
@@ -887,9 +924,8 @@ through to a detail page" step):
    live even in preview mode: the "+ สร้างร่างคำร้อง" button, which calls
    get-or-create/idempotent), which creates a `THESIS_DEFENSE`-draft-style blank `PROPOSAL` row —
    `status: "DRAFT"`, only the student's own account fields pre-filled, no committee/program/exam
-   info at all — told apart from the legacy pendingPeople/missing-accounts DRAFT flavor the same
-   way an auto-draft defense is (`status === "DRAFT" && no pendingPeople entries`, see
-   `isAutoDraftProposal()` in `student-dashboard/page.tsx`). Once that row exists,
+   info at all (`isAutoDraftProposal()` in `student-dashboard/page.tsx` — since 2026-09-15 just
+   `status === "DRAFT"`, DRAFT having only one meaning now). Once that row exists,
    `ProposalDraftReview` (`src/components/ProposalDraftReview.tsx`, mirrors `DefenseDraftReview`)
    takes over as the actual editable form — title/program/student phone/committee/exam logistics,
    all editable, "บันทึกฉบับร่าง" (`PATCH .../[id]` action `"save_proposal_draft"`, `confirm: false`,
@@ -909,11 +945,9 @@ through to a detail page" step):
    `COMPLETED` proposal (and no existing non-cancelled defense), a `useEffect` fires
    `getOrCreateDefenseDraft()` (`POST /api/submissions/auto-draft-defense`, get-or-create,
    idempotent) which creates a `THESIS_DEFENSE` row directly in `DRAFT` status with every
-   committee/student field **imported straight onto the row** from the proposal (never through
-   `pendingPeople` — it's already resolved, so this is a different DRAFT flavor from the
-   missing-accounts one; see "Committee accounts must pre-exist" above for how the two are told
-   apart). While loading, a spinner card shows "กำลังเตรียมคำร้องขอสอบวิทยานิพนธ์...". Once created,
-   `isAutoDraftDefense(sub)` (`status === "DRAFT" && no pendingPeople entries`) routes to
+   committee/student field **imported straight onto the row** from the proposal (already resolved
+   there). While loading, a spinner card shows "กำลังเตรียมคำร้องขอสอบวิทยานิพนธ์...". Once created,
+   `isAutoDraftDefense(sub)` (`status === "DRAFT"`) routes to
    `DefenseDraftReview` (`src/components/DefenseDraftReview.tsx`) instead of
    `StudentSubmissionActions` — editable title/committee-people-editor/exam-logistics (all
    pre-filled, all still editable — the imported committee never writes back to the source

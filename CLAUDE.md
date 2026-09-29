@@ -36,18 +36,15 @@ things live.
 
 ```
 src/app/api/**              all business logic — route handlers are the source of truth
-  submissions/route.ts        POST create (proposal-first gate, DRAFT/pendingPeople branching)
-  submissions/[id]/route.ts   PATCH actions — approve/reject/resubmit/return_to_prev/continue_draft/
+  submissions/route.ts        POST create (proposal-first gate; unresolvable committee email → 400)
+  submissions/[id]/route.ts   PATCH actions — approve/reject/resubmit/return_to_prev/
                                request_cancel/accept_cancel/decline_cancel/save_defense_draft/admin_*
   submissions/auto-draft-defense/ POST — STUDENT-only, get-or-creates the DRAFT THESIS_DEFENSE
                                imported from a completed proposal (see AGENTS.md)
   users/route.ts               POST — the one route every account is created through, including
-                               resolving a DRAFT submission's missing committee person (no separate
-                               "pending professor" endpoint anymore — see AGENTS.md)
+                               approving a STUDENT's EXTERNAL-committee request (see AGENTS.md)
 src/app/dashboard/<role>/** thin pages per role, mostly wrapping shared components
-                             (admin/pending-professors — alternate entry point into the same
-                             account-creation flow now surfaced at the top of AdminUsersPanel's
-                             user list; admin/[id] and student/[id]/student/submit are now thin
+                             (admin/[id] and student/[id]/student/submit are now thin
                              wrappers around AdminSubmissionPanel / StudentSubmissionActions /
                              SubmissionForms, see AGENTS.md)
 src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/student redirects here)
@@ -85,7 +82,7 @@ src/lib/
                              they are also listed in the mapUser() whitelists in
                              api/users/route.ts and api/users/[id]/route.ts
   workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
-                             initial-create path and the continue_draft finalize path
+                             initial-create path and the draft-confirm finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn,
                              degreeOfProgram/committeeRoleScope/accountFitsScope — the one
                              definition of which account type may fill each committee role per

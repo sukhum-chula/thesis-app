@@ -60,7 +60,6 @@ interface AppContextType {
   requestCancelSubmission: (submissionId: string) => Promise<void>;
   adminAcceptCancel: (submissionId: string) => Promise<void>;
   adminDeclineCancel: (submissionId: string) => Promise<void>;
-  continueDraft: (submissionId: string) => Promise<void>;
   getOrCreateDefenseDraft: () => Promise<MockSubmission>;
   saveDefenseDraft: (
     submissionId: string,
@@ -270,11 +269,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function adminDeclineCancel(submissionId: string) {
     const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "decline_cancel" });
-    setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
-  }
-
-  async function continueDraft(submissionId: string) {
-    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "continue_draft" });
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
   }
 
@@ -500,7 +494,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user, users, submissions, notifications, externalRequests, unreadCount, loading,
       logout, refresh,
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
-      addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel, continueDraft,
+      addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel,
       getOrCreateDefenseDraft, saveDefenseDraft,
       getOrCreateProposalDraft, saveProposalDraft,
       committeeSign, needsMyAction,

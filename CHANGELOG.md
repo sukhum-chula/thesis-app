@@ -7,6 +7,39 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-15
 
+- **Removed the `pendingPeople` DRAFT flavor entirely; drafts now heal themselves on re-open and
+  refuse to save an unusable committee member.** A student has never been able to type a committee
+  member's name — `CommitteePeopleEditor` offers existing accounts only — and the one way a new
+  committee account appears is a STUDENT's EXTERNAL-account request approved by an ADMIN. The
+  machinery for "student named someone with no account" was therefore unreachable except by a race,
+  and it carried two real defects (see the previous entry's follow-ups). Removed: the
+  `Submission.pendingPeople` column, `action: "continue_draft"`, `AppContext.continueDraft`, the
+  DRAFT-with-pendingPeople branch of `POST /api/submissions` (an unresolvable email is now a plain
+  400 naming the addresses), the amber "รอสร้างบัญชี" cards in `AdminUsersPanel`, the
+  `/admin-dashboard` count card, the whole `/dashboard/admin/pending-professors` page, the
+  DRAFT-checklist banner in `StudentSubmissionActions`, and the notify-unblocked-students pass in
+  `POST /api/users`. `DRAFT` now has exactly one meaning — a submission the student is still
+  filling in — so `isAutoDraftProposal`/`isAutoDraftDefense` are just `status === "DRAFT"`.
+  - **Self-heal on re-open**: `buildPeopleFromSubmission()` takes the submission's `program` and
+    clears any committee member that can no longer be used — account deleted (`invalid: "MISSING"`)
+    or no longer fitting the degree rule (`invalid: "SCOPE"`) — off its row, leaving the role, an
+    empty picker and a red explanation. It marks nothing while `users` is still empty, since an
+    unloaded account list is indistinguishable from every account having been deleted. Switching
+    หลักสูตร mid-edit is covered too, derived rather than stored (`rowInvalidReason()`), so it
+    tracks the live selector without an effect writing back into state.
+  - **Both save buttons refuse** while a row is marked: `validateNoInvalidRows()` runs in the draft
+    components' strict `validate()` *and* their lenient `validateForSave()`. A deliberate exception
+    to "a plain save may be incomplete" — an unusable member is a mistake, not an omission, and it
+    used to be dropped silently, shrinking the committee without telling anyone. Server-side,
+    `validateCommitteeAccountRoles(..., { requireAccount: true })` enforces the same on both
+    `confirm: false` branches instead of letting `resolvePeoplePartial` drop the row.
+  - **`admin_update` is no longer unvalidated**: the ADMIN submission-edit save wrote every
+    committee id column with no committee checks at all. `validateResolvedCommitteeAccountRoles()`
+    now checks the post-write state, but only when the request touches a committee field or
+    `program`, so an unrelated edit isn't blocked by a committee that predates the rule.
+  - The `pendingPeople` column is dropped from `schema.prisma`; the live column is dropped
+    separately (0 submissions in the DB, so no data).
+
 - **Committee composition is now degree-dependent, and the account-type rule is enforced
   server-side for the first time.** Which kind of account may fill each committee role used to be a
   UI-only convention: `CommitteePeopleEditor` scoped its dropdowns via two fixed sets

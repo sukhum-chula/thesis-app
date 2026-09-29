@@ -13,7 +13,7 @@ import { SubmissionStatus } from "@/types";
 import Link from "next/link";
 import {
   ChevronRight, ChevronDown, ChevronUp, Clock, CheckCircle2, XCircle,
-  Search, AlertCircle, Bell, BookOpen, GraduationCap, User, Users, Upload, UserPlus,
+  Search, AlertCircle, Bell, BookOpen, GraduationCap, User, Users, Upload,
   ClipboardList, Settings,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
@@ -116,16 +116,6 @@ export default function AdminDashboard() {
     CANCELLED:   typeSubs.filter((s) => s.status === "CANCELLED").length,
     DRAFT:       typeSubs.filter((s) => s.status === "DRAFT").length,
   };
-
-  // Distinct professor emails named on a DRAFT submission that don't have an account yet
-  const pendingProfessorEmails = new Set<string>();
-  for (const s of submissions) {
-    if (s.status !== "DRAFT" || !s.pendingPeople) continue;
-    for (const p of s.pendingPeople) {
-      const email = p.email?.trim().toLowerCase();
-      if (email && !users.some((u) => u.email.toLowerCase() === email)) pendingProfessorEmails.add(email);
-    }
-  }
 
   if (user && !user.roles.includes("ADMIN")) return null;
 
@@ -253,23 +243,6 @@ export default function AdminDashboard() {
             })}
           </div>
         </div>
-      )}
-
-      {/* Pending professor account requests */}
-      {pendingProfessorEmails.size > 0 && (
-        <Link
-          href="/dashboard/admin/pending-professors"
-          className="flex items-center gap-3 bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 hover:border-amber-400 hover:shadow-sm transition group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
-            <UserPlus className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-amber-900">รอสร้างบัญชีให้อาจารย์/กรรมการ</p>
-            <p className="text-xs text-amber-700 mt-0.5">มีคำร้องฉบับร่างที่รอบัญชีใหม่ {pendingProfessorEmails.size} รายการ</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-amber-500 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
       )}
 
       {/* Search + status tabs */}
@@ -460,7 +433,7 @@ export default function AdminDashboard() {
                   {sub.status === "DRAFT" && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm bg-amber-50 border border-amber-100">
                       <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span className="text-amber-700 font-medium">ฉบับร่าง — รอสร้างบัญชีให้กรรมการที่ยังไม่มีในระบบ</span>
+                      <span className="text-amber-700 font-medium">ฉบับร่าง — นิสิตยังไม่ได้ยืนยันคำร้อง</span>
                     </div>
                   )}
 

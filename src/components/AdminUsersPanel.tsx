@@ -9,20 +9,11 @@ import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Role } from "@/types";
-import type { MockSubmission, MockUser, NameTitle } from "@/types";
+import type { MockUser, NameTitle } from "@/types";
 import {
   Users, RotateCcw, Search,
   UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown, GripVertical, ArrowUpDown,
 } from "lucide-react";
-
-type PendingPerson = { name?: string; email?: string; role?: string };
-
-interface PendingProfessorRequest {
-  email: string;
-  name: string;
-  roles: Set<string>;
-  submissions: MockSubmission[];
-}
 
 // Left accent border on each user's card — role at a glance without a second, redundant card
 // wrapper around UserProfileHeader's own white card.
@@ -144,45 +135,15 @@ export function AdminUsersPanel() {
       });
   }
 
-  // People named as committee on a DRAFT submission who don't have an account yet — grouped by
-  // email (the same person may be named on multiple drafts, or in multiple roles). Shown as
-  // cards at the top of the user list below, each a one-click shortcut into the same "เพิ่มผู้ใช้"
-  // flow as any other new account, just prefilled — see openAddUserModal().
-  const pendingRequestsByEmail = new Map<string, PendingProfessorRequest>();
-  for (const s of submissions) {
-    if (s.status !== "DRAFT" || !s.pendingPeople) continue;
-    for (const p of s.pendingPeople as PendingPerson[]) {
-      const email = p.email?.trim().toLowerCase();
-      if (!email || allUsers.some((u) => u.email.toLowerCase() === email)) continue; // already resolved
-      const existing = pendingRequestsByEmail.get(email);
-      if (existing) {
-        if (p.role) existing.roles.add(p.role);
-        if (!existing.submissions.some((sub) => sub.id === s.id)) existing.submissions.push(s);
-      } else {
-        pendingRequestsByEmail.set(email, {
-          email,
-          name: p.name?.trim() ?? "",
-          roles: new Set(p.role ? [p.role] : []),
-          submissions: [s],
-        });
-      }
-    }
-  }
-  const pendingRequests = [...pendingRequestsByEmail.values()].sort((a, b) => a.name.localeCompare(b.name));
-
   function closeModal() {
     setShowModal(false);
     setForm({ title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() });
   }
 
-  // Opens the same "เพิ่มผู้ใช้" modal used for any new account, prefilled from a pending
-  // committee request — role defaults to PROFESSOR since every unresolved-email committee
-  // person is one. Its `name` has no separate title of its own (pendingPeople rows predate the
-  // ExternalCommitteeRequest.title column, and can still carry a hand-typed prefix in rare
-  // cases), so it's run through splitNameTitle() to pull one out if present. Approving an
-  // ExternalCommitteeRequest instead prefills role EXTERNAL plus its own real `title` column
-  // directly (no splitting needed) along with affiliation/phone, and carries the request id
-  // through to POST /api/users.
+  // Opens the same "เพิ่มผู้ใช้" modal used for any new account. Approving an
+  // ExternalCommitteeRequest prefills role EXTERNAL plus its own `title` column, affiliation and
+  // phone, and carries the request id through to POST /api/users; splitNameTitle() is still
+  // applied when a caller passes a name with no separate title of its own.
   function openAddUserModal(prefill?: {
     title?: NameTitle | null; name: string; email: string; role?: Role; affiliation?: string; phone?: string; externalRequestId?: string;
   }) {
@@ -267,37 +228,6 @@ export function AdminUsersPanel() {
       </div>
 
       <div className="space-y-3">
-        {/* Committee people named on a DRAFT submission with no account yet — one click each,
-            straight into the same "เพิ่มผู้ใช้" flow as any other new account, prefilled. */}
-        {pendingRequests.map((req) => (
-          <div key={req.email} className="flex items-center gap-4 p-5 rounded-2xl border-2 border-amber-300 bg-amber-50">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
-              <UserPlus className="w-5 h-5 text-amber-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-semibold text-amber-900 text-lg">{req.name || "(ไม่ระบุชื่อ)"}</p>
-                <span className="text-xs font-semibold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-200">
-                  ยังไม่มีบัญชี
-                </span>
-              </div>
-              <p className="text-amber-700 text-sm mt-0.5 flex items-center gap-1.5 truncate">
-                <Mail className="w-3.5 h-3.5 shrink-0" />{req.email}
-              </p>
-              <p className="text-amber-600 text-xs mt-1">
-                {[...req.roles].map((r) => ROLE_LABELS[r] ?? r).join(", ")} — {req.submissions.length} คำร้องรออยู่
-              </p>
-            </div>
-            <button
-              onClick={() => openAddUserModal({ name: req.name, email: req.email })}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white text-sm font-semibold rounded-xl hover:bg-amber-600 transition shrink-0"
-            >
-              <UserPlus className="w-4 h-4" />
-              เพิ่มผู้ใช้
-            </button>
-          </div>
-        ))}
-
         {/* Students' standalone requests for a new กรรมการภายนอก (EXTERNAL) account — see the
             "กรรมการภายนอก" tab on /student-dashboard. Approve opens the same "เพิ่มผู้ใช้" modal,
             prefilled, with the request id carried through so POST /api/users can link the two. */}

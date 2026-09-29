@@ -7,7 +7,7 @@ import { toUserErrorMessage } from "@/lib/utils";
 import { GraduationCap, Info, User, Users, Save, Send, Sparkles, XCircle, Trash2 } from "lucide-react";
 import {
   FormHeader, Section, Field, ReadOnlyField, ExamLogisticsSection, ConfirmCheckbox,
-  CommitteePeopleEditor, buildPeopleFromSubmission, validatePeopleClient, INPUT,
+  CommitteePeopleEditor, buildPeopleFromSubmission, validateNoInvalidRows, validatePeopleClient, INPUT,
   resolveProgramChair, withProgramChair, ProgramChairAutoField,
   type Person,
 } from "@/components/SubmissionForms";
@@ -24,7 +24,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
   const sub = submissions.find((s) => s.id === submissionId);
 
   const [title,         setTitle]         = useState(sub?.title ?? "");
-  const [people,        setPeople]        = useState<Person[]>(sub ? buildPeopleFromSubmission(sub, users) : []);
+  const [people,        setPeople]        = useState<Person[]>(sub ? buildPeopleFromSubmission(sub, users, sub?.program ?? "") : []);
   const [examDate,      setExamDate]      = useState(sub?.examDate ?? "");
   const [examTime,      setExamTime]      = useState(sub?.examTime ?? "");
   const [roomNeeded,    setRoomNeeded]    = useState(sub?.roomNeeded ?? false);
@@ -56,6 +56,8 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
   // A plain save is allowed to be incomplete — only checks that a filled-in exam date isn't
   // outright wrong (in the past). Full completeness is only required to confirm (see validate()).
   function validateForSave(): string | null {
+    const invalidError = validateNoInvalidRows(people, sub?.program ?? "", users);
+    if (invalidError) return invalidError;
     if (examDate.trim() && examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
     return null;
   }

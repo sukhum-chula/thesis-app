@@ -77,14 +77,13 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
  *  proposal/defense tab on `/student-dashboard`, so the student never has to leave the tab to
  *  take action on their active submission. */
 export function StudentSubmissionActions({ submissionId }: { submissionId: string }) {
-  const { user, submissions, users, approveCurrentStep, studentResubmit, requestCancelSubmission, continueDraft, refresh } = useApp();
+  const { user, submissions, users, approveCurrentStep, studentResubmit, requestCancelSubmission, refresh } = useApp();
   const { showToast } = useToast();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<FormType, File>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [confirmSigns, setConfirmSigns] = useState(false);
   const [confirmProgram, setConfirmProgram] = useState(false);
-  const [continuing, setContinuing] = useState(false);
 
   const sub = submissions.find((s) => s.id === submissionId);
 
@@ -204,18 +203,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     }
   }
 
-  async function handleContinueDraft() {
-    setContinuing(true);
-    try {
-      await continueDraft(sub!.id);
-      showToast("ยืนยันคำร้องแล้ว — เริ่มดำเนินการ", "info");
-    } catch (err) {
-      showToast(toUserErrorMessage(err), "error");
-    } finally {
-      setContinuing(false);
-    }
-  }
-
   function renderStatusBanner() {
     if (!sub) return null;
 
@@ -234,48 +221,15 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     }
 
     if (subStatus === "DRAFT") {
-      const pending = (sub.pendingPeople ?? []) as { name?: string; email?: string; role?: string }[];
-      const resolved = pending.map((p) => ({
-        ...p,
-        hasAccount: !!p.email && users.some((u) => u.email.toLowerCase() === p.email!.trim().toLowerCase()),
-      }));
-      const allResolved = resolved.length > 0 && resolved.every((p) => p.hasAccount);
       return (
-        <div className="bg-gray-50 border border-gray-300 rounded-2xl p-5 space-y-4">
-          <div className="flex items-start gap-4">
-            <StickyNote className="w-7 h-7 text-gray-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-gray-800 font-bold text-lg">คำร้องนี้เป็นฉบับร่าง</p>
-              <p className="text-gray-500 text-sm mt-1">
-                มีกรรมการที่ยังไม่มีบัญชีในระบบ — รอเจ้าหน้าที่สร้างบัญชีให้ก่อนจึงจะเริ่มดำเนินการได้
-              </p>
-            </div>
+        <div className="bg-gray-50 border border-gray-300 rounded-2xl p-5 flex items-start gap-4">
+          <StickyNote className="w-7 h-7 text-gray-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-gray-800 font-bold text-lg">คำร้องนี้เป็นฉบับร่าง</p>
+            <p className="text-gray-500 text-sm mt-1">
+              ยังไม่ได้ยืนยัน — กรุณากลับไปที่หน้าหลักเพื่อกรอกข้อมูลให้ครบและกดยืนยัน
+            </p>
           </div>
-          <div className="space-y-1.5">
-            {resolved.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm bg-white rounded-xl px-3 py-2 border border-gray-100">
-                {p.hasAccount
-                  ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                  : <Clock className="w-4 h-4 text-amber-500 shrink-0" />}
-                <span className="flex-1 min-w-0 truncate">
-                  <span className="font-medium text-gray-800">{p.name}</span>
-                  <span className="text-gray-400"> · {ROLE_LABELS[p.role ?? ""] ?? p.role} · {p.email}</span>
-                </span>
-                <span className={`text-xs font-semibold shrink-0 ${p.hasAccount ? "text-green-600" : "text-amber-600"}`}>
-                  {p.hasAccount ? "มีบัญชีแล้ว" : "รอสร้างบัญชี"}
-                </span>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={handleContinueDraft}
-            disabled={!allResolved || continuing}
-            className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold transition ${
-              allResolved && !continuing ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
-          >
-            {continuing ? "กำลังดำเนินการ..." : "ดำเนินการต่อ"}
-          </button>
         </div>
       );
     }

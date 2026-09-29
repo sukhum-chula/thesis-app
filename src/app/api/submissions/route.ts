@@ -165,6 +165,16 @@ export async function POST(req: NextRequest) {
   if (accountRoleError) return NextResponse.json({ error: accountRoleError }, { status: 400 });
 
   const resolved = await resolvePeople(people);
+  // Every committee row is picked from an existing account in the editor, so an email that does
+  // not resolve means the account was deleted between page load and submit. That used to save the
+  // whole submission as a DRAFT with the raw rows in `pendingPeople` for an admin to resolve; that
+  // machinery was removed 2026-09-15 (a student can no longer name an un-created person at all —
+  // they request an EXTERNAL account instead), so the race is now simply reported.
+  if (!resolved.ok)
+    return NextResponse.json(
+      { error: `ไม่พบบัญชีของกรรมการต่อไปนี้ในระบบ (อาจถูกลบไปแล้ว): ${resolved.missingEmails.join(", ")} กรุณาเลือกใหม่` },
+      { status: 400 }
+    );
 
   // Student info + title actually stored — a defense overrides the student-info fields from the
   // source proposal (ignoring anything the client sent) so the two stay consistent. Committee
@@ -201,49 +211,29 @@ export async function POST(req: NextRequest) {
     carPlate: parkingNeeded ? carPlate : null,
   };
 
-  let submission: Awaited<ReturnType<typeof prisma.submission.create>>;
-  if (!resolved.ok) {
-    submission = await prisma.submission.create({
-      data: { ...baseData, status: "DRAFT", pendingPeople: people as any },
-      include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
-    });
-    const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
-    if (admins.length) {
-      await prisma.notification.createMany({
-        data: admins.map((a) => ({
-          recipientId: a.id,
-          message: "มีคำร้องใหม่ — รอสร้างบัญชีให้อาจารย์/กรรมการที่ยังไม่มีในระบบ",
-          detail: data.title,
-          submissionId: submission.id,
-          type: "info",
-        })),
-      });
-    }
-  } else {
-    submission = await prisma.submission.create({
-      data: {
-        ...baseData,
-        status: "IN_PROGRESS",
-        advisorId: resolved.advisorId,
-        headCommitteeId: resolved.headCommitteeId,
-        committeeIds: resolved.committeeIds,
-        coAdvisorIds: resolved.coAdvisorIds,
-        invitedCommitteeIds: resolved.invitedCommitteeIds,
-        programChairId: resolved.programChairId,
-        workflowSteps: {
-          create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds),
-        },
+  const submission = await prisma.submission.create({
+    data: {
+      ...baseData,
+      status: "IN_PROGRESS",
+      advisorId: resolved.advisorId,
+      headCommitteeId: resolved.headCommitteeId,
+      committeeIds: resolved.committeeIds,
+      coAdvisorIds: resolved.coAdvisorIds,
+      invitedCommitteeIds: resolved.invitedCommitteeIds,
+      programChairId: resolved.programChairId,
+      workflowSteps: {
+        create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds),
       },
-      include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
+    },
+    include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
+  });
+  // Step 1 starts as PENDING — student must upload required files and click submit.
+  // The approve action will notify step 2 automatically when step 1 is completed.
+  const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
+  if (admins.length) {
+    await prisma.notification.createMany({
+      data: admins.map((a) => ({ recipientId: a.id, message: "มีคำร้องวิทยานิพนธ์ใหม่", detail: data.title, submissionId: submission.id, type: "info" })),
     });
-    // Step 1 starts as PENDING — student must upload required files and click submit.
-    // The approve action will notify step 2 automatically when step 1 is completed.
-    const admins = await prisma.user.findMany({ where: { roles: { has: "ADMIN" } } });
-    if (admins.length) {
-      await prisma.notification.createMany({
-        data: admins.map((a) => ({ recipientId: a.id, message: "มีคำร้องวิทยานิพนธ์ใหม่", detail: data.title, submissionId: submission.id, type: "info" })),
-      });
-    }
   }
 
   const updated = await prisma.submission.findUnique({

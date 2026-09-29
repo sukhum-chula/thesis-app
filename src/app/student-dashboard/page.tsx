@@ -18,20 +18,19 @@ import {
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
 
-// A THESIS_DEFENSE auto-imported from a completed proposal (see POST
-// /api/submissions/auto-draft-defense) — still DRAFT, but never through the legacy
-// pendingPeople/missing-accounts path, so it needs its own review UI rather than the normal
-// "waiting for accounts" DRAFT banner in StudentSubmissionActions.
+// A DRAFT is always a draft the student is still filling in — either a THESIS_DEFENSE
+// auto-imported from a completed proposal (POST /api/submissions/auto-draft-defense) or a blank
+// PROPOSAL (POST /api/submissions/auto-draft-proposal). It routes to the editable review UI, not
+// to StudentSubmissionActions. (Until 2026-09-15 there was a second DRAFT flavor — a submission
+// naming a committee member with no account, parked in `pendingPeople` — which these two
+// predicates existed to tell apart. A student can no longer name an un-created person at all, so
+// that flavor and its `pendingPeople` column are gone.)
 function isAutoDraftDefense(sub: MockSubmission): boolean {
-  return sub.status === "DRAFT" && !(sub.pendingPeople as unknown[] | null)?.length;
+  return sub.status === "DRAFT";
 }
 
-// A PROPOSAL created blank via POST /api/submissions/auto-draft-proposal — the moment the
-// student clicked "สร้าง" on the disabled template shown before any proposal exists. Told apart
-// from the legacy pendingPeople/missing-accounts DRAFT flavor the same way as a defense draft
-// (see isAutoDraftDefense above): no pendingPeople entries means it never went through that path.
 function isAutoDraftProposal(sub: MockSubmission): boolean {
-  return sub.status === "DRAFT" && !(sub.pendingPeople as unknown[] | null)?.length;
+  return sub.status === "DRAFT";
 }
 
 // Full step list shown before any submission exists — no committee assigned yet, so every step
