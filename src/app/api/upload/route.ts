@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadFile } from "@/lib/supabase";
-import { FORM_SHORT, getStepName, ROLE_LABELS, formFileKind, isSingleVersionForm } from "@/lib/utils";
-import { sendStepEmail } from "@/lib/email";
+import { FORM_SHORT, formFileKind, isSingleVersionForm } from "@/lib/utils";
 import type { FormType } from "@/types";
 import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
 
@@ -125,65 +124,6 @@ export async function POST(req: NextRequest) {
 
   if (isSingleVersionForm(subCheck.submissionType, formType))
     await keepOnlyLatestVersion(submissionId, formType as FormType, upload.id);
-
-  // Auto-advance PROPOSAL step 4 when FINANCE_DOC completes the parallel requirement.
-  // Wrapped in try/catch so a failure here never breaks the upload response.
-  if (formType === "FINANCE_DOC") {
-    try {
-      const subWithUploads = await prisma.submission.findUnique({
-        where: { id: submissionId },
-        include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
-      });
-      if (subWithUploads?.submissionType === "PROPOSAL") {
-        const step4 = subWithUploads.workflowSteps.find(
-          (s: any) => s.stepOrder === 4 && s.status === "PENDING" && s.role === "STUDENT"
-        );
-        if (step4) {
-          const types = new Set(subWithUploads.uploads.map((u: any) => u.formType));
-
-          // Always email admin when FINANCE_DOC arrives (whether or not student has submitted yet)
-          try {
-            await sendStepEmail({ role: "ADMIN", sub: subWithUploads, stepName: "รับเอกสารการเงิน — ขั้นตอนที่ 4" });
-          } catch (e) { console.error("[email/finance-doc-admin]", e); }
-
-          if (types.has("B1C") && types.has("B1D") && types.has("FINANCE_DOC")) {
-            const now = new Date();
-            await prisma.workflowStep.update({
-              where: { id: step4.id },
-              data: { status: "APPROVED", actedAt: now, actedByName: "ระบบ (อัตโนมัติ)", actedById: null },
-            });
-            const nextStep = subWithUploads.workflowSteps.find(
-              (s: any) => s.stepOrder > 4 && s.status === "PENDING"
-            );
-            await prisma.submission.update({
-              where: { id: submissionId },
-              data: { status: nextStep ? "IN_PROGRESS" : "COMPLETED" },
-            });
-            if (nextStep) {
-              let recipientId: string | null = null;
-              if (nextStep.role === "HEAD_EXAM_COMMITTEE") {
-                recipientId = (subWithUploads as any).headCommitteeId ?? null;
-              } else if (nextStep.role === "ADVISOR") {
-                recipientId = (subWithUploads as any).advisorId ?? null;
-              } else {
-                const u = await prisma.user.findFirst({ where: { roles: { has: nextStep.role as any } } });
-                recipientId = u?.id ?? null;
-              }
-              if (recipientId) {
-                const stepName = getStepName(nextStep.stepOrder, "PROPOSAL") || ROLE_LABELS[nextStep.role as keyof typeof ROLE_LABELS];
-                await prisma.notification.create({
-                  data: { recipientId, message: `ถึงคิวของท่าน: ${stepName}`, detail: subWithUploads.title, submissionId, type: "pending" },
-                });
-                try { await sendStepEmail({ role: nextStep.role, sub: subWithUploads, stepName }); } catch (e) { console.error("[email/step4-auto]", e); }
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("[upload/step4-auto-advance]", e);
-    }
-  }
 
   return NextResponse.json({ ...upload, uploadedAt: upload.uploadedAt.toISOString() });
 }

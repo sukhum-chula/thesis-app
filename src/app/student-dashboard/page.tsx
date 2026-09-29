@@ -17,6 +17,7 @@ import {
   BookOpen, GraduationCap, XCircle, TriangleAlert, Lock, Loader2, UserPlus,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
+import { stepNumbering } from "@/lib/stepNumbering";
 
 // A DRAFT is always a draft the student is still filling in — either a THESIS_DEFENSE
 // auto-imported from a completed proposal (POST /api/submissions/auto-draft-defense) or a blank
@@ -219,8 +220,9 @@ export default function StudentDashboard() {
             const isMyTurn    = currentStep?.role === "STUDENT";
             const advisor     = users.find((u) => u.id === sub.advisorId);
             const visibleSteps = sub.workflowSteps.filter((s: any) => s.status !== "SKIPPED");
-            const doneCount   = visibleSteps.filter((s: any) => s.status === "APPROVED").length;
-            const totalSteps  = visibleSteps.length;
+            const numbering   = stepNumbering(sub.workflowSteps, sub.submissionType);
+            const doneCount   = numbering.done;
+            const totalSteps  = numbering.total;
             const lastActed   = getLastActedDate(sub.workflowSteps);
             const stuckDays   = sub.status === "IN_PROGRESS" && !isMyTurn && lastActed ? daysSince(lastActed) : 0;
             const pendingName = currentStep && !isMyTurn ? resolveStepPerson(sub, currentStep, users) : null;

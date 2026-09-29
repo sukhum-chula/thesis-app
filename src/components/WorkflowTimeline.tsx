@@ -2,6 +2,7 @@
 
 import { MockUser, MockWorkflowStep, MockSubmission, MockUpload } from "@/types";
 import { ROLE_LABELS, getStepName, formatDate, formatUserName } from "@/lib/utils";
+import { stepNumbering } from "@/lib/stepNumbering";
 import { StepStatusBadge } from "./StatusBadge";
 import { CheckCircle2, Clock, XCircle, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,7 @@ export function WorkflowTimeline({
   preview?: boolean;
 }) {
   const visibleSteps = steps.filter((s) => s.status !== "SKIPPED");
+  const numbering = stepNumbering(steps, submissionType);
   // When submission is REJECTED, no step is "current" — the rejected step stands alone in red
   const currentOrder = (preview || submission?.status === "REJECTED")
     ? null
@@ -104,7 +106,7 @@ export function WorkflowTimeline({
         </p>
       )}
       <ol className="relative border-l-2 border-gray-100 ml-3 space-y-0">
-        {visibleSteps.map((step, index) => {
+        {visibleSteps.map((step) => {
           const isCurrent = step.stepOrder === currentOrder;
           const isFuture  = step.status === "PENDING" && !isCurrent;
           const assignees = resolveAssignees(step, submission, users);
@@ -112,19 +114,6 @@ export function WorkflowTimeline({
 
           // For committee steps use committeeActions for per-member status
           const actions: any[] = (step.committeeActions ?? []) as any[];
-
-          // PROPOSAL step 4: parallel uploads — check each party independently
-          const showAdminFinanceRow = submissionType === "PROPOSAL" && step.stepOrder === 4;
-          const adminFinanceUser = showAdminFinanceRow ? users.find((u) => u.roles.includes("ADMIN")) ?? null : null;
-          const uploads4 = showAdminFinanceRow ? (submission?.uploads ?? []) : [];
-          // When step is already APPROVED, both parties are done regardless of upload presence in state
-          const financeUploaded = showAdminFinanceRow &&
-            (step.status === "APPROVED" || uploads4.some((u) => u.formType === "FINANCE_DOC"));
-          const studentStep4Done = showAdminFinanceRow &&
-            (step.status === "APPROVED" || (
-              uploads4.some((u) => u.formType === "B1C") &&
-              uploads4.some((u) => u.formType === "B1D")
-            ));
 
           return (
             <li
@@ -156,7 +145,7 @@ export function WorkflowTimeline({
                 : "bg-white border-gray-200"
               )}>
                 <div className="space-y-1 mb-0.5">
-                  <p className="text-xs text-gray-400 font-medium">ขั้นที่ {index + 1}</p>
+                  <p className="text-xs text-gray-400 font-medium">ขั้นที่ {numbering.label(step.stepOrder)}</p>
                   <p className={cn("font-semibold leading-snug", isCurrent ? "text-blue-800" : "text-gray-800")}>
                     {getStepName(step.stepOrder, submissionType) || ROLE_LABELS[step.role]}
                   </p>
@@ -179,21 +168,19 @@ export function WorkflowTimeline({
                 )}
 
                 {/* Assignee bullet list */}
-                {(assignees.length > 0 || showAdminFinanceRow) && (
+                {assignees.length > 0 && (
                   <div className="mt-2 space-y-1.5">
-                    {/* Header count — committee signing or parallel step 4 */}
-                    {(isCommittee || showAdminFinanceRow) && (
+                    {/* Header count — committee signing */}
+                    {isCommittee && (
                       <p className="text-xs font-medium text-gray-500">
-                        {isCommittee ? "ลงนามแล้ว" : "อัปโหลดแล้ว"}{" "}
+                        ลงนามแล้ว{" "}
                         <span className="font-bold text-gray-700">
-                          {isCommittee
-                            ? (step.status === "APPROVED"
-                                ? assignees.length
-                                : actions.filter((a) => a.decision === "APPROVED").length)
-                            : (studentStep4Done ? 1 : 0) + (financeUploaded ? 1 : 0)
-                          }/{isCommittee ? assignees.length : 2}
+                          {step.status === "APPROVED"
+                            ? assignees.length
+                            : actions.filter((a) => a.decision === "APPROVED").length
+                          }/{assignees.length}
                         </span>
-                        {" "}{isCommittee ? "ท่าน" : "ฝ่าย"}
+                        {" "}ท่าน
                       </p>
                     )}
                     {assignees.map(({ id, name }) => {
@@ -202,8 +189,6 @@ export function WorkflowTimeline({
                         : null;
                       const done = isCommittee
                         ? action?.decision === "APPROVED" || step.status === "APPROVED"
-                        : showAdminFinanceRow
-                        ? studentStep4Done
                         : step.status === "APPROVED";
                       const rejected = isCommittee
                         ? action?.decision === "REJECTED"
@@ -226,9 +211,6 @@ export function WorkflowTimeline({
                                        "text-gray-600"
                           )}>
                             {name}
-                            {showAdminFinanceRow && (
-                              <span className="text-gray-400 font-normal"> (บ.วศ.1ค + บ.วศ.1ง)</span>
-                            )}
                           </span>
                           {actedAt && (
                             <span className="text-gray-400 shrink-0">{formatDate(actedAt)}</span>
@@ -240,37 +222,6 @@ export function WorkflowTimeline({
                       );
                     })}
 
-                    {/* Step 4 student row fallback when student not in users list (other-role pages) */}
-                    {showAdminFinanceRow && assignees.length === 0 && (
-                      <div className="flex items-center gap-2 text-xs">
-                        {studentStep4Done
-                          ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                          : <Circle className="w-3.5 h-3.5 text-gray-300 shrink-0" />}
-                        <span className={cn("flex-1", studentStep4Done ? "text-green-700 font-medium" : "text-gray-600")}>
-                          {submission?.studentFullName ?? "นิสิต"}
-                          <span className="text-gray-400 font-normal"> (บ.วศ.1ค + บ.วศ.1ง)</span>
-                        </span>
-                        {!studentStep4Done && (
-                          <span className="text-gray-300 italic shrink-0">ยังไม่ได้ดำเนินการ</span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Admin finance row */}
-                    {showAdminFinanceRow && (
-                      <div className="flex items-center gap-2 text-xs">
-                        {financeUploaded
-                          ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                          : <Circle className="w-3.5 h-3.5 text-gray-300 shrink-0" />}
-                        <span className={cn("flex-1", financeUploaded ? "text-green-700 font-medium" : "text-gray-600")}>
-                          {adminFinanceUser ? formatUserName(adminFinanceUser) : "เจ้าหน้าที่"}
-                          <span className="text-gray-400 font-normal"> (เอกสารการเงิน)</span>
-                        </span>
-                        {!financeUploaded && (
-                          <span className="text-gray-300 italic shrink-0">ยังไม่ได้ดำเนินการ</span>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
 

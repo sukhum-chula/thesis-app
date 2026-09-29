@@ -131,6 +131,13 @@ Roughly in priority order:
    and that a defense draft importing a now-invalid committee clears the bad row on re-open and
    refuses BOTH save and confirm until it is re-picked (2026-09-15 rework — the earlier
    still-saves-but-refuses-to-confirm behaviour was deliberately reversed).
+   **The 2026-09-29 PROPOSAL redesign has had no browser pass at all** (see `CHANGELOG.md`): the
+   single combined `B1` file through every step; the admin's step-2 finance-form generator
+   (generate → download → edit → re-upload with the content-differs warning, single version) and
+   the finance email now firing on the step-2 approval; the checklists at steps 1, 2, 3, 4 and
+   5.x; the 5.1–5.x / 6 / 7 numbering on every screen; and the student not seeing any finance
+   document. A test proposal for นายสมชาย ตั้งใจดี (6951234521) was left waiting at step 4 — with
+   the current code its student just ticks the checklist and presses ส่งต่อ.
 5. **Fix the outgoing-mail quota problem** (see warning above) — pick one of the three options and
    do it, rather than continuing to absorb Gmail's daily cap.
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against

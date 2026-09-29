@@ -53,7 +53,8 @@ src/app/professor-dashboard/ PROFESSOR's real landing page (src/app/dashboard/pr
 src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
                              WorkflowTimeline, FileList, FileUploader, SubmissionInfoPanel,
                              StudentSubmissionActions, SubmissionForms, DefenseDraftReview,
-                             AdminSubmissionPanel, AdminUsersPanel, AdminSettingsPanel — the
+                             AdminSubmissionPanel, AdminUsersPanel, AdminSettingsPanel,
+                             B1Checklist (the บ.วศ.1 pre-submit/approve checklist) — the
                              shared UI that every role dashboard is built from
 src/context/AppContext.tsx  client state cache; polls the API, exposes actions
                              (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
@@ -83,12 +84,21 @@ src/lib/
                              api/users/route.ts and api/users/[id]/route.ts
   financeDoc.ts              buildProposalFinanceDocx() — fills templates/finance-attach-proposal.docx
                              (the department's form) for POST /api/submissions/[id]/finance-attach
+  stepNumbering.ts           stepNumbering() — the step numbers users SEE (PROPOSAL 5.1–5.x sub-steps,
+                             admin check = 6, chair = 7); internal stepOrder is unchanged. Never
+                             derive a displayed step number from an index — call this
+  uploadVersions.ts          keepOnlyLatestVersion() — single-version form types (PROPOSAL
+                             FINANCE_ATTACH): a new copy deletes the old row + storage object
+  docxText.ts                docxText() — body text of a .docx, for "did the content change" checks
   workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
                              initial-create path and the draft-confirm finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn,
                              degreeOfProgram/committeeRoleScope/accountFitsScope — the one
                              definition of which account type may fill each committee role per
-                             degree, shared by the client editors and committee.ts
+                             degree, shared by the client editors and committee.ts; also the
+                             B1 checklists (B1_CHECKS, B1_STEP4_CHECKS, PROPOSAL_SIGN_CHECKS, …),
+                             formFileKind/checkFormFile (PDF vs .docx per form type),
+                             freshUploadCutoff, isHiddenFromStudent, isSingleVersionForm
   workflow.ts                dead stub file left over from an earlier mock build — ignore it,
                              real workflow logic is in src/app/api/submissions/**
   roleRoutes.ts              maps the 4 account-level roles to dashboard paths (STUDENT →

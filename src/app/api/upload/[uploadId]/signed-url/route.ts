@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSignedUrl } from "@/lib/supabase";
 import { getProgramChairsOfUser } from "@/lib/systemSettings";
+import { isHiddenFromStudent } from "@/lib/utils";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ uploadId: string }> }) {
   const session = await auth();
@@ -24,6 +25,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ upl
     (sub.invitedCommitteeIds as string[]).includes(userId) ||
     (sub as any).programChairId === userId;
   if (!isPrivileged && !isInvolved)
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // The proposal's finance paperwork is never served to the submission's own student
+  if (!isPrivileged && sub.studentId === userId && isHiddenFromStudent(sub.submissionType, upload.formType))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const url = await getSignedUrl(upload.fileUrl);

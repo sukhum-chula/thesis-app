@@ -11,6 +11,7 @@ import {
   B1_CHECKS, ADMIN_B1_EXTRA_CHECKS,
 } from "@/lib/utils";
 import { docxText } from "@/lib/docxText";
+import { stepNumbering } from "@/lib/stepNumbering";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import {
   CommitteePeopleEditor, ProgramChairAutoField, ExamLogisticsSection, buildPeopleFromSubmission,
@@ -39,7 +40,6 @@ function StepCard({
   committeeStatus,
   submissionType,
   displayOrder,
-  financeAdminName,
 }: {
   step: MockWorkflowStep;
   isCurrentStep: boolean;
@@ -49,8 +49,7 @@ function StepCard({
   assignedName?: string | null;
   committeeStatus?: { name: string; signed: boolean; approved: boolean }[];
   submissionType?: string | null;
-  displayOrder: number;
-  financeAdminName?: string | null;
+  displayOrder: string;
 }) {
   const [open,    setOpen]    = useState(false);
   const [action,  setAction]  = useState<"APPROVED" | "REJECTED">("APPROVED");
@@ -83,12 +82,6 @@ function StepCard({
             <p className="text-sm text-blue-600 flex items-center gap-1">
               <User className="w-3.5 h-3.5" />
               {assignedName}
-            </p>
-          )}
-          {financeAdminName && (
-            <p className="text-sm text-yellow-700 flex items-center gap-1">
-              <User className="w-3.5 h-3.5" />
-              {financeAdminName} <span className="text-gray-400 text-xs">(อัปโหลดเอกสารการเงิน)</span>
             </p>
           )}
           {step.actedByName && (
@@ -588,62 +581,6 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
   );
 }
 
-// ─── Proposal step-4 finance doc upload panel ────────────────────────────────
-
-function ProposalFinanceUploadPanel({ submissionId }: { submissionId: string }) {
-  const { refresh }  = useApp();
-  const { showToast } = useToast();
-  const [file,      setFile]      = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-
-  async function handleSubmit() {
-    if (!file) { setError("กรุณาเลือกไฟล์ก่อน"); return; }
-    setUploading(true);
-    setError(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("submissionId", submissionId);
-      fd.append("formType", "FINANCE_DOC");
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (!res.ok) throw new Error("upload failed");
-      await refresh();
-      showToast("อัปโหลดเอกสารการเงินเรียบร้อยแล้ว ✓");
-    } catch {
-      setError("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <UploadSlot
-        formType="FINANCE_DOC"
-        slotLabel="เอกสารการเงิน"
-        selectedFile={file}
-        onFileSelect={(f) => { setFile(f); setError(null); }}
-        disabled={uploading}
-      />
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-      <button
-        onClick={handleSubmit}
-        disabled={uploading || !file}
-        className="w-full flex items-center justify-center gap-2 py-3 bg-yellow-500 text-white font-semibold rounded-xl hover:bg-yellow-600 disabled:opacity-60 transition"
-      >
-        {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-        {uploading ? "กำลังอัปโหลด..." : "อัปโหลดเอกสาร"}
-      </button>
-    </div>
-  );
-}
-
 // ─── Main panel ─────────────────────────────────────────────────────────────
 // Full admin action surface for one submission — extracted from what used to be all of
 // /dashboard/admin/[id]/page.tsx so it can render both there (thin wrapper) and inline,
@@ -663,7 +600,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const isMyTurn = pendingStep$?.role === "ADMIN";
   const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 7;
   const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 8;
-  const isProposalFinanceStep = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 4;
   const isProposalReviewStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 2;
   const latestFinanceAttach = (sub?.uploads ?? [])
     .filter((u) => u.formType === "FINANCE_ATTACH")
@@ -703,12 +639,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const currentOrd        = sub.status === "REJECTED"
     ? null
     : sub.workflowSteps.find((s) => s.status === "PENDING")?.stepOrder ?? null;
-  const visibleSteps      = sub.workflowSteps.filter((s) => s.status !== "SKIPPED");
-  const currentDisplayOrd = currentOrd !== null
-    ? (visibleSteps.findIndex((s) => s.stepOrder === currentOrd) + 1) || null
-    : null;
-  const doneCount  = visibleSteps.filter((s) => s.status === "APPROVED").length;
-  const totalSteps = visibleSteps.length;
+  // Display numbering (sub-steps 5.1–5.x, SKIPPED hidden) — lib/stepNumbering
+  const numbering         = stepNumbering(sub.workflowSteps, sub.submissionType);
+  const currentDisplayOrd = currentOrd !== null ? numbering.label(currentOrd) || null : null;
+  const doneCount  = numbering.done;
+  const totalSteps = numbering.total;
   // ประธานหลักสูตร is admin-designated per program (see "จัดการประธานหลักสูตร"), not freely
   // selectable per submission — it always follows whichever หลักสูตร is picked in the edit form.
   const resolvedProgramChair = resolveProgramChair(allUsers, editDraft.program) ?? null;
@@ -1134,7 +1069,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
           {activeTab === "steps" ? (
             <div className="space-y-3">
-              {sub.workflowSteps.filter((s) => s.status !== "SKIPPED").map((step, i, visible) => {
+              {sub.workflowSteps.filter((s) => s.status !== "SKIPPED").map((step) => {
                 const allIdx = sub.workflowSteps.indexOf(step);
                 // Walk backwards skipping SKIPPED steps (which have actedAt: null) to find last real timestamp
                 const prevActedAt = sub.workflowSteps
@@ -1181,11 +1116,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
                 const isFutureStep = step.status === "PENDING" && step.stepOrder !== currentOrd;
 
-                const financeAdminName =
-                  sub.submissionType === "PROPOSAL" && step.stepOrder === 4
-                    ? (() => { const u = allUsers.find((u) => u.roles.includes("ADMIN")); return u ? formatUserName(u) : null; })()
-                    : null;
-
                 return (
                   <StepCard
                     key={step.id}
@@ -1195,8 +1125,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     assignedName={assignedName}
                     committeeStatus={committeeStatus}
                     submissionType={sub.submissionType}
-                    displayOrder={i + 1}
-                    financeAdminName={financeAdminName}
+                    displayOrder={numbering.label(step.stepOrder)}
                     onOverride={(stepOrder, action, notes) =>
                       adminOverrideStep(sub.id, stepOrder, action, notes)
                     }
@@ -1272,6 +1201,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         value={step2Checks}
                         onChange={setStep2Checks}
                       />
+                    )}
+                    {isProposalReviewStep && (
+                      <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                        เมื่อกดอนุมัติ ระบบจะส่งเอกสารการเงินแนบกรรมการสอบไปยังเจ้าหน้าที่การเงินทางอีเมลโดยอัตโนมัติ
+                      </p>
                     )}
                     {approveBlocked && (
                       <p className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -1371,30 +1305,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     </button>
                   </div>
                 )}
-              </div>
-            )
-          )}
-
-          {/* PROPOSAL step 4: upload FINANCE_DOC in parallel while student uploads B1C+B1D */}
-          {isProposalFinanceStep && (
-            sub.uploads.some((u) => u.formType === "FINANCE_DOC") ? (
-              <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-5 space-y-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  <h2 className="font-semibold text-green-800">อัปโหลดเอกสารการเงินแล้ว</h2>
-                </div>
-                <p className="text-sm text-gray-600">กำลังรอนิสิตส่ง บ.วศ.1ค + บ.วศ.1ง — ระบบจะดำเนินต่อโดยอัตโนมัติ</p>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-yellow-600" />
-                  <h2 className="font-semibold text-yellow-800">อัปโหลดเอกสารการเงิน</h2>
-                </div>
-                <p className="text-sm text-gray-600">
-                  ขณะที่นิสิตกำลังอัปโหลด บ.วศ.1ค + บ.วศ.1ง — ท่านต้องอัปโหลดเอกสารการเงินด้วย
-                </p>
-                <ProposalFinanceUploadPanel submissionId={sub.id} />
               </div>
             )
           )}

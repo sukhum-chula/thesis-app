@@ -17,6 +17,7 @@ import {
   ClipboardList, Settings,
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
+import { stepNumbering } from "@/lib/stepNumbering";
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -87,25 +88,15 @@ export default function AdminDashboard() {
   const inProgress         = typeSubs.filter((s) => s.status === "IN_PROGRESS");
   const needsMe            = inProgress.filter((s) => s.workflowSteps.find((w) => w.status === "PENDING")?.role === "ADMIN");
 
-  // PROPOSAL step 4 parallel: admin must upload FINANCE_DOC while student uploads B1C+B1D
-  const needsFinanceUpload = inProgress.filter((s) => {
-    if (s.submissionType !== "PROPOSAL") return false;
-    const step = s.workflowSteps.find((w) => w.status === "PENDING");
-    return step?.stepOrder === 4 && !s.uploads.some((u) => u.formType === "FINANCE_DOC");
-  });
-
   // Cancellation requests need ADMIN attention regardless of the current type filter or whose turn it is
   const cancelRequests = submissions.filter((s) => s.cancelRequested);
 
-  type AdminTask = { sub: MockSubmission; type: "turn" | "finance" | "cancel_request" };
+  type AdminTask = { sub: MockSubmission; type: "turn" | "cancel_request" };
   const adminTasks: AdminTask[] = [
     ...cancelRequests.map((sub) => ({ sub, type: "cancel_request" as const })),
     ...needsMe
       .filter((sub) => !cancelRequests.some((s) => s.id === sub.id))
       .map((sub) => ({ sub, type: "turn" as const })),
-    ...needsFinanceUpload
-      .filter((sub) => !needsMe.some((s) => s.id === sub.id) && !cancelRequests.some((s) => s.id === sub.id))
-      .map((sub) => ({ sub, type: "finance" as const })),
   ];
 
   const counts = {
@@ -197,9 +188,6 @@ export default function AdminDashboard() {
               if (type === "cancel_request") {
                 taskLabel = "นิสิตขอยกเลิกคำร้อง — รอการอนุมัติ";
                 taskIcon  = <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
-              } else if (type === "finance") {
-                taskLabel = "อัปโหลดเอกสารการเงิน";
-                taskIcon  = <Upload className="w-3.5 h-3.5 text-yellow-600 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === 7) {
                 taskLabel = "พิมพ์ บ.2+บ.3 แล้วนำส่งไปยังคณะวิศวกรรมศาสตร์";
                 taskIcon  = <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
@@ -227,7 +215,7 @@ export default function AdminDashboard() {
                     </p>
                     <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       {taskIcon}
-                      <span className={`text-xs font-medium ${type === "finance" ? "text-yellow-700" : type === "cancel_request" ? "text-red-700" : "text-orange-700"}`}>
+                      <span className={`text-xs font-medium ${type === "cancel_request" ? "text-red-700" : "text-orange-700"}`}>
                         {taskLabel}
                       </span>
                       {stuckDays > 7 && (
@@ -312,12 +300,11 @@ export default function AdminDashboard() {
           {filtered.map((sub) => {
             const student     = users.find((u) => u.id === sub.studentId);
             const currentStep = sub.workflowSteps.find((s) => s.status === "PENDING");
-            const visibleSteps = sub.workflowSteps.filter((s) => s.status !== "SKIPPED");
-            const doneCount   = visibleSteps.filter((s) => s.status === "APPROVED").length;
-            const totalVisible = visibleSteps.length;
-            const currentDisplayOrder = currentStep
-              ? visibleSteps.findIndex((s) => s.id === currentStep.id) + 1
-              : 0;
+            // Display numbering (sub-steps 5.1–5.x, SKIPPED hidden) — lib/stepNumbering
+            const numbering    = stepNumbering(sub.workflowSteps, sub.submissionType);
+            const doneCount    = numbering.done;
+            const totalVisible = numbering.total;
+            const currentDisplayOrder = currentStep ? numbering.label(currentStep.stepOrder) : "";
             const stuckDays   = getStuckDays(sub);
             const isMyTurn    = currentStep?.role === "ADMIN";
             const pendingName = currentStep ? resolvePendingName(sub, currentStep, users) : null;

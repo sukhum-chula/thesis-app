@@ -8,9 +8,11 @@ import { SignatureButton } from "./SignatureButton";
 import { CommitteeSignPanel } from "./CommitteeSignPanel";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
-import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, PROPOSAL_SIGN_CHECKS } from "@/lib/utils";
+import { stepNumbering } from "@/lib/stepNumbering";
 import { ArrowLeft, Clock, AlertCircle, StickyNote, CalendarDays } from "lucide-react";
 import Link from "next/link";
+
 
 interface Props {
   submissionId: string;
@@ -92,12 +94,14 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     PROPOSAL: {
       // Step 2 (ADMIN approve) and step 10 (ADMIN verify) omitted — admin only clicks approve, no signing
       3:  ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ก inside the combined บ.วศ.1 file
-      5:  ["B1C"],
-      6:  ["B1C"],
-      7:  ["B1C"],           // CO_ADVISOR signs B1C
-      8:  ["B1C"],           // INVITED_EXAM_COMMITTEE signs B1C
-      9:  ["B1C"],           // EXAM_COMMITTEE signs B1C
-      11: ["B1C", "B1D"],   // PROGRAM_CHAIR signs both
+      // Steps 5–9 (shown as 5.1–5.x): every committee member signs one place on บ.วศ.1ค, inside the
+      // same combined B1 the student re-uploaded at step 4; step 11 (shown as 7) is the chair
+      5:  ["B1"],            // HEAD_EXAM_COMMITTEE signs บ.วศ.1ค
+      6:  ["B1"],            // ADVISOR signs บ.วศ.1ค
+      7:  ["B1"],            // CO_ADVISOR signs บ.วศ.1ค
+      8:  ["B1"],            // INVITED_EXAM_COMMITTEE signs บ.วศ.1ค
+      9:  ["B1"],            // EXAM_COMMITTEE — each member signs บ.วศ.1ค
+      11: ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ค + 1ง
     },
     THESIS_DEFENSE: {
       2:  ["B3"],            // EXAM_COMMITTEE signs B3
@@ -124,16 +128,18 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const formsToShow = currentStep
     ? (STEP_SIGN_FORMS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? [])
     : [];
-  const doneCount   = sub.workflowSteps.filter((s) => s.status === "APPROVED").length;
-  const visibleSteps = sub.workflowSteps.filter((s) => s.status !== "SKIPPED");
-  const totalSteps  = visibleSteps.length;
-  // Display number matching the timeline (SKIPPED steps are hidden and renumbered)
-  const currentDisplayOrder = currentStep
-    ? visibleSteps.findIndex((s) => s.id === currentStep.id) + 1
-    : 0;
+  // Display numbering matching the timeline (sub-steps 5.1–5.x, SKIPPED hidden) — lib/stepNumbering
+  const numbering   = stepNumbering(sub.workflowSteps, sub.submissionType);
+  const doneCount   = numbering.done;
+  const totalSteps  = numbering.total;
+  const currentDisplayOrder = currentStep ? numbering.label(currentStep.stepOrder) : "";
+  // PROPOSAL signing steps (3 and 5.1–5.x) end with the signer's own-signature checklist
+  const signChecks = sub.submissionType === "PROPOSAL" && currentStep && isMyTurn
+    ? (PROPOSAL_SIGN_CHECKS[currentStep.stepOrder] ?? null)
+    : null;
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="space-y-6">
       {/* Back */}
       <Link href={backPath} className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-800 font-medium">
         <ArrowLeft className="w-5 h-5" />
@@ -248,15 +254,15 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Timeline — second on mobile so the action panel is reachable first */}
-        <div className="order-2 lg:order-none lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
+        <div className="order-2 md:order-none bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-5">ขั้นตอนทั้งหมด</h2>
           <WorkflowTimeline steps={sub.workflowSteps} users={allUsers} submissionType={sub.submissionType} submission={sub} />
         </div>
 
         {/* Sidebar — first on mobile */}
-        <div className="order-1 lg:order-none space-y-4">
+        <div className="order-1 md:order-none space-y-4">
           {/* Documents — all versions per form type (FileList handles dedup + history) */}
           {(() => {
             const PROPOSAL_FORMS = ["B1", "B1A", "B1B", "B1C", "B1D"];
@@ -345,6 +351,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               step={currentStep}
               formsToShow={formsToShow}
               title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : currentStep.role === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอก" : undefined}
+              checklist={signChecks ? { title: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ", checks: signChecks } : undefined}
               onSuccess={() => router.push(backPath)}
             />
           )}
@@ -356,6 +363,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               onSuccess={() => router.push(backPath)}
               notePrefix={(isThesisAdvisorResultStep || isProposalHeadResultStep) && thesisResult ? `ผลการสอบ: ${thesisResult}` : undefined}
               requireNotePrefix={isThesisAdvisorResultStep || isProposalHeadResultStep}
+              checklist={signChecks ? { title: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ", checks: signChecks } : undefined}
               extraSlots={
                 isThesisAdvisorResultStep && thesisResult === "ดีมาก"
                   ? [{ slotKey: "VERY_GOOD_EVAL", label: "แบบประเมินวิทยานิพนธ์ดีมาก", formType: "VERY_GOOD_EVAL" }]

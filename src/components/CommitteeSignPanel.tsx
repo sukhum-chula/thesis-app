@@ -7,7 +7,9 @@ import { MockWorkflowStep } from "@/types";
 import { CheckCircle2, XCircle, Clock, Loader2, Users, Download, Pen } from "lucide-react";
 import { FORM_LABELS, FORM_SHORT, downloadFile, toUserErrorMessage, formatUserName } from "@/lib/utils";
 import { UploadSlot } from "@/components/FileUploader";
+import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import type { FormType } from "@/types";
+import type { B1Check } from "@/lib/utils";
 
 interface Props {
   submissionId: string;
@@ -15,9 +17,11 @@ interface Props {
   onSuccess?: () => void;
   formsToShow?: string[];
   title?: string;
+  /** Required pre-approve checklist (PROPOSAL 5.x own-signature checks) — ส่งต่อ waits for all ticks */
+  checklist?: { title: string; checks: B1Check[] };
 }
 
-export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow, title }: Props) {
+export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow, title, checklist }: Props) {
   const { user, users, submissions, committeeSign } = useApp();
   const { showToast } = useToast();
   const [notes,      setNotes]      = useState("");
@@ -25,6 +29,8 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState<string | null>(null);
   const [signedFile, setSignedFile] = useState<File | null>(null);
+  const [checks,     setChecks]     = useState<Record<string, boolean>>({});
+  const checklistDone = !checklist || allChecked(checklist.checks, checks);
 
   // When the step signs exactly one named form, version that slot; otherwise SIGNED
   const nonSignedForms = (formsToShow ?? []).filter((f) => f !== "SIGNED");
@@ -43,6 +49,10 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
   async function act(decision: "APPROVED" | "REJECTED") {
     if (decision === "APPROVED" && !signedFile) {
       setError("กรุณาแนบเอกสารที่ลงนามแล้วก่อนอัปโหลด");
+      return;
+    }
+    if (decision === "APPROVED" && !checklistDone) {
+      setError("กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อน");
       return;
     }
     if (decision === "REJECTED" && !notes.trim()) {
@@ -233,6 +243,10 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
             </div>
           )}
 
+          {checklist && !showReject && (
+            <B1Checklist title={checklist.title} checks={checklist.checks} value={checks} onChange={setChecks} />
+          )}
+
           <p className="text-sm font-medium text-gray-700">ความเห็นของท่าน</p>
           <textarea
             value={notes}
@@ -253,7 +267,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
               <>
                 <button
                   onClick={() => act("APPROVED")}
-                  disabled={loading}
+                  disabled={loading || !checklistDone}
                   className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 disabled:opacity-60 transition"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}

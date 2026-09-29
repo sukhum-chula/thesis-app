@@ -5,8 +5,9 @@ import { useApp } from "@/context/AppContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { FileUploader } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS } from "@/lib/utils";
+import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, freshUploadCutoff } from "@/lib/utils";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
+import { stepNumbering } from "@/lib/stepNumbering";
 import { FormType } from "@/types";
 import Link from "next/link";
 import {
@@ -18,13 +19,24 @@ import { FileList } from "@/components/FileList";
 import { SubmissionInfoPanel } from "@/components/SubmissionInfoPanel";
 import { useToast } from "@/context/ToastContext";
 
-type StepSuggestion = { forms: FormType[]; label: string; multiUpload?: boolean; adminForms?: FormType[] };
+type StepSuggestion = {
+  forms: FormType[]; label: string; multiUpload?: boolean;
+  /** Step-specific warning text, overriding FORM_UPLOAD_WARNINGS for that form */
+  warnings?: Partial<Record<FormType, string>>;
+  /** Forms the student continues from the system's latest copy (download it here) rather than
+   *  a blank form from the department site */
+  continueFromLatest?: FormType[];
+};
 
 // Per-type step suggestions — keyed by submissionType → stepOrder
 const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
   PROPOSAL: {
     1: { forms: ["B1"], label: "บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)" },
-    4: { forms: ["B1C", "B1D"], adminForms: ["FINANCE_DOC"], label: "บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)" },
+    4: {
+      forms: ["B1"], label: "บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)",
+      warnings: { B1: "ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–ง — ขั้นตอนนี้กรอก บ.วศ.1ค และ บ.วศ.1ง ต่อจากไฟล์ล่าสุด" },
+      continueFromLatest: ["B1"],
+    },
   },
   THESIS_DEFENSE: {
     1:  { forms: ["B2", "B3", "FINANCE_ATTACH"], label: "บ.2 + บ.3 + เอกสารการเงินแนบกรรมการสอบ" },
@@ -46,9 +58,12 @@ const SUBMIT_LABEL: Record<string, Record<number, string>> = {
   },
 };
 
+// PROPOSAL student steps that end with the บ.วศ.1 checklist, and which items each one asks for
+const B1_STEP_CHECKS: Record<number, typeof B1_CHECKS> = { 1: B1_CHECKS, 4: B1_STEP4_CHECKS };
+
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
-  PROPOSAL:       ["B1", "B1C", "B1D"],
+  PROPOSAL:       ["B1"],
   THESIS_DEFENSE: ["B2", "B3", "FINANCE_ATTACH", "B4", "THESIS"],
 };
 
@@ -56,14 +71,14 @@ const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
 // for each of these form types points the student there, naming which form to download.
 const FORM_DOWNLOAD_URL = "https://me.eng.chula.ac.th/download/";
 const FORM_DOWNLOAD_NAME: Partial<Record<FormType, string>> = {
-  B1:             "แบบฟอร์ม บ.วศ.1ก–1ง",
+  B1:             "แบบฟอร์ม บ.วศ.1ก–ง",
   FINANCE_ATTACH: "แบบฟอร์มเอกสารการเงินแนบกรรมการสอบ",
 };
 
 // Warnings shown above the uploader — reminder of what must be done BEFORE uploading
 
 const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
-  B1:            "ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–1ง — ขั้นตอนนี้กรอกเฉพาะ บ.วศ.1ก และ บ.วศ.1ข",
+  B1:            "ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–ง — ขั้นตอนนี้กรอกเฉพาะ บ.วศ.1ก และ บ.วศ.1ข",
   FINANCE_ATTACH: "กรอกข้อมูลให้ครบถ้วน แล้วอัปโหลดเป็นไฟล์ Word (.docx)",
   B1C:   "กรอกข้อมูลให้ครบถ้วน — กรรมการจะลงนามผ่านระบบหลังอัปโหลด",
   B1D:   "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
@@ -105,15 +120,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const advisor      = allUsers.find((u) => u.id === sub.advisorId);
   const currentStep  = sub.workflowSteps.find((s) => s.status === "PENDING");
   const isMyTurn     = currentStep?.role === "STUDENT";
-  const doneCount    = sub.workflowSteps.filter((s) => s.status === "APPROVED").length;
-  const visibleSteps = sub.workflowSteps.filter((s) => s.status !== "SKIPPED");
-  const totalSteps   = visibleSteps.length;
-  // Display number matching the timeline (SKIPPED steps are hidden and renumbered)
-  const currentDisplayOrder = currentStep
-    ? visibleSteps.findIndex((s) => s.id === currentStep.id) + 1
-    : 0;
+  // Display numbering matching the timeline (sub-steps 5.1–5.x, SKIPPED hidden) — lib/stepNumbering
+  const numbering    = stepNumbering(sub.workflowSteps, sub.submissionType);
+  const doneCount    = numbering.done;
+  const totalSteps   = numbering.total;
+  const currentDisplayOrder = currentStep ? numbering.label(currentStep.stepOrder) : "";
   const subStatus    = sub.status;
-  const uploadedTypes = new Set(sub.uploads.map((u) => u.formType));
   const lastActedDate = sub.workflowSteps
     .filter((s) => s.actedAt)
     .sort((a, b) => new Date(b.actedAt!).getTime() - new Date(a.actedAt!).getTime())[0]?.actedAt ?? null;
@@ -133,33 +145,41 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
         return s8?.actedAt ? new Date(s8.actedAt).getTime() : 0;
       })()
     : null;
-  const effectiveUploads = step8ActedAt !== null
-    ? sub.uploads.filter((u) => u.formType !== "SIGNED" || new Date(u.uploadedAt).getTime() > step8ActedAt)
-    : sub.uploads;
+  const suggested = currentStep
+    ? (SUGGESTED_BY_STEP[subType]?.[currentStep.stepOrder] ?? null)
+    : null;
+  // A required form that already exists from an earlier step only counts once re-uploaded
+  // (PROPOSAL step 4's B1 — freshUploadCutoff); the older copies are what the student downloads
+  const freshCutoff = currentStep ? freshUploadCutoff(sub.workflowSteps, subType, currentStep.stepOrder) : null;
+  const effectiveUploads = sub.uploads.filter((u) => {
+    const t = new Date(u.uploadedAt).getTime();
+    if (step8ActedAt !== null && u.formType === "SIGNED" && t <= step8ActedAt) return false;
+    if (freshCutoff !== null && suggested?.forms.includes(u.formType) && t <= freshCutoff) return false;
+    return true;
+  });
+  // Latest pre-step copy of each continue-from-latest form (e.g. the chair-signed B1 at step 4)
+  const latestBeforeStep = (ft: FormType) =>
+    sub.uploads
+      .filter((u) => u.formType === ft && (freshCutoff === null || new Date(u.uploadedAt).getTime() <= freshCutoff))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
 
   // Files admin uploaded at step 8 that the student needs to download, fill, and sign at step 9
   const adminStep8Files = (step8ActedAt !== null && step8ActedAt > 0)
     ? sub.uploads.filter((u) => u.formType === "SIGNED" && new Date(u.uploadedAt).getTime() <= step8ActedAt)
     : [];
 
-  const suggested = currentStep
-    ? (SUGGESTED_BY_STEP[subType]?.[currentStep.stepOrder] ?? null)
-    : null;
   const effectiveUploadedTypes = new Set(effectiveUploads.map((u) => u.formType));
   const requiredForms = suggested?.forms ?? [];
-  const adminRequiredForms = suggested?.adminForms ?? [];
   const studentUploaded   = requiredForms.length === 0 || requiredForms.every((f) => effectiveUploadedTypes.has(f) || !!selectedFiles[f]);
-  const adminUploaded     = adminRequiredForms.length === 0 || adminRequiredForms.every((f) => uploadedTypes.has(f));
-  // True when student's required files are already in the DB (submitted this round), not just selected
-  const studentFilesInDb  = requiredForms.length > 0 && requiredForms.every((f) => effectiveUploadedTypes.has(f));
-  // Parallel step: student submitted their part but admin hasn't uploaded FINANCE_DOC yet
-  const waitingForAdminUpload = isMyTurn && adminRequiredForms.length > 0 && studentFilesInDb && !adminUploaded;
 
   const needsSignConfirm   = subType === "THESIS_DEFENSE" && isMyTurn &&
     (currentStep?.stepOrder === 9 || currentStep?.stepOrder === 16);
   const needsProgramConfirm = subType === "THESIS_DEFENSE" && isMyTurn && currentStep?.stepOrder === 16;
-  const needsB1Confirm = subType === "PROPOSAL" && isMyTurn && currentStep?.stepOrder === 1;
-  const b1AllChecked = allChecked(B1_CHECKS, b1Checks);
+  const b1StepChecks = subType === "PROPOSAL" && isMyTurn && currentStep
+    ? (B1_STEP_CHECKS[currentStep.stepOrder] ?? null)
+    : null;
+  const needsB1Confirm = b1StepChecks !== null;
+  const b1AllChecked = !b1StepChecks || allChecked(b1StepChecks, b1Checks);
   const preSubmitAllChecked = (!needsSignConfirm || confirmSigns) && (!needsProgramConfirm || confirmProgram)
     && (!needsB1Confirm || b1AllChecked);
 
@@ -291,18 +311,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
               แก้ไขเอกสารด้านขวา แล้วกด <span className="font-semibold">ยืนยันและยื่นใหม่</span> — ระบบจะส่งกลับให้ <span className="font-semibold">{rejectedStepName}</span> พิจารณาใหม่
             </p>
           )}
-        </div>
-      );
-    }
-
-    if (waitingForAdminUpload) {
-      return (
-        <div className="bg-green-50 border border-green-300 rounded-2xl p-5 flex items-start gap-4">
-          <CheckCircle2 className="w-7 h-7 text-green-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-green-800 font-bold text-lg">ส่งเอกสารของท่านแล้ว</p>
-            <p className="text-green-600 text-sm mt-1">กำลังรอเจ้าหน้าที่อัปโหลดเอกสารการเงิน — ระบบจะดำเนินต่อโดยอัตโนมัติเมื่อครบทั้งสองฝ่าย</p>
-          </div>
         </div>
       );
     }
@@ -496,7 +504,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
           )}
 
           {/* Waiting — not the student's turn */}
-          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && !isMyTurn && !waitingForAdminUpload && currentStep && (
+          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && !isMyTurn && currentStep && (
             <div className={`rounded-2xl p-5 space-y-3 ${stuckDays > 7 ? "bg-amber-50 border border-amber-300" : "bg-orange-50 border border-orange-200"}`}>
               <div className="flex items-start gap-3">
                 <Clock className={`w-6 h-6 shrink-0 mt-0.5 ${stuckDays > 7 ? "text-amber-500" : "text-orange-500"}`} />
@@ -532,7 +540,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
           )}
 
           {/* Upload section — hide when student has already submitted and is waiting for admin */}
-          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && isMyTurn && !waitingForAdminUpload && (
+          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && isMyTurn && (
             <div className="bg-white rounded-2xl border border-blue-100 p-4 space-y-3">
               {/* Header */}
               <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
@@ -597,22 +605,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                       </div>
                     );
                   })}
-                  {adminRequiredForms.map((ft) => {
-                    const done = uploadedTypes.has(ft);
-                    return (
-                      <div key={ft} className="flex items-center gap-2">
-                        {done
-                          ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                          : <Clock className="w-4 h-4 text-gray-400 shrink-0" />}
-                        <span className={`text-xs flex-1 ${done ? "text-green-700" : "text-gray-500"}`}>
-                          {FORM_LABELS[ft]} <span className="text-gray-400">(อัปโหลดโดยเจ้าหน้าที่)</span>
-                        </span>
-                        <span className={`text-xs font-semibold shrink-0 ${done ? "text-green-500" : "text-gray-400"}`}>
-                          {done ? "✓ อัปโหลดแล้ว" : "รอ"}
-                        </span>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
 
@@ -622,9 +614,25 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   const existing = effectiveUploads
                     .filter((u) => u.formType === ft)
                     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+                  const continueFrom = suggested.continueFromLatest?.includes(ft) ? latestBeforeStep(ft) : null;
+                  const warning = suggested.warnings?.[ft] ?? FORM_UPLOAD_WARNINGS[ft];
                   return (
                     <div key={`${ft}-${idx}`} className="space-y-1">
-                      {FORM_DOWNLOAD_NAME[ft] && (
+                      {/* Continue from the system's latest copy (e.g. the chair-signed บ.วศ.1 at step 4) */}
+                      {continueFrom && (
+                        <button
+                          type="button"
+                          onClick={() => downloadFile(continueFrom.id, continueFrom.fileName, FORM_LABELS[ft], sub.title, continueFrom.fileUrl)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 border border-blue-200 rounded-xl hover:bg-blue-50 transition text-left"
+                        >
+                          <Download className="w-4 h-4 text-blue-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-700">ดาวน์โหลด {FORM_SHORT[ft]} ฉบับล่าสุดในระบบ เพื่อกรอกต่อ</p>
+                            <p className="text-xs text-gray-400 truncate">{continueFrom.fileName} · {formatDate(continueFrom.uploadedAt)}</p>
+                          </div>
+                        </button>
+                      )}
+                      {FORM_DOWNLOAD_NAME[ft] && !suggested.continueFromLatest?.includes(ft) && (
                         <p className="flex items-start gap-1.5 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2">
                           <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                           <span>
@@ -640,10 +648,10 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                           </span>
                         </p>
                       )}
-                      {FORM_UPLOAD_WARNINGS[ft] && (
+                      {warning && (
                         <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
                           <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          {FORM_UPLOAD_WARNINGS[ft]}
+                          {warning}
                         </p>
                       )}
                       <FileUploader
@@ -666,12 +674,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   );
                 })}
 
-              {/* Pre-submit checklist for PROPOSAL step 1 — the combined บ.วศ.1 file can't be
+              {/* Pre-submit checklist for PROPOSAL steps 1 and 4 — the combined บ.วศ.1 file can't be
                   inspected by the system, so the student confirms what they filled and who signed */}
-              {needsB1Confirm && (
+              {b1StepChecks && (
                 <B1Checklist
                   title="กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง"
-                  checks={B1_CHECKS}
+                  checks={b1StepChecks}
                   value={b1Checks}
                   onChange={setB1Checks}
                 />
@@ -719,12 +727,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                       {studentUploaded ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
                       {studentUploaded ? "เลือกไฟล์ครบแล้ว พร้อมส่ง" : "ยังเลือกไฟล์ไม่ครบ"}
                     </div>
-                    {adminRequiredForms.length > 0 && (
-                      <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${adminUploaded ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
-                        {adminUploaded ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <Clock className="w-4 h-4 shrink-0" />}
-                        {adminUploaded ? "เจ้าหน้าที่อัปโหลดเอกสารการเงินแล้ว" : "รอเจ้าหน้าที่อัปโหลดเอกสารการเงิน"}
-                      </div>
-                    )}
                   </div>
                   <button
                     disabled={!allRequiredUploaded || submitting}
@@ -750,12 +752,8 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error ?? "เกิดข้อผิดพลาด");
                         await refresh();
-                        if (data.waitingForFinance) {
-                          showToast("ส่งเอกสารแล้ว รอเจ้าหน้าที่อัปโหลดเอกสารการเงิน", "info");
-                        } else {
-                          const lbl = SUBMIT_LABEL[subType]?.[currentStep.stepOrder] ?? "ส่งเอกสารแล้ว";
-                          showToast(`${lbl} ✓`);
-                        }
+                        const lbl = SUBMIT_LABEL[subType]?.[currentStep.stepOrder] ?? "ส่งเอกสารแล้ว";
+                        showToast(`${lbl} ✓`);
                       } catch (err: any) {
                         showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง", "error");
                       } finally {

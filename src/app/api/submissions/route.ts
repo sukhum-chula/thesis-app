@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidEmail, isValidStudentId, isValidThaiPhone } from "@/lib/utils";
+import { isValidEmail, isValidStudentId, isValidThaiPhone, isHiddenFromStudent } from "@/lib/utils";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
 import { validatePeople, validateCommitteeAccountRoles, resolvePeople, type PersonInput } from "@/lib/committee";
 import { getProgramChairsOfUser } from "@/lib/systemSettings";
 
-function mapSub(s: any) {
+function mapSub(s: any, viewerId: string) {
   return {
     ...s,
     createdAt: s.createdAt.toISOString(),
@@ -16,10 +16,13 @@ function mapSub(s: any) {
       createdAt: st.createdAt.toISOString(),
       actedAt: st.actedAt?.toISOString() ?? null,
     })) ?? [],
-    uploads: s.uploads?.map((u: any) => ({
-      ...u,
-      uploadedAt: u.uploadedAt.toISOString(),
-    })) ?? [],
+    uploads: s.uploads
+      // The submission's own student never receives its hidden (finance) documents
+      ?.filter((u: { formType: string }) => viewerId !== s.studentId || !isHiddenFromStudent(s.submissionType, u.formType))
+      .map((u: any) => ({
+        ...u,
+        uploadedAt: u.uploadedAt.toISOString(),
+      })) ?? [],
   };
 }
 
@@ -60,7 +63,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(submissions.map(mapSub));
+  return NextResponse.json(submissions.map((s) => mapSub(s, userId)));
 }
 
 export async function POST(req: NextRequest) {
@@ -241,5 +244,5 @@ export async function POST(req: NextRequest) {
     include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
   });
 
-  return NextResponse.json(mapSub(updated));
+  return NextResponse.json(mapSub(updated, userId));
 }

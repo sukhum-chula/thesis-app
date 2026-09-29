@@ -7,6 +7,54 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-29
 
+- **Proposal finance email moved to step 2; steps 3+ have no finance content.** `sendFinanceEmail`
+  for a PROPOSAL now fires when the ADMIN approves step 2 (after generating/editing the finance
+  form), not on the program chair's step-3 approval. The admin's step-2 approve card says it will
+  email the finance officer; the chair's step-3 note about it was removed, as was the admin step
+  card's step-4 "(อัปโหลดเอกสารการเงิน)" finance-admin line. Build clean, lint count unchanged or lower.
+
+- **Proposal step 4 no longer waits for an admin finance document.** The PROPOSAL's finance
+  paperwork is now only the FINANCE_ATTACH generated at step 2, so the step-4 FINANCE_DOC parallel
+  gate (approve returned `waitingForFinance`), its auto-advance in `POST /api/upload`, the admin's
+  yellow step-4 upload card, the admin-dashboard finance task, the timeline's two-party step-4 row
+  and the student's "waiting for staff" state were all removed. Found while diagnosing a live
+  test proposal stuck at step 4 (student had submitted; no FINANCE_DOC was ever uploaded).
+  THESIS_DEFENSE step 8's FINANCE_DOC is unchanged. Build clean, lint count unchanged or lower.
+
+- **Proposal committee signatures shown as steps 5.1–5.x; admin check is step 6, chair step 7.**
+  Display-only: new `src/lib/stepNumbering.ts` groups PROPOSAL stepOrder 5–9 into one numbered step
+  with sub-steps (SKIPPED co-advisor steps hidden, so numbering stays dense) and every screen that
+  shows a step number or "X/Y ขั้น" count now uses it (timeline, admin step cards/status/progress,
+  faculty and student detail, both dashboards, user detail, admin-override notification). Internal
+  stepOrder is unchanged. Each 5.x signer — `SignatureButton` and now `CommitteeSignPanel` — gets a
+  one-box checklist, "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)". Also fixed: the timeline's step-4 row still
+  judged the student done by `B1C`/`B1D` (never uploaded any more) — now the post-step-3 `B1`; and
+  it hides the admin finance row from the student. Numbering checked with a throwaway `tsx` script
+  (with/without co-advisor); build clean, lint count unchanged or lower; not browser-verified.
+
+- **Step-4 checklist spelled out; proposal finance documents hidden from the student.** The step-4
+  checklist now covers the chair's บ.วศ.1ก signature being present (contact the admin if not), 1ค/1ง
+  filled with committee names (1ค signature areas blank), the 1ง thesis topic matching the
+  committee's comments (it is registered in Chula's official system as written), all dates blank, and confirmation with the
+  main advisor against the proposal-exam committee's comments. New `isHiddenFromStudent()` removes
+  the PROPOSAL's `FINANCE_ATTACH`/`FINANCE_DOC` from the student's submission payloads and the
+  signed-URL route refuses them to that student; the student's step-4 finance row/status are gone.
+  Build clean, lint count unchanged; not browser-verified.
+
+- **Proposal step 4 (and signing steps 5–11) use the combined บ.วศ.1 file.** Step 4 no longer asks
+  for separate `B1C`/`B1D`: the student downloads the latest `B1` (chair-signed at step 3), fills
+  บ.วศ.1ค + 1ง, re-uploads it as a new `B1` version and ticks a 2-item checklist; the admin's parallel
+  FINANCE_DOC upload is unchanged. New `freshUploadCutoff()` makes step 4 count only a copy uploaded
+  after step 3 was approved (approve gate, auto-advance, student UI) — otherwise the step-1 copy
+  would satisfy it. Steps 5–11 now download/sign `B1`. Build clean, lint count unchanged; not
+  browser-verified.
+
+- **Proposal step 3 (program chair) matches steps 1–2.** `SignatureButton` gained an optional
+  `checklist` (+ `approveNote`) prop; at PROPOSAL step 3 the chair must tick one box,
+  "ประธานหลักสูตรลงนามใน บ.วศ.1ก แล้ว", before ส่งต่อ unlocks, and is told ส่งต่อ emails the
+  finance form. `RoleSubmissionDetail` (every faculty detail page) is now full-width and 1:1 from
+  `md` up, like the student/admin views. Build clean, lint count unchanged; not browser-verified.
+
 - **Step-2 finance form is editable, single-version, and approve needs a 6-item checklist.** The
   generated `FINANCE_ATTACH` now sits in an upload box on the admin's step-2 card — download, edit in
   Word, "เปลี่ยนไฟล์" to upload the edited copy; picking a file whose body text differs from the
@@ -21,7 +69,7 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   counts documents shown rather than stored versions (it read "เอกสารแนบ (3 ไฟล์)" over 2 rows).
 
 - **ADMIN generates the proposal's finance form at step 2; the student uploads one file at step 1.**
-  PROPOSAL step 1 now takes only `B1` (the combined บ.วศ.1ก–1ง PDF). New
+  PROPOSAL step 1 now takes only `B1` (the combined บ.วศ.1ก–ง PDF). New
   `POST /api/submissions/[id]/finance-attach` (ADMIN-only, only while step 2 is current) fills the
   department's เอกสารการเงินแนบกรรมการสอบ (`templates/finance-attach-proposal.docx`, bundled via
   `outputFileTracingIncludes`) with student name/code, สาขาวิชา (ME_CPS only) and one numbered row
@@ -31,7 +79,7 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   members) and ME_CPS (8 members) outputs through Word; build clean, lint count unchanged; the route
   and admin card are not browser-verified (no submission at step 2 exists to try it on).
 
-- **Proposal step 1 takes one combined บ.วศ.1 file + a Word finance file.** บ.วศ.1ก–1ง are one
+- **Proposal step 1 takes one combined บ.วศ.1 file + a Word finance file.** บ.วศ.1ก–ง are one
   physical document, so step 1's upload boxes went from 5 (b1a, b1b, finance, plus optional early
   b1c/b1d) to 2: new form type `B1` (PDF only) and `FINANCE_ATTACH` (.docx only — also on
   THESIS_DEFENSE step 1). The format rule is `formFileKind()` in `lib/utils.ts`, shared by

@@ -11,7 +11,7 @@ A role-based thesis approval workflow app. **Fully live** — Next.js 16 App Rou
 ## Stack & deployment
 - **DB**: Prisma + `@prisma/adapter-pg` → Supabase PostgreSQL. Client in `src/lib/prisma.ts` (singleton always cached on `globalThis` — both dev and Vercel production).
 - **Auth**: NextAuth v5, credentials only (email + passcode, bcrypt against `User.passcodeHash`). `src/lib/auth.ts`. Login email is trimmed + lowercased before lookup. There is no self-registration and no self-service password reset — see "Account creation & passcodes" below. (Magic-link auto-login, `/api/auth/magic`, was removed 2026-09-09 — see "Magic-link login removed" below.)
-- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 3 and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a plain link text (no styled button) to `/login`, plus a reminder to sign in with their email + passcode — there is no auto-login link (magic-link login was removed 2026-09-09; it never expired quickly enough and was never single-use, so a forwarded/leaked notification email let anyone log in as that user for up to 48h with no passcode).
+- **Email**: SMTP via nodemailer in `src/lib/email.ts` (shared `sendMail()` helper) — `sendStepEmail()` on every step advance, `sendFinanceEmail()` at PROPOSAL step 2 (ADMIN approve) and THESIS step 6 (called directly, not via HTTP). Emails go to real recipients. Sender: Office365/generic SMTP when `SMTP_USER`/`SMTP_PASS` are set (default host smtp.office365.com:587), else Gmail via `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Each recipient gets a plain link text (no styled button) to `/login`, plus a reminder to sign in with their email + passcode — there is no auto-login link (magic-link login was removed 2026-09-09; it never expired quickly enough and was never single-use, so a forwarded/leaked notification email let anyone log in as that user for up to 48h with no passcode).
 - **Storage**: Supabase Storage bucket `thesis-files` — **private**, not publicly readable. `POST /api/upload` stores the object's storage path (not a public URL) on `FormUpload.fileUrl`; previews/downloads resolve a 1h signed URL on demand via `GET /api/upload/[uploadId]/signed-url` (gated by the same submission-involvement check used elsewhere in the API). See `src/lib/supabase.ts`. Do not store or serve a public URL directly — the bucket was briefly public before 2026-09-04 and every uploaded document was reachable by anyone with the link; that was a bug, not the design.
 - **Deploy**: Vercel (`thesis-app` project, account `sukhums-4319`), auto-deploys on push to `main` (GitHub: `sukhum-chula/thesis-app`).
 
@@ -51,10 +51,10 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
-  PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1C, B1D, FINANCE_DOC]
+  PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)]
   THESIS_DEFENSE: step 1 → [B2, B3, FINANCE_ATTACH],      step 9 → [SIGNED],   step 16 → [B4, THESIS]
   ```
-  PROPOSAL step 4 requires both student docs AND admin FINANCE_DOC upload before student can advance. Admin uploads FINANCE_DOC via a yellow card shown on the admin panel whenever PROPOSAL step 4 is pending.
+  PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE step 8's FINANCE_DOC is unrelated and unchanged.)
 - **Tailwind class names in lookup maps must be whole static strings** (no interpolation).
 - UI text is Thai; use Sarabun font (already global). Keep UI large and calm — target users include older faculty.
 
@@ -318,14 +318,17 @@ Surfaced in the UI: a `cancel_request` task type at the top of the ADMIN dashboa
 replaces the old immediate "ยกเลิกแล้ว".
 
 ### Proposal steps 1–2 — student uploads one บ.วศ.1 file, ADMIN generates the finance form (2026-09-29)
-บ.วศ.1ก–1ง are physically **one document**, so PROPOSAL step 1 takes exactly **one** upload box:
+บ.วศ.1ก–ง are physically **one document**, so PROPOSAL step 1 takes exactly **one** upload box:
 `B1` (the combined file, **PDF only**; the blank form is on the department site,
 https://me.eng.chula.ac.th/download/, which the upload box links to — the app serves no copy). The
 system can't inspect the PDF, so `StudentSubmissionActions` shows a required checklist before
 ส่งต่อ unlocks: บ.วศ.1ก filled, บ.วศ.1ข filled, and 3 signatures — student in 1ก, student in 1ข,
 advisor in 1ก (`B1_CHECKS` in `src/lib/utils.ts`, rendered by the shared `B1Checklist` component).
 At step 2 the ADMIN must tick the same 5 items plus one committee check (`ADMIN_B1_EXTRA_CHECKS`)
-before อนุมัติ unlocks — a client-side attestation, like the student's. The student screen offers no optional early-upload boxes for later
+before อนุมัติ unlocks, and at step 3 the PROGRAM_CHAIR ticks one box, their own บ.วศ.1ก signature
+(`CHAIR_B1_CHECKS`, via `SignatureButton`'s `checklist` prop, which also shows a note that
+ส่งต่อ emails the finance form) — client-side attestations, like the student's. Step 3 still
+downloads the latest `B1`, and the chair uploads the signed copy as a new `B1` version (PDF only). The student screen offers no optional early-upload boxes for later
 steps' forms. `B1A`/`B1B` stay in the `FormType` enum only so older uploads still display.
 
 The PROPOSAL's `FINANCE_ATTACH` (เอกสารการเงินแนบกรรมการสอบ) is **no longer a student upload** —
@@ -345,8 +348,10 @@ every new copy — generated or uploaded — deletes the previous row + storage 
 replacement compares its body text with the current file (`docxText`, `src/lib/docxText.ts` — text,
 not bytes, since Word rewrites the package on every save) and shows a warning when they differ,
 because the current file will not be kept. Step 2's approve is gated on the file server-side
-(`REQUIRED_UPLOADS.PROPOSAL[2]`) and client-side on the file plus all 6 checks; step 3's finance
-email attaches it exactly as before. If the
+(`REQUIRED_UPLOADS.PROPOSAL[2]`) and client-side on the file plus all 6 checks. **Approving step 2
+is what sends the finance email** (with the current FINANCE_ATTACH attached) — the admin's approve
+card says so; nothing from step 3 on involves finance (moved from the step-3 PROGRAM_CHAIR approval
+2026-09-29). If the
 department replaces the form, swap the template and re-check `financeDoc.ts`'s anchors (they throw
 when not found).
 
@@ -354,8 +359,45 @@ when not found).
 student upload it. The format rule is `formFileKind()` in `src/lib/utils.ts`, used by both
 `FileUploader` pickers and by `POST /api/upload`, which checks magic bytes (PDF `%PDF`; DOCX = ZIP
 containing `word/document.xml` + a `.docx` name). Every other form type keeps the legacy
-PDF/JPEG/PNG rule. Step 4 still asks for separate `B1C`/`B1D` — not yet decided whether it should
-become a new version of `B1`.
+PDF/JPEG/PNG rule.
+
+**Step 4 uses the same combined file.** The student downloads the latest `B1` (the chair-signed
+copy from step 3), fills บ.วศ.1ค + 1ง, and re-uploads it as a new `B1` version. The checklist is
+`B1_STEP4_CHECKS`: the program chair's บ.วศ.1ก signature is in the file (contact the admin if not);
+1ค filled + committee names filled with signature areas blank + all dates blank; 1ง filled +
+committee names filled + the thesis topic matches the committee's comments (it is sent to the
+Faculty and registered in Chula's official system as written) + all dates blank; and everything confirmed with the main advisor and in
+line with the committee's comments at the proposal exam meeting. Because a `B1` already exists, step 4 only counts a copy
+uploaded **after step 3 was approved** — `freshUploadCutoff()` (`src/lib/utils.ts`) is the one rule,
+used by the approve gate and the student's
+upload box/checklist. Steps 5–11 download and sign that same `B1` (`STEP_SIGN_FORMS`). `B1C`/`B1D`
+stay in the enum for display of older uploads only.
+
+**The student never sees the PROPOSAL's finance documents** (`FINANCE_ATTACH`, and any legacy `FINANCE_DOC`) —
+`isHiddenFromStudent()` (`src/lib/utils.ts`) drops them from every submission payload sent to the
+submission's own student (`mapSub` in `api/submissions/route.ts` and `api/submissions/[id]/route.ts`)
+and `GET /api/upload/[uploadId]/signed-url` refuses them to that student. Step 4's student screen no
+longer shows the admin's finance row/status; the wait after submitting just reads
+"รอเจ้าหน้าที่ดำเนินการ". THESIS_DEFENSE is unaffected (its student uploads FINANCE_ATTACH).
+
+### Step display numbering — sub-steps 5.1–5.x (2026-09-29)
+Internal `stepOrder` never changes (1–11 PROPOSAL / 1–22 THESIS_DEFENSE — every gate, email,
+`STEP_SIGN_FORMS` entry and DB row keys off it). **What users see** comes from `stepNumbering()`
+(`src/lib/stepNumbering.ts`): a PROPOSAL's committee-signing run, stepOrder 5–9 (head → advisor →
+co-advisors → external → exam committee), is shown as one step with sub-steps **5.1–5.x** — dense,
+since SKIPPED steps are hidden and never numbered — so the admin check (stepOrder 10) reads as
+**step 6** and the program chair's final signature (stepOrder 11) as **step 7**. The "X/Y ขั้น"
+progress counts and bars count top-level steps (a sub-step group counts once, when all of it is
+approved). Used by `WorkflowTimeline`, `AdminSubmissionPanel` (step cards, status, progress),
+`RoleSubmissionDetail`, `StudentSubmissionActions`, `/admin-dashboard`, `/student-dashboard`,
+`UserDetailPanel`, and the admin-override notification text. Never compute a displayed step
+number from a step's index — call `stepNumbering(...).label(stepOrder)`. THESIS_DEFENSE has no
+groups yet, so it numbers 1..n exactly as before.
+
+Each 5.x signer ends with a one-box checklist, "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" — every committee
+member signs exactly one place, on บ.วศ.1ค (`PROPOSAL_SIGN_CHECKS` in `src/lib/utils.ts`, which also
+holds step 3's chair check). `SignatureButton` and `CommitteeSignPanel` both take the `checklist`
+prop, so single- and multi-member steps behave the same.
 
 ### Step 1 is NOT auto-approved
 When a submission is created, **step 1 starts as PENDING**. The student must upload the required documents and click submit. Step 2's email notification fires automatically when the student's submit action (approve) completes.
@@ -381,7 +423,7 @@ The reject button is embedded directly inside `SignatureButton` and `CommitteeSi
 `RoleSubmissionDetail` computes `formsToShow` from `STEP_SIGN_FORMS` so each role sees only the documents relevant to their step. Passed to both `SignatureButton` and `CommitteeSignPanel`.
 
 ```
-PROPOSAL:       3→[B1]  5→[B1C]  6→[B1C]  7→[B1C]  8→[B1C]  9→[B1C]  11→[B1C,B1D]
+PROPOSAL:       3→[B1]  5→[B1]  6→[B1]  7→[B1]  8→[B1]  9→[B1]  11→[B1]   (all sign parts of the one combined file)
                 (steps 2, 10 are ADMIN approve-only — no signing, not in this map)
 THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]
                 (steps 7, 8 are ADMIN relay/upload-only — no signing, not in this map)
@@ -407,7 +449,7 @@ the outer page, which used to shift the whole layout when the browser's own scro
 
 1. **จัดการคำร้อง (submissions)** — default tab, everything the page used to show top-to-bottom:
    - **"งานที่ต้องดำเนินการ"** orange task box — cancellation requests (`cancel_request` type)
-     always sort first, then PENDING-on-ADMIN steps, then the PROPOSAL step-4 finance-upload task;
+     always sort first, then PENDING-on-ADMIN steps;
      each card links directly to the submission
    - **Type filter pills** (ทุกประเภท/โครงร่าง/สอบวิทยานิพนธ์), **search bar**, **status filter
      tabs** (All/DRAFT/IN_PROGRESS/COMPLETED/REJECTED/CANCELLED, each with a count badge — these
@@ -530,7 +572,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Role | How they interact |
 |---|---|
 | Faculty Dean | Signs บ.4 physically offline |
-| Finance | Receives email at PROPOSAL step 3 and THESIS step 6 (with FINANCE_ATTACH attached) |
+| Finance | Receives email at PROPOSAL step 2 (ADMIN approve) and THESIS step 6 (with FINANCE_ATTACH attached) |
 | Graduate School | Receives final document package outside the system |
 
 ---
@@ -777,24 +819,29 @@ row — the moment ที่จอดรถ is checked.
 
 ### PROPOSAL (11 steps)
 
+Every document in a PROPOSAL is the one combined `B1` file (บ.วศ.1ก–ง); each step downloads the
+latest `B1` and, if it signs, uploads the signed copy as a new `B1` version (PDF only). "Shown as"
+is the number users see (`stepNumbering()` — see "Step display numbering" above); **Step** is the
+internal `stepOrder` every rule keys off.
+
 #### Phase 1 (Steps 1–3): บ.วศ.1ก + บ.วศ.1ข
-| Step | Role | Action |
-|------|------|--------|
-| 1 | STUDENT | Upload B1 (the one combined บ.วศ.1ก–1ง PDF, with 1ก + 1ข filled in) and tick the 5-item checklist — **starts PENDING, student must submit** (see "Proposal steps 1–2" below) |
-| 2 | ADMIN | Review, **generate FINANCE_ATTACH** (required before approve), and approve |
-| 3 | PROGRAM_CHAIR | Sign บ.วศ.1ก → **triggers finance email** |
+| Step | Shown as | Role | Action |
+|------|----------|------|--------|
+| 1 | 1 | STUDENT | Upload B1 (1ก + 1ข filled in); 5-item checklist (both filled, student signed 1ก + 1ข, advisor signed 1ก) — **starts PENDING, student must submit** (see "Proposal steps 1–2" below) |
+| 2 | 2 | ADMIN | **Generate FINANCE_ATTACH** (optionally download/edit/re-upload), tick the student's 5 checks + committee check, approve → **triggers the finance email**. The proposal's only finance step. |
+| 3 | 3 | PROGRAM_CHAIR | Sign บ.วศ.1ก; one checkbox (own signature) |
 
 #### Phase 2 (Steps 4–11): บ.วศ.1ค + บ.วศ.1ง
-| Step | Role | Action |
-|------|------|--------|
-| 4  | STUDENT | Upload B1C (บ.วศ.1ค) + B1D (บ.วศ.1ง) |
-| 5  | HEAD_EXAM_COMMITTEE | Sign บ.วศ.1ค |
-| 6  | ADVISOR | Sign บ.วศ.1ค |
-| 7  | CO_ADVISOR | Sign บ.วศ.1ค — **auto-SKIPPED if no co-advisors assigned** |
-| 8  | INVITED_EXAM_COMMITTEE | Sign บ.วศ.1ค |
-| 9  | EXAM_COMMITTEE | All members sign บ.วศ.1ค + บ.วศ.1ง (sequential) |
-| 10 | ADMIN | Verify and approve |
-| 11 | PROGRAM_CHAIR | Sign บ.วศ.1ค + บ.วศ.1ง |
+| Step | Shown as | Role | Action |
+|------|----------|------|--------|
+| 4  | 4   | STUDENT | Download the latest B1 (chair-signed), fill บ.วศ.1ค + 1ง, re-upload as a new B1 (must be newer than step 3's approval — `freshUploadCutoff`); 9-item checklist (see "Step 4 uses the same combined file"). No finance document. |
+| 5  | 5.1 | HEAD_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place); one checkbox |
+| 6  | 5.2 | ADVISOR | Sign บ.วศ.1ค (one place); one checkbox |
+| 7  | 5.x | CO_ADVISOR | Sign บ.วศ.1ค (one place each); one checkbox — **auto-SKIPPED (and not numbered) if no co-advisors assigned** |
+| 8  | 5.x | INVITED_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
+| 9  | 5.x | EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
+| 10 | 6   | ADMIN | Verify and approve |
+| 11 | 7   | PROGRAM_CHAIR | Sign บ.วศ.1ค + บ.วศ.1ง |
 
 If rejected, the step stays `REJECTED` (does not move) until the student resubmits — see "Rejection stays on the step" above. ส่งกลับ (admin-only) is the separate action that moves back one step (e.g. step 9 → step 8).
 
@@ -853,7 +900,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **An admin committee edit re-syncs the open steps** (2026-09-29). Each multi-member step snapshots its member list into `WorkflowStep.committeeMembers` when the steps are built, and signing (`sign/route.ts`) reads only that snapshot — so `admin_update` now runs `planCommitteeStepSync()` (`src/lib/workflowSteps.ts`, pure) and applies the result in the same transaction as the edit: every still-open step (PENDING, or the REJECTED one awaiting resubmit) gets the new list; sign-offs by members still on it are kept, removed members' are dropped; a current step whose remaining members have all approved is approved on the spot; removing every co-advisor SKIPS the open CO_ADVISOR steps and adding one re-opens the SKIPPED ones still ahead. APPROVED steps and SKIPPED steps behind the current one are history and never touched; CANCELLED/COMPLETED submissions are left alone. The submission status is then re-derived from the steps, and if the edit changed whose turn it is (`currentTurn()`), that person is notified + emailed. `admin_reset` also re-snapshots every multi-member step's list from the submission's committee.
 - **Signing is recorded on the step row, not in a separate table** (2026-09-15). Who signed and when lives on `WorkflowStep` — `actedById`/`actedByName`/`actedAt` for single-approver steps, and the `committeeActions` JSON array (`{userId, name, decision, notes, actedAt}[]`) for the three sequential multi-member roles. There is **no `Signature` model**: one existed in the schema (`signatures` table, with an unused `ipAddress` column) but nothing ever wrote to it — the only reference in the whole codebase was a `count()` in the user-delete blocker — so the model and the table were removed 2026-09-15. Don't reintroduce a separate signature table without first deciding what it would record that `WorkflowStep` doesn't.
 - **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR's `programChairFor` array includes `sub.program` (see "Program Chair & finance-contact assignment" above — no holder means no fallback recipient; since a professor may now chair more than one program, this is an `.includes()` check, not `===`). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
-- **Finance email** fires at PROPOSAL step 3 and THESIS_DEFENSE step 6 (both PROGRAM_CHAIR approvals), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
+- **Finance email** fires at PROPOSAL step 2 (the ADMIN's approval, once the finance form is generated) and THESIS_DEFENSE step 6 (PROGRAM_CHAIR approval), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
 - **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
 - **SUPER_ADMIN has zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission (no detail-page views either — `src/app/dashboard/admin/[id]` stays ADMIN-only). That responsibility belongs exclusively to ADMIN. It does have read-only oversight: a full user directory (incl. STUDENT/PROFESSOR) via `GET /api/super-admin/users`, and a full submission list via `GET /api/super-admin/submissions` (both SUPER_ADMIN-only, view-only; the older counts-only `GET /api/super-admin/stats` was removed once these shipped) — but account *management* of STUDENT/PROFESSOR/ADMIN stays exclusively ADMIN's (SUPER_ADMIN can only create/edit/delete SUPER_ADMIN/ADMIN accounts, per `src/lib/accountScope.ts`).
 - **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.

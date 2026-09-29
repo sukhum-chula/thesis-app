@@ -7,6 +7,7 @@ import { getStepName, getRelatedSubmissions, formatUserName } from "@/lib/utils"
 import {
   ChevronRight, FileText, AlertCircle,
 } from "lucide-react";
+import { stepNumbering } from "@/lib/stepNumbering";
 
 function daysSince(dateStr: string): string {
   const days = Math.floor(
@@ -61,8 +62,9 @@ export function UserDetailPanel({ uid }: { uid: string }) {
               const student     = users.find((u) => u.id === sub.studentId);
               const advisor     = users.find((u) => u.id === sub.advisorId);
               const currentStep = sub.workflowSteps.find((s) => s.status === "PENDING");
-              const doneCount   = sub.workflowSteps.filter((s) => s.status === "APPROVED").length;
-              const totalSteps  = sub.workflowSteps.filter((s) => s.status !== "SKIPPED").length;
+              const numbering   = stepNumbering(sub.workflowSteps, sub.submissionType);
+              const doneCount   = numbering.done;
+              const totalSteps  = numbering.total;
 
               // For non-student roles: show which step they are at for this submission
               const nonStudentRole = user.roles.find((r) => r !== "STUDENT" && r !== "ADMIN" && r !== "SUPER_ADMIN");

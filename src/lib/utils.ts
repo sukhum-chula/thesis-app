@@ -72,7 +72,7 @@ export function getRelatedSubmissions(
 }
 
 export const FORM_LABELS: Record<FormType, string> = {
-  B1:            "บ.วศ.1 — แบบฟอร์ม บ.วศ.1ก–1ง (ไฟล์เดียว)",
+  B1:            "บ.วศ.1 — แบบฟอร์ม บ.วศ.1ก–ง (ไฟล์เดียว)",
   B1A:          "บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",
   B1B:          "บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",
   B1C:           "บ.วศ.1ค — รายงานความก้าวหน้า",
@@ -359,7 +359,7 @@ export const FORM_SHORT: Record<FormType, string> = {
 };
 
 /** File format each form type must be uploaded in. FINANCE_ATTACH is filled in from a .docx
- *  template and stays a Word file; B1 (the combined บ.วศ.1ก–1ง document) is PDF only. Every
+ *  template and stays a Word file; B1 (the combined บ.วศ.1ก–ง document) is PDF only. Every
  *  other type keeps the legacy rule (PDF, plus JPEG/PNG server-side). Shared by FileUploader
  *  and POST /api/upload so the picker and the server can't disagree. */
 export type FormFileKind = "pdf" | "docx";
@@ -380,6 +380,37 @@ export function checkFormFile(formType: string, file: File): string | null {
   return null;
 }
 
+/** Student steps whose required files must be a NEW copy — uploaded after the named earlier step
+ *  was approved — because that form type already exists from before. PROPOSAL step 4 re-uploads
+ *  the combined B1 (now with บ.วศ.1ค/1ง filled) that steps 1 and 3 already produced, so without
+ *  this the old copy would satisfy step 4's gate. Shared by the approve gate, the step-4
+ *  auto-advance in POST /api/upload, and the student's upload checklist. */
+const FRESH_UPLOAD_AFTER_STEP: Record<string, Record<number, number>> = {
+  PROPOSAL: { 4: 3 },
+};
+/** Upload time (ms) a step's required files must be newer than, or null when any copy counts. */
+export function freshUploadCutoff(
+  steps: { stepOrder: number; actedAt?: string | Date | null }[],
+  submissionType: string | null | undefined,
+  stepOrder: number,
+): number | null {
+  const after = FRESH_UPLOAD_AFTER_STEP[submissionType ?? "PROPOSAL"]?.[stepOrder];
+  if (!after) return null;
+  const actedAt = steps.find((s) => s.stepOrder === after)?.actedAt;
+  return actedAt ? new Date(actedAt).getTime() : 0;
+}
+
+/** Documents the submission's own student never sees — the PROPOSAL's finance paperwork is
+ *  between the ADMIN and Finance. Filtered out of every submission payload sent to that student
+ *  (mapSub in the submissions routes) and refused by the signed-URL route, so it is hidden, not
+ *  merely not rendered. THESIS_DEFENSE is unaffected: its student uploads FINANCE_ATTACH at step 1. */
+const HIDDEN_FROM_STUDENT_FORMS: Record<string, string[]> = {
+  PROPOSAL: ["FINANCE_ATTACH", "FINANCE_DOC"],
+};
+export function isHiddenFromStudent(submissionType: string | null | undefined, formType: string): boolean {
+  return (HIDDEN_FROM_STUDENT_FORMS[submissionType ?? "PROPOSAL"] ?? []).includes(formType);
+}
+
 /** Form types kept as a single version per submission, keyed by submission type — a newer copy
  *  replaces the old one outright (server: keepOnlyLatestVersion deletes the old row + object) and
  *  FileList shows no ประวัติ for them. Only the ADMIN-generated PROPOSAL finance attachment so far:
@@ -392,12 +423,18 @@ export function isSingleVersionForm(submissionType: string | null | undefined, f
 }
 
 /** บ.วศ.1 checklist — what must be filled in and signed in the combined file. The student ticks it
- *  before submitting PROPOSAL step 1; the ADMIN ticks the same items (plus ADMIN_B1_EXTRA_CHECKS)
- *  before approving step 2. Client-side attestation only — the system can't read the PDF. */
+ *  before submitting PROPOSAL step 1; the ADMIN ticks the same items plus ADMIN_B1_EXTRA_CHECKS
+ *  before approving step 2; the PROGRAM_CHAIR ticks only CHAIR_B1_CHECKS (their own signature)
+ *  before signing off step 3. Client-side attestation only — the system can't read the PDF. */
 export const B1_CHECK_GROUPS = [
   { key: "fill",      title: "กรอกข้อมูล" },
   { key: "sign",      title: "ลงนามครบ 3 จุด (นิสิต 2 จุด, อาจารย์ที่ปรึกษา 1 จุด)" },
   { key: "committee", title: "คณะกรรมการ" },
+  { key: "chair",     title: "การลงนามของประธานหลักสูตร" },
+  { key: "b1c",       title: "บ.วศ.1ค" },
+  { key: "b1d",       title: "บ.วศ.1ง" },
+  { key: "confirm",   title: "การยืนยันข้อมูล" },
+  { key: "mySign",    title: "การลงนามของท่าน" },
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
 export const B1_CHECKS: B1Check[] = [
@@ -407,16 +444,48 @@ export const B1_CHECKS: B1Check[] = [
   { key: "stuSignB", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ข แล้ว" },
   { key: "advSignA", group: "sign", label: "อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว" },
 ];
+/** PROPOSAL step 4 — the student fills บ.วศ.1ค/1ง into the same combined file. Signature areas
+ *  and every date stay blank (the committee signs and dates them from step 5 on), and the student
+ *  confirms the program chair's step-3 signature on บ.วศ.1ก is actually in the file. */
+export const B1_STEP4_CHECKS: B1Check[] = [
+  { key: "chairSignA", group: "chair",   label: "ไฟล์ บ.วศ.1 มีลายมือชื่อประธานหลักสูตรใน บ.วศ.1ก แล้ว (หากยังไม่มี กรุณาติดต่อเจ้าหน้าที่ก่อนส่ง)" },
+  { key: "fillC",      group: "b1c",     label: "กรอกข้อมูลใน บ.วศ.1ค ครบถ้วนแล้ว" },
+  { key: "namesC",     group: "b1c",     label: "กรอกรายชื่อคณะกรรมการใน บ.วศ.1ค แล้ว โดยเว้นช่องลงนามว่างไว้" },
+  { key: "datesC",     group: "b1c",     label: "เว้นวันที่ทั้งหมดใน บ.วศ.1ค ว่างไว้" },
+  { key: "fillD",      group: "b1d",     label: "กรอกข้อมูลใน บ.วศ.1ง ครบถ้วนแล้ว" },
+  { key: "namesD",     group: "b1d",     label: "กรอกรายชื่อคณะกรรมการใน บ.วศ.1ง แล้ว" },
+  // The บ.วศ.1ง topic goes to the Faculty and is registered in Chula's official system as-is
+  { key: "topicD",     group: "b1d",     label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการแล้ว (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
+  { key: "datesD",     group: "b1d",     label: "เว้นวันที่ทั้งหมดใน บ.วศ.1ง ว่างไว้" },
+  { key: "advisorOk",  group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาหลักแล้ว และสอดคล้องกับผลการพิจารณาของคณะกรรมการในการสอบโครงร่างวิทยานิพนธ์" },
+];
 export const ADMIN_B1_EXTRA_CHECKS: B1Check[] = [
   { key: "committee", group: "committee", label: "ตรวจสอบรายชื่อคณะกรรมการในคำร้องและเอกสารการเงินถูกต้องแล้ว" },
 ];
+export const CHAIR_B1_CHECKS: B1Check[] = [
+  { key: "chairSignA", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ก แล้ว" },
+];
+/** Committee signing steps 5.1–5.x (stepOrder 5–9): every committee member signs exactly one
+ *  place, on บ.วศ.1ค in the combined B1, and confirms it here. */
+const SIGN_B1C_CHECKS: B1Check[] = [
+  { key: "mySignC", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" },
+];
+/** Pre-approve checklist for each PROPOSAL signing step, keyed by stepOrder */
+export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
+  3: CHAIR_B1_CHECKS,
+  5: SIGN_B1C_CHECKS,
+  6: SIGN_B1C_CHECKS,
+  7: SIGN_B1C_CHECKS,
+  8: SIGN_B1C_CHECKS,
+  9: SIGN_B1C_CHECKS,
+};
 
 // Step names for proposal submissions (11 steps)
 export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   1:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)",
   2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
   3:  "ประธานหลักสูตรลงนาม บ.วศ.1ก",
-  4:  "นิสิตอัปโหลด บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",
+  4:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)",
   5:  "ประธานกรรมการสอบลงนาม บ.วศ.1ค",
   6:  "อาจารย์ที่ปรึกษาลงนาม บ.วศ.1ค",
   7:  "อาจารย์ที่ปรึกษาร่วมลงนาม บ.วศ.1ค",

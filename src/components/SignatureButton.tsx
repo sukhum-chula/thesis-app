@@ -6,7 +6,9 @@ import { useToast } from "@/context/ToastContext";
 import { CheckCircle2, XCircle, Loader2, Download, Pen } from "lucide-react";
 import { FORM_LABELS, downloadFile, toUserErrorMessage } from "@/lib/utils";
 import { UploadSlot } from "@/components/FileUploader";
+import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import type { FormType } from "@/types";
+import type { B1Check } from "@/lib/utils";
 
 interface ExtraSlot {
   slotKey: string;
@@ -23,9 +25,13 @@ interface Props {
   requireNotePrefix?: boolean;
   extraSlots?: ExtraSlot[];
   hideDownloads?: boolean;
+  /** Required pre-approve checklist (PROPOSAL step 3's บ.วศ.1 checks) — approve stays disabled until all ticked */
+  checklist?: { title: string; checks: B1Check[] };
+  /** Extra info line shown above the buttons (e.g. what approving triggers) */
+  approveNote?: string;
 }
 
-export function SignatureButton({ submissionId, label = "ส่งต่อ", onSuccess, formsToShow, notePrefix, requireNotePrefix, extraSlots, hideDownloads }: Props) {
+export function SignatureButton({ submissionId, label = "ส่งต่อ", onSuccess, formsToShow, notePrefix, requireNotePrefix, extraSlots, hideDownloads, checklist, approveNote }: Props) {
   const { approveCurrentStep, rejectCurrentStep, submissions } = useApp();
   const { showToast } = useToast();
   const [notes,      setNotes]      = useState("");
@@ -36,6 +42,8 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
   // Per-form upload state
   const [fileByForm,    setFileByForm]    = useState<Record<string, File | null>>({});
   const [uploadedForms, setUploadedForms] = useState<Set<string>>(new Set());
+  const [checks,        setChecks]        = useState<Record<string, boolean>>({});
+  const checklistDone = !checklist || allChecked(checklist.checks, checks);
 
   const sub = submissions.find((s) => s.id === submissionId);
 
@@ -55,6 +63,10 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
     }
     if (!allFormsReady) {
       setError("กรุณาเลือกไฟล์ที่ลงนามแล้วให้ครบก่อน");
+      return;
+    }
+    if (!checklistDone) {
+      setError("กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อน");
       return;
     }
     setLoading(true);
@@ -188,6 +200,11 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
         </div>
       )}
 
+      {/* Pre-approve checklist */}
+      {checklist && !showReject && (
+        <B1Checklist title={checklist.title} checks={checklist.checks} value={checks} onChange={setChecks} />
+      )}
+
       {/* Notes */}
       <div>
         <label className="block font-medium text-gray-700 mb-2">
@@ -208,13 +225,17 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
         </div>
       )}
 
+      {approveNote && !showReject && (
+        <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">{approveNote}</p>
+      )}
+
       {/* Buttons */}
       <div className="flex gap-3">
         {!showReject ? (
           <>
             <button
               onClick={handleApprove}
-              disabled={loading || !allFormsReady}
+              disabled={loading || !allFormsReady || !checklistDone}
               className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 disabled:opacity-60 transition"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
