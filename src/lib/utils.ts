@@ -380,10 +380,41 @@ export function checkFormFile(formType: string, file: File): string | null {
   return null;
 }
 
+/** Form types kept as a single version per submission, keyed by submission type — a newer copy
+ *  replaces the old one outright (server: keepOnlyLatestVersion deletes the old row + object) and
+ *  FileList shows no ประวัติ for them. Only the ADMIN-generated PROPOSAL finance attachment so far:
+ *  whichever copy is newest — generated, or the admin's edited upload — is the one kept. */
+const SINGLE_VERSION_FORMS: Record<string, string[]> = {
+  PROPOSAL: ["FINANCE_ATTACH"],
+};
+export function isSingleVersionForm(submissionType: string | null | undefined, formType: string): boolean {
+  return (SINGLE_VERSION_FORMS[submissionType ?? "PROPOSAL"] ?? []).includes(formType);
+}
+
+/** บ.วศ.1 checklist — what must be filled in and signed in the combined file. The student ticks it
+ *  before submitting PROPOSAL step 1; the ADMIN ticks the same items (plus ADMIN_B1_EXTRA_CHECKS)
+ *  before approving step 2. Client-side attestation only — the system can't read the PDF. */
+export const B1_CHECK_GROUPS = [
+  { key: "fill",      title: "กรอกข้อมูล" },
+  { key: "sign",      title: "ลงนามครบ 3 จุด (นิสิต 2 จุด, อาจารย์ที่ปรึกษา 1 จุด)" },
+  { key: "committee", title: "คณะกรรมการ" },
+] as const;
+export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
+export const B1_CHECKS: B1Check[] = [
+  { key: "fillA",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ก ครบถ้วนแล้ว" },
+  { key: "fillB",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ข ครบถ้วนแล้ว" },
+  { key: "stuSignA", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ก แล้ว" },
+  { key: "stuSignB", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ข แล้ว" },
+  { key: "advSignA", group: "sign", label: "อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว" },
+];
+export const ADMIN_B1_EXTRA_CHECKS: B1Check[] = [
+  { key: "committee", group: "committee", label: "ตรวจสอบรายชื่อคณะกรรมการในคำร้องและเอกสารการเงินถูกต้องแล้ว" },
+];
+
 // Step names for proposal submissions (11 steps)
 export const PROPOSAL_STEP_NAMES: Record<number, string> = {
-  1:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ",
-  2:  "เจ้าหน้าที่ตรวจรับและอนุมัติ",
+  1:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)",
+  2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
   3:  "ประธานหลักสูตรลงนาม บ.วศ.1ก",
   4:  "นิสิตอัปโหลด บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",
   5:  "ประธานกรรมการสอบลงนาม บ.วศ.1ค",

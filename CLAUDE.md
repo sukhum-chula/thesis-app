@@ -81,6 +81,8 @@ src/lib/
                              NOTE: attachSystemSettings' computed flags only reach the client if
                              they are also listed in the mapUser() whitelists in
                              api/users/route.ts and api/users/[id]/route.ts
+  financeDoc.ts              buildProposalFinanceDocx() — fills templates/finance-attach-proposal.docx
+                             (the department's form) for POST /api/submissions/[id]/finance-attach
   workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
                              initial-create path and the draft-confirm finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn,

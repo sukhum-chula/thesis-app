@@ -25,6 +25,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The finance-form generator reads its .docx template from disk at request time; file tracing
+  // can't see an fs.readFile path, so ship the template with that route explicitly.
+  outputFileTracingIncludes: {
+    "/api/submissions/*/finance-attach": ["./templates/**/*"],
+  },
   async headers() {
     return [
       {

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadFile } from "@/lib/supabase";
-import { FORM_SHORT, getStepName, ROLE_LABELS, formFileKind } from "@/lib/utils";
+import { FORM_SHORT, getStepName, ROLE_LABELS, formFileKind, isSingleVersionForm } from "@/lib/utils";
 import { sendStepEmail } from "@/lib/email";
 import type { FormType } from "@/types";
+import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -75,6 +76,16 @@ export async function POST(req: NextRequest) {
     if (!involved) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // PROPOSAL finance attachment is the ADMIN's file at step 2 (generated, optionally edited and
+  // re-uploaded) — nobody else uploads it, and not at any other point in the workflow.
+  if (subCheck.submissionType === "PROPOSAL" && formType === "FINANCE_ATTACH") {
+    const current = await prisma.workflowStep.findFirst({
+      where: { submissionId, status: "PENDING" }, orderBy: { stepOrder: "asc" }, select: { stepOrder: true },
+    });
+    if (!sessionRoles.includes("ADMIN") || subCheck.status !== "IN_PROGRESS" || current?.stepOrder !== 2)
+      return NextResponse.json({ error: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" }, { status: 400 });
+  }
+
   // SIGNED uploads (committee's own signed copies) keep their original filename — it's already descriptive.
   // All other form types get renamed: e.g. "บ.วศ.1ก_6300001.pdf"
   let displayFileName: string;
@@ -111,6 +122,9 @@ export async function POST(req: NextRequest) {
       uploadedById: session.user.id,
     },
   });
+
+  if (isSingleVersionForm(subCheck.submissionType, formType))
+    await keepOnlyLatestVersion(submissionId, formType as FormType, upload.id);
 
   // Auto-advance PROPOSAL step 4 when FINANCE_DOC completes the parallel requirement.
   // Wrapped in try/catch so a failure here never breaks the upload response.

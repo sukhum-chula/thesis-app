@@ -5,7 +5,8 @@ import { useApp } from "@/context/AppContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { FileUploader } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName } from "@/lib/utils";
+import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS } from "@/lib/utils";
+import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import { FormType } from "@/types";
 import Link from "next/link";
 import {
@@ -22,7 +23,7 @@ type StepSuggestion = { forms: FormType[]; label: string; multiUpload?: boolean;
 // Per-type step suggestions — keyed by submissionType → stepOrder
 const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
   PROPOSAL: {
-    1: { forms: ["B1", "FINANCE_ATTACH"], label: "บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ" },
+    1: { forms: ["B1"], label: "บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)" },
     4: { forms: ["B1C", "B1D"], adminForms: ["FINANCE_DOC"], label: "บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)" },
   },
   THESIS_DEFENSE: {
@@ -47,7 +48,7 @@ const SUBMIT_LABEL: Record<string, Record<number, string>> = {
 
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
-  PROPOSAL:       ["B1", "FINANCE_ATTACH", "B1C", "B1D"],
+  PROPOSAL:       ["B1", "B1C", "B1D"],
   THESIS_DEFENSE: ["B2", "B3", "FINANCE_ATTACH", "B4", "THESIS"],
 };
 
@@ -72,19 +73,6 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
   THESIS: "ต้องเป็นไฟล์ที่ผ่านระบบ e-thesis ของจุฬาฯ และมี barcode กำกับเรียบร้อยแล้ว",
   SIGNED: "ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",
 };
-
-// PROPOSAL step 1 checklist — what the student must have filled in and had signed in บ.วศ.1
-const B1_CHECK_GROUPS = [
-  { key: "fill", title: "กรอกข้อมูล" },
-  { key: "sign", title: "ลงนามครบ 3 จุด (นิสิต 2 จุด, อาจารย์ที่ปรึกษา 1 จุด)" },
-] as const;
-const B1_CHECKS: { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string }[] = [
-  { key: "fillA",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ก ครบถ้วนแล้ว" },
-  { key: "fillB",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ข ครบถ้วนแล้ว" },
-  { key: "stuSignA", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ก แล้ว" },
-  { key: "stuSignB", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ข แล้ว" },
-  { key: "advSignA", group: "sign", label: "อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว" },
-];
 
 /** The student's full action surface for one submission — status banner, committee/exam info,
  *  progress + timeline, file uploads, and cancel — everything needed to actually act on a
@@ -171,7 +159,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     (currentStep?.stepOrder === 9 || currentStep?.stepOrder === 16);
   const needsProgramConfirm = subType === "THESIS_DEFENSE" && isMyTurn && currentStep?.stepOrder === 16;
   const needsB1Confirm = subType === "PROPOSAL" && isMyTurn && currentStep?.stepOrder === 1;
-  const b1AllChecked = B1_CHECKS.every((c) => b1Checks[c.key]);
+  const b1AllChecked = allChecked(B1_CHECKS, b1Checks);
   const preSubmitAllChecked = (!needsSignConfirm || confirmSigns) && (!needsProgramConfirm || confirmProgram)
     && (!needsB1Confirm || b1AllChecked);
 
@@ -681,28 +669,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
               {/* Pre-submit checklist for PROPOSAL step 1 — the combined บ.วศ.1 file can't be
                   inspected by the system, so the student confirms what they filled and who signed */}
               {needsB1Confirm && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-3">
-                  <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง
-                  </p>
-                  {B1_CHECK_GROUPS.map((group) => (
-                    <div key={group.title} className="space-y-2">
-                      <p className="text-xs font-semibold text-amber-900">{group.title}</p>
-                      {B1_CHECKS.filter((c) => c.group === group.key).map((c) => (
-                        <label key={c.key} className="flex items-start gap-2.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={!!b1Checks[c.key]}
-                            onChange={(e) => setB1Checks((prev) => ({ ...prev, [c.key]: e.target.checked }))}
-                            className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0"
-                          />
-                          <span className="text-xs text-amber-800">{c.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-                </div>
+                <B1Checklist
+                  title="กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง"
+                  checks={B1_CHECKS}
+                  value={b1Checks}
+                  onChange={setB1Checks}
+                />
               )}
 
               {/* Pre-submit confirmation checkboxes for THESIS_DEFENSE signing steps */}

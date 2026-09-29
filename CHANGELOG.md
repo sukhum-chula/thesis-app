@@ -7,6 +7,30 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-29
 
+- **Step-2 finance form is editable, single-version, and approve needs a 6-item checklist.** The
+  generated `FINANCE_ATTACH` now sits in an upload box on the admin's step-2 card — download, edit in
+  Word, "เปลี่ยนไฟล์" to upload the edited copy; picking a file whose body text differs from the
+  current one shows a replace warning (text comparison via new `src/lib/docxText.ts`; verified that a
+  Word re-save with no edits compares equal and a one-word edit does not). Every new copy deletes the
+  old row + storage object (`src/lib/uploadVersions.ts`); only ADMIN at step 2 may upload it. อนุมัติ
+  now also requires the student's 5 บ.วศ.1 checks plus a committee check (shared `B1Checklist`
+  component, lists moved to `lib/utils.ts`). The admin submission grid is 1:1 from `md` up, as on the
+  student side. Build clean, lint count unchanged; not browser-verified.
+  `FileList` now also shows only the newest finance attachment (no ประวัติ, even for copies left over
+  from before the rule), via the shared `isSingleVersionForm()` in `lib/utils.ts`, and its header
+  counts documents shown rather than stored versions (it read "เอกสารแนบ (3 ไฟล์)" over 2 rows).
+
+- **ADMIN generates the proposal's finance form at step 2; the student uploads one file at step 1.**
+  PROPOSAL step 1 now takes only `B1` (the combined บ.วศ.1ก–1ง PDF). New
+  `POST /api/submissions/[id]/finance-attach` (ADMIN-only, only while step 2 is current) fills the
+  department's เอกสารการเงินแนบกรรมการสอบ (`templates/finance-attach-proposal.docx`, bundled via
+  `outputFileTracingIncludes`) with student name/code, สาขาวิชา (ME_CPS only) and one numbered row
+  per committee member — empty roles get no row; date/credits/signatures/total/cheque stay blank — and
+  stores it as a `FINANCE_ATTACH` version for step 3's finance email. Step 2's approve is gated on it
+  (server + disabled button). New dependency `jszip`. Generator checked by rendering ME_MECH (4
+  members) and ME_CPS (8 members) outputs through Word; build clean, lint count unchanged; the route
+  and admin card are not browser-verified (no submission at step 2 exists to try it on).
+
 - **Proposal step 1 takes one combined บ.วศ.1 file + a Word finance file.** บ.วศ.1ก–1ง are one
   physical document, so step 1's upload boxes went from 5 (b1a, b1b, finance, plus optional early
   b1c/b1d) to 2: new form type `B1` (PDF only) and `FINANCE_ATTACH` (.docx only — also on

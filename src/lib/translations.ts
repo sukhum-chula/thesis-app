@@ -24,7 +24,21 @@ export const TH_EN: [string, string][] = [
   ["บ.4 — ลงนามอนุมัติวิทยานิพนธ์",            "B4 — Thesis Approval Signature"],
 
   // ── PROPOSAL step names ──────────────────────────────────────────────────────
-  ["นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ", "Student uploads B1 (B1A + B1B filled) + Finance Attachment"],
+  ["นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)", "Student uploads B1 (B1A + B1B filled)"],
+  ["เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ", "Department Staff reviews, generates the finance form, and approves"],
+  ["สร้างเอกสารการเงินแนบกรรมการสอบ", "Generate Finance Attachment"],
+  ["ระบบจะกรอกชื่อนิสิต รหัสนิสิต และรายชื่อคณะกรรมการให้ — วันที่ หน่วยกิต ลงนาม รวมเงิน และการจ่ายเช็คเว้นว่างไว้", "The system fills in the student name, student ID and committee — date, credits, signatures, total and cheque are left blank"],
+  ["ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้", "Generate the finance form before approving"],
+  ["ไฟล์นี้มีเนื้อหาแตกต่างจากไฟล์ปัจจุบัน — เมื่ออัปโหลด ไฟล์ปัจจุบันจะถูกแทนที่และไม่เก็บไว้ กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนอัปโหลด", "This file's content differs from the current file — uploading replaces the current file, which is not kept. Please check the details before uploading"],
+  ["ไม่สามารถเปรียบเทียบกับไฟล์ปัจจุบันได้ — เมื่ออัปโหลด ไฟล์ปัจจุบันจะถูกแทนที่และไม่เก็บไว้", "Could not compare with the current file — uploading replaces the current file, which is not kept"],
+  ["ตรวจสอบรายชื่อคณะกรรมการในคำร้องและเอกสารการเงินถูกต้องแล้ว", "Committee names in the request and finance form are correct"],
+  ["กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ", "Tick every item before approving"],
+  ["สร้างใหม่จากข้อมูลในระบบ (แทนที่ไฟล์ปัจจุบัน)", "Regenerate from system data (replaces current file)"],
+  ["อัปโหลดแทนที่ไฟล์ปัจจุบัน", "Upload to replace current file"],
+  ["ไฟล์ Word (.docx) — เก็บไว้เพียงไฟล์เดียว", "Word file (.docx) — only one version is kept"],
+  ["เนื้อหาเหมือนกับไฟล์ปัจจุบัน", "Same content as the current file"],
+  ["กำลังเปรียบเทียบกับไฟล์ปัจจุบัน...", "Comparing with the current file..."],
+  ["ตรวจสอบก่อนอนุมัติ", "Check before approving"],
   ["นิสิตอัปโหลด บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",          "Student uploads B1C + B1D (fully completed)"],
   ["เจ้าหน้าที่ตรวจรับและอนุมัติ",                                    "Department Staff reviews and approves"],
   ["ประธานหลักสูตรลงนาม บ.วศ.1ก",                                     "Program Chair signs B1A"],
@@ -179,7 +193,7 @@ export const TH_EN: [string, string][] = [
   ["ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",                                   "Must be signed by the student before uploading"],
 
   // Student submit step descriptions
-  ["บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ", "B1 (B1A + B1B filled) + Finance Attachment"],
+  ["บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)", "B1 (B1A + B1B filled)"],
   ["ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–1ง — ขั้นตอนนี้กรอกเฉพาะ บ.วศ.1ก และ บ.วศ.1ข", "One PDF containing B1A–B1D — at this step fill in B1A and B1B only"],
   ["ดาวน์โหลดแบบฟอร์มเอกสารการเงินแนบกรรมการสอบได้ที่", "Download the Finance Attachment form from"],
   ["ดาวน์โหลดแบบฟอร์ม บ.วศ.1ก–1งได้ที่", "Download forms B1A–B1D from"],

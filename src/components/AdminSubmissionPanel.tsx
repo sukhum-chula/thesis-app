@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge";
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
-  toUserErrorMessage, formatUserName,
+  toUserErrorMessage, formatUserName, downloadFile, FORM_SHORT, FORM_FILE_ACCEPT, checkFormFile,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS,
 } from "@/lib/utils";
+import { docxText } from "@/lib/docxText";
+import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import {
   CommitteePeopleEditor, ProgramChairAutoField, ExamLogisticsSection, buildPeopleFromSubmission,
   initialPeople, resolveProgramChair, withProgramChair, validatePeopleClient, validateNoInvalidRows,
@@ -19,6 +22,7 @@ import {
   ArrowLeft, Download, FileText, Pencil, Check, X,
   Trash2, ShieldCheck, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, Clock, User, Users, CalendarDays, Upload, Loader2, Info,
+  AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { FileList } from "@/components/FileList";
 import { UploadSlot } from "@/components/FileUploader";
@@ -353,6 +357,237 @@ function ThesisFacultyUploadPanel({ submissionId }: { submissionId: string }) {
   );
 }
 
+const ADMIN_STEP2_CHECKS = [...B1_CHECKS, ...ADMIN_B1_EXTRA_CHECKS];
+
+// ─── Proposal step-2 finance attachment: generate → (download, edit, re-upload) ─
+
+type CompareState = "idle" | "checking" | "same" | "different" | "unknown";
+
+/** Text of the currently stored version, fetched through the signed-URL route (bucket is private). */
+async function storedDocxText(uploadId: string): Promise<string> {
+  const r = await fetch(`/api/upload/${uploadId}/signed-url`);
+  const { url } = await r.json();
+  if (!url) throw new Error("no signed url");
+  const buf = await (await fetch(url)).arrayBuffer();
+  return docxText(buf);
+}
+
+function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }: { submissionId: string; submissionTitle: string; latest: MockUpload | null }) {
+  const { refresh }  = useApp();
+  const { showToast } = useToast();
+  const [busy,    setBusy]    = useState<"generate" | "upload" | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
+  const [picked,  setPicked]  = useState<File | null>(null);
+  const [compare, setCompare] = useState<CompareState>("idle");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function clearPicked() {
+    setPicked(null);
+    setCompare("idle");
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  async function handleGenerate() {
+    setBusy("generate");
+    setError(null);
+    try {
+      const res = await fetch(`/api/submissions/${submissionId}/finance-attach`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
+      clearPicked();
+      await refresh();
+      showToast("สร้างเอกสารการเงินเรียบร้อยแล้ว ✓");
+    } catch (e) {
+      setError(toUserErrorMessage(e, "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setError(null);
+    if (!f) return;
+    const err = checkFormFile("FINANCE_ATTACH", f);
+    if (err) { setError(err); if (inputRef.current) inputRef.current.value = ""; return; }
+    setPicked(f);
+    if (!latest) { setCompare("idle"); return; }
+    setCompare("checking");
+    try {
+      const [mine, current] = await Promise.all([f.arrayBuffer().then(docxText), storedDocxText(latest.id)]);
+      setCompare(mine === current ? "same" : "different");
+    } catch {
+      setCompare("unknown");
+    }
+  }
+
+  async function handleUpload() {
+    if (!picked) return;
+    setBusy("upload");
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", picked);
+      fd.append("submissionId", submissionId);
+      fd.append("formType", "FINANCE_ATTACH");
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง");
+      clearPicked();
+      await refresh();
+      showToast("อัปโหลดเอกสารการเงินแล้ว — แทนที่ไฟล์เดิม ✓");
+    } catch (e) {
+      setError(toUserErrorMessage(e, "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className={latest
+      ? "bg-green-50 border-2 border-green-300 rounded-2xl p-5 space-y-3"
+      : "bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5 space-y-3"}>
+      <div className="flex items-center gap-2">
+        {latest
+          ? <CheckCircle2 className="w-5 h-5 text-green-600" />
+          : <FileText className="w-5 h-5 text-yellow-600" />}
+        <h2 className={latest ? "font-semibold text-green-800" : "font-semibold text-yellow-800"}>
+          เอกสารการเงินแนบกรรมการสอบ
+        </h2>
+      </div>
+      <p className="text-sm text-gray-600">
+        ระบบจะกรอกชื่อนิสิต รหัสนิสิต และรายชื่อคณะกรรมการให้ — วันที่ หน่วยกิต ลงนาม รวมเงิน และการจ่ายเช็คเว้นว่างไว้
+      </p>
+
+      {!latest ? (
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={busy !== null}
+          className="w-full flex items-center justify-center gap-2 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {busy === "generate" ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+          {busy === "generate" ? "กำลังสร้าง..." : "สร้างเอกสารการเงินแนบกรรมการสอบ"}
+        </button>
+      ) : (
+        <>
+          {/* Upload box — holds the one current version (generated, or the admin's edited copy) */}
+          <div className={picked
+            ? "border-2 border-blue-300 rounded-xl p-4 space-y-3 bg-white"
+            : "border-2 border-green-200 rounded-xl p-4 space-y-3 bg-white"}>
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 text-xs font-bold text-blue-800 bg-blue-50 border border-blue-200 rounded-md px-2 py-0.5">
+                {FORM_SHORT.FINANCE_ATTACH}
+              </span>
+              <span className="text-xs text-gray-500 flex-1">ไฟล์ Word (.docx) — เก็บไว้เพียงไฟล์เดียว</span>
+            </div>
+
+            {!picked ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => downloadFile(latest.id, latest.fileName, FORM_LABELS.FINANCE_ATTACH, submissionTitle, latest.fileUrl)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 border border-green-200 rounded-xl hover:bg-green-50 transition text-left"
+                >
+                  <Download className="w-4 h-4 text-green-600 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800 truncate">{latest.fileName}</p>
+                    <p className="text-xs text-gray-500">{formatBytes(latest.fileSize)} · {formatDate(latest.uploadedAt)}</p>
+                  </div>
+                </button>
+                <p className="text-xs text-gray-500">
+                  หากต้องการแก้ไข: ดาวน์โหลด แก้ไขในโปรแกรม Word แล้วกด &quot;เปลี่ยนไฟล์&quot; เพื่ออัปโหลดไฟล์ที่แก้ไขแล้ว
+                </p>
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.click()}
+                  disabled={busy !== null}
+                  className="w-full py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition disabled:opacity-60"
+                >
+                  เปลี่ยนไฟล์
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+                  <p className="text-sm text-gray-700 truncate flex-1">{picked.name} ({formatBytes(picked.size)})</p>
+                </div>
+                {compare === "checking" && (
+                  <p className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> กำลังเปรียบเทียบกับไฟล์ปัจจุบัน...
+                  </p>
+                )}
+                {compare === "different" && (
+                  <p className="flex items-start gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-2">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    ไฟล์นี้มีเนื้อหาแตกต่างจากไฟล์ปัจจุบัน — เมื่ออัปโหลด ไฟล์ปัจจุบันจะถูกแทนที่และไม่เก็บไว้ กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนอัปโหลด
+                  </p>
+                )}
+                {compare === "unknown" && (
+                  <p className="flex items-start gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-2.5 py-2">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    ไม่สามารถเปรียบเทียบกับไฟล์ปัจจุบันได้ — เมื่ออัปโหลด ไฟล์ปัจจุบันจะถูกแทนที่และไม่เก็บไว้
+                  </p>
+                )}
+                {compare === "same" && (
+                  <p className="flex items-start gap-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    เนื้อหาเหมือนกับไฟล์ปัจจุบัน
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleUpload}
+                    disabled={busy !== null || compare === "checking"}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {busy === "upload" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {busy === "upload" ? "กำลังอัปโหลด..." : "อัปโหลดแทนที่ไฟล์ปัจจุบัน"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearPicked}
+                    disabled={busy !== null}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-600 text-sm rounded-xl hover:bg-gray-200 transition disabled:opacity-60"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </>
+            )}
+            <input
+              ref={inputRef}
+              type="file"
+              accept={FORM_FILE_ACCEPT.docx}
+              className="hidden"
+              onChange={handlePick}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={busy !== null}
+            className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-green-300 text-green-700 font-semibold rounded-xl hover:bg-green-100 transition disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+          >
+            {busy === "generate" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {busy === "generate" ? "กำลังสร้าง..." : "สร้างใหม่จากข้อมูลในระบบ (แทนที่ไฟล์ปัจจุบัน)"}
+          </button>
+        </>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Proposal step-4 finance doc upload panel ────────────────────────────────
 
 function ProposalFinanceUploadPanel({ submissionId }: { submissionId: string }) {
@@ -429,6 +664,15 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 7;
   const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 8;
   const isProposalFinanceStep = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 4;
+  const isProposalReviewStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 2;
+  const latestFinanceAttach = (sub?.uploads ?? [])
+    .filter((u) => u.formType === "FINANCE_ATTACH")
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+  // PROPOSAL step 2 can't be approved until the finance attachment exists and the admin has ticked
+  // the student's บ.วศ.1 checklist plus the committee check
+  const [step2Checks, setStep2Checks] = useState<Record<string, boolean>>({});
+  const step2AllChecked = allChecked(ADMIN_STEP2_CHECKS, step2Checks);
+  const approveBlocked = isProposalReviewStep && (!latestFinanceAttach || !step2AllChecked);
   const [approveNotes, setApproveNotes] = useState("");
   const [actionMode,   setActionMode]   = useState<"reject" | "return" | null>(null);
   const [actionNotes,  setActionNotes]  = useState("");
@@ -860,10 +1104,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       </div>
 
       {/* Main content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Left: Steps control */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           {/* Tab switch */}
           <div className="flex border-b border-gray-200 bg-white rounded-t-2xl px-4">
             <button
@@ -996,6 +1240,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
             </div>
           )}
 
+          {/* PROPOSAL step 2: generate the finance attachment from the submission's data */}
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && isProposalReviewStep && (
+            <ProposalFinanceGeneratePanel submissionId={sub.id} submissionTitle={sub.title} latest={latestFinanceAttach} />
+          )}
+
           {/* Admin's action panel — SignatureButton for upload steps, simple approve for others */}
           {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (
             isThesisUploadStep ? (
@@ -1016,9 +1265,25 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       placeholder="หมายเหตุ (ไม่บังคับ)..."
                       className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
+                    {isProposalReviewStep && (
+                      <B1Checklist
+                        title="ตรวจสอบก่อนอนุมัติ"
+                        checks={ADMIN_STEP2_CHECKS}
+                        value={step2Checks}
+                        onChange={setStep2Checks}
+                      />
+                    )}
+                    {approveBlocked && (
+                      <p className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <Info className="w-3.5 h-3.5 shrink-0" />
+                        {!latestFinanceAttach
+                          ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
+                          : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
+                      </p>
+                    )}
                     <button
                       onClick={handleApproveStep}
-                      disabled={actionBusy}
+                      disabled={actionBusy || approveBlocked}
                       className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}

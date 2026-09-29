@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Eye, Download, FileText, History, ChevronDown, ChevronUp } from "lucide-react";
-import { FORM_LABELS, FORM_SHORT, formatBytes, formatDate, previewFile } from "@/lib/utils";
+import { FORM_LABELS, FORM_SHORT, formatBytes, formatDate, previewFile, isSingleVersionForm } from "@/lib/utils";
 import type { MockUpload, FormType } from "@/types";
 
 /** Short primary label — the form code for known types. */
@@ -89,7 +89,11 @@ export function FileList({ uploads, submissionTitle, submissionType, title = "�
 
   const FILE_GROUPS = submissionType === "THESIS_DEFENSE" ? FILE_GROUPS_THESIS : FILE_GROUPS_PROPOSAL;
 
-  const groups = buildGroups(uploads);
+  // Single-version types (the PROPOSAL finance attachment) never show older copies — the server
+  // deletes them on every new copy; this also hides any left over from before that rule existed
+  const groups = buildGroups(uploads).map((g) =>
+    isSingleVersionForm(submissionType, g.formType) ? { ...g, history: [] } : g
+  );
   const sections = FILE_GROUPS.map((g) => ({
     ...g,
     items: groups.filter((x) => g.types.has(x.formType)),
@@ -172,7 +176,8 @@ export function FileList({ uploads, submissionTitle, submissionType, title = "�
   let renderedSections = 0;
   return (
     <div className={`bg-white rounded-2xl border border-gray-200 ${compact ? "p-4" : "p-5"} space-y-4`}>
-      <h2 className="font-semibold text-gray-800">{title} ({uploads.length} ไฟล์)</h2>
+      {/* Count documents shown, not stored versions — older versions sit under each row's ประวัติ */}
+      <h2 className="font-semibold text-gray-800">{title} ({groups.length} ไฟล์)</h2>
 
       {sections.map(({ key, label, items }) => {
         if (!items.length) return null;

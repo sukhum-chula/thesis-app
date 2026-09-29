@@ -51,7 +51,7 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
-  PROPOSAL:       step 1 → [B1, FINANCE_ATTACH],        step 4 → [B1C, B1D, FINANCE_DOC]
+  PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1C, B1D, FINANCE_DOC]
   THESIS_DEFENSE: step 1 → [B2, B3, FINANCE_ATTACH],      step 9 → [SIGNED],   step 16 → [B4, THESIS]
   ```
   PROPOSAL step 4 requires both student docs AND admin FINANCE_DOC upload before student can advance. Admin uploads FINANCE_DOC via a yellow card shown on the admin panel whenever PROPOSAL step 4 is pending.
@@ -317,22 +317,45 @@ Surfaced in the UI: a `cancel_request` task type at the top of the ADMIN dashboa
 `RoleSubmissionDetail` (every faculty-role view); a "รออนุมัติยกเลิก" pending banner (student) that
 replaces the old immediate "ยกเลิกแล้ว".
 
-### Proposal step 1 upload — one combined บ.วศ.1 file + a Word finance file (2026-09-29)
-บ.วศ.1ก–1ง are physically **one document**, so step 1 takes exactly two upload boxes:
-`B1` (the combined file, **PDF only**; blank form from the same department download page) and `FINANCE_ATTACH` (the student downloads the form from
-the department site, https://me.eng.chula.ac.th/download/ — the app no longer serves its own copy —
-and uploads it filled in, **.docx only** — this applies to FINANCE_ATTACH on
-THESIS_DEFENSE step 1 too, since it's the same form type). The format rule is `formFileKind()` in
-`src/lib/utils.ts`, used by both `FileUploader` pickers and by `POST /api/upload`, which checks
-magic bytes (PDF `%PDF`; DOCX = ZIP containing `word/document.xml` + a `.docx` name). Every other
-form type keeps the legacy PDF/JPEG/PNG rule.
-
-The system can't inspect the PDF, so `StudentSubmissionActions` shows a required checklist before
+### Proposal steps 1–2 — student uploads one บ.วศ.1 file, ADMIN generates the finance form (2026-09-29)
+บ.วศ.1ก–1ง are physically **one document**, so PROPOSAL step 1 takes exactly **one** upload box:
+`B1` (the combined file, **PDF only**; the blank form is on the department site,
+https://me.eng.chula.ac.th/download/, which the upload box links to — the app serves no copy). The
+system can't inspect the PDF, so `StudentSubmissionActions` shows a required checklist before
 ส่งต่อ unlocks: บ.วศ.1ก filled, บ.วศ.1ข filled, and 3 signatures — student in 1ก, student in 1ข,
-advisor in 1ก (`B1_CHECKS`). The step-1 screen no longer offers optional early-upload boxes for
-later steps' forms. `B1A`/`B1B` stay in the `FormType` enum only so older uploads still display;
-nothing uploads them any more. Step 4 still asks for separate `B1C`/`B1D` — not yet decided whether
-it should become a new version of `B1`.
+advisor in 1ก (`B1_CHECKS` in `src/lib/utils.ts`, rendered by the shared `B1Checklist` component).
+At step 2 the ADMIN must tick the same 5 items plus one committee check (`ADMIN_B1_EXTRA_CHECKS`)
+before อนุมัติ unlocks — a client-side attestation, like the student's. The student screen offers no optional early-upload boxes for later
+steps' forms. `B1A`/`B1B` stay in the `FormType` enum only so older uploads still display.
+
+The PROPOSAL's `FINANCE_ATTACH` (เอกสารการเงินแนบกรรมการสอบ) is **no longer a student upload** —
+ADMIN generates it at step 2 with the "สร้างเอกสารการเงินแนบกรรมการสอบ" card in
+`AdminSubmissionPanel` → `POST /api/submissions/[id]/finance-attach` (ADMIN-only, PROPOSAL-only,
+only while step 2 is current). `src/lib/financeDoc.ts` fills
+`templates/finance-attach-proposal.docx` — an unmodified copy of the department's form, shipped with
+the route via `outputFileTracingIncludes` in `next.config.ts` — with the student name, student code,
+สาขาวิชา (rewritten only for ME_CPS, at 11pt so it fits) and one committee row per member in the
+form's order (head → advisor → co-advisors → externals → exam committee), numbered 1..n; a role with
+nobody in it gets no row. วันที่, หน่วยกิต, ลงนาม, รวมเงิน and จ่ายเช็คในนามของ are deliberately left
+blank. The generated file appears in the card's upload box: the ADMIN can download it, edit it in
+Word, and upload the edited copy ("เปลี่ยนไฟล์"). Only the ADMIN, only at step 2, may upload the
+PROPOSAL's `FINANCE_ATTACH` (`POST /api/upload` rejects anyone else). It is **single-version**:
+every new copy — generated or uploaded — deletes the previous row + storage object
+(`keepOnlyLatestVersion`, `src/lib/uploadVersions.ts`), so there is no ประวัติ for it. Picking a
+replacement compares its body text with the current file (`docxText`, `src/lib/docxText.ts` — text,
+not bytes, since Word rewrites the package on every save) and shows a warning when they differ,
+because the current file will not be kept. Step 2's approve is gated on the file server-side
+(`REQUIRED_UPLOADS.PROPOSAL[2]`) and client-side on the file plus all 6 checks; step 3's finance
+email attaches it exactly as before. If the
+department replaces the form, swap the template and re-check `financeDoc.ts`'s anchors (they throw
+when not found).
+
+`FINANCE_ATTACH` is **.docx only** wherever it's uploaded — THESIS_DEFENSE step 1 still has the
+student upload it. The format rule is `formFileKind()` in `src/lib/utils.ts`, used by both
+`FileUploader` pickers and by `POST /api/upload`, which checks magic bytes (PDF `%PDF`; DOCX = ZIP
+containing `word/document.xml` + a `.docx` name). Every other form type keeps the legacy
+PDF/JPEG/PNG rule. Step 4 still asks for separate `B1C`/`B1D` — not yet decided whether it should
+become a new version of `B1`.
 
 ### Step 1 is NOT auto-approved
 When a submission is created, **step 1 starts as PENDING**. The student must upload the required documents and click submit. Step 2's email notification fires automatically when the student's submit action (approve) completes.
@@ -757,8 +780,8 @@ row — the moment ที่จอดรถ is checked.
 #### Phase 1 (Steps 1–3): บ.วศ.1ก + บ.วศ.1ข
 | Step | Role | Action |
 |------|------|--------|
-| 1 | STUDENT | Upload B1 (the one combined บ.วศ.1ก–1ง PDF, with 1ก + 1ข filled in) + FINANCE_ATTACH (.docx) and tick the 5-item checklist — **starts PENDING, student must submit** (see "Proposal step 1 upload" below) |
-| 2 | ADMIN | Review and approve |
+| 1 | STUDENT | Upload B1 (the one combined บ.วศ.1ก–1ง PDF, with 1ก + 1ข filled in) and tick the 5-item checklist — **starts PENDING, student must submit** (see "Proposal steps 1–2" below) |
+| 2 | ADMIN | Review, **generate FINANCE_ATTACH** (required before approve), and approve |
 | 3 | PROGRAM_CHAIR | Sign บ.วศ.1ก → **triggers finance email** |
 
 #### Phase 2 (Steps 4–11): บ.วศ.1ค + บ.วศ.1ง
