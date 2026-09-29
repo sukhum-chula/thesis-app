@@ -14,6 +14,7 @@ export const TH_EN: [string, string][] = [
   ["หนังสือเชิญกรรมการสอบ",                     "Exam Committee Invitation Letter"],
   ["แบบประเมินวิทยานิพนธ์ดีมาก",               "Excellent Thesis Evaluation Form"],
   ["วิทยานิพนธ์ฉบับสมบูรณ์",                    "Complete Thesis"],
+  ["บ.วศ.1 — แบบฟอร์ม บ.วศ.1ก–1ง (ไฟล์เดียว)", "B1 — Forms B1A–B1D (single file)"],
   ["บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",         "B1A — Thesis Topic Proposal"],
   ["บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",       "B1B — Thesis Topic Approval"],
   ["บ.วศ.1ค — รายงานความก้าวหน้า",             "B1C — Progress Report"],
@@ -23,7 +24,7 @@ export const TH_EN: [string, string][] = [
   ["บ.4 — ลงนามอนุมัติวิทยานิพนธ์",            "B4 — Thesis Approval Signature"],
 
   // ── PROPOSAL step names ──────────────────────────────────────────────────────
-  ["นิสิตอัปโหลด บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ", "Student uploads B1A + B1B + Finance Attachment"],
+  ["นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ", "Student uploads B1 (B1A + B1B filled) + Finance Attachment"],
   ["นิสิตอัปโหลด บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",          "Student uploads B1C + B1D (fully completed)"],
   ["เจ้าหน้าที่ตรวจรับและอนุมัติ",                                    "Department Staff reviews and approves"],
   ["ประธานหลักสูตรลงนาม บ.วศ.1ก",                                     "Program Chair signs B1A"],
@@ -178,7 +179,18 @@ export const TH_EN: [string, string][] = [
   ["ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",                                   "Must be signed by the student before uploading"],
 
   // Student submit step descriptions
-  ["บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ", "B1A + B1B + Finance Attachment"],
+  ["บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ", "B1 (B1A + B1B filled) + Finance Attachment"],
+  ["ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–1ง — ขั้นตอนนี้กรอกเฉพาะ บ.วศ.1ก และ บ.วศ.1ข", "One PDF containing B1A–B1D — at this step fill in B1A and B1B only"],
+  ["ดาวน์โหลดแบบฟอร์มเอกสารการเงินแนบกรรมการสอบได้ที่", "Download the Finance Attachment form from"],
+  ["ดาวน์โหลดแบบฟอร์ม บ.วศ.1ก–1งได้ที่", "Download forms B1A–B1D from"],
+  ["กรอกข้อมูลให้ครบถ้วน แล้วอัปโหลดเป็นไฟล์ Word (.docx)", "Fill it in completely, then upload it as a Word (.docx) file"],
+  ["ลงนามครบ 3 จุด (นิสิต 2 จุด, อาจารย์ที่ปรึกษา 1 จุด)", "All 3 signatures (student ×2, advisor ×1)"],
+  ["อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว", "Advisor has signed B1A"],
+  ["กรอกข้อมูลใน บ.วศ.1ก ครบถ้วนแล้ว", "B1A is fully filled in"],
+  ["กรอกข้อมูลใน บ.วศ.1ข ครบถ้วนแล้ว", "B1B is fully filled in"],
+  ["นิสิตลงนามใน บ.วศ.1ก แล้ว", "Student has signed B1A"],
+  ["นิสิตลงนามใน บ.วศ.1ข แล้ว", "Student has signed B1B"],
+  ["กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง", "Please check B1 before submitting"],
   ["บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",          "B1C + B1D (fully completed)"],
   ["แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต)", "Presentation Report (fill in and sign as student)"],
   ["บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)", "B4 (fully completed) + Complete Thesis (from e-thesis with barcode)"],

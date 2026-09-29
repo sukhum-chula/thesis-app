@@ -72,6 +72,7 @@ export function getRelatedSubmissions(
 }
 
 export const FORM_LABELS: Record<FormType, string> = {
+  B1:            "บ.วศ.1 — แบบฟอร์ม บ.วศ.1ก–1ง (ไฟล์เดียว)",
   B1A:          "บ.วศ.1ก — เสนอหัวข้อวิทยานิพนธ์",
   B1B:          "บ.วศ.1ข — อนุมัติหัวข้อวิทยานิพนธ์",
   B1C:           "บ.วศ.1ค — รายงานความก้าวหน้า",
@@ -340,6 +341,7 @@ export const STEP_LABELS: Record<StepStatus, string> = {
 };
 
 export const FORM_SHORT: Record<FormType, string> = {
+  B1:            "บ.วศ.1",
   B1A:          "บ.วศ.1ก",
   B1B:          "บ.วศ.1ข",
   B1C:           "บ.วศ.1ค",
@@ -356,9 +358,31 @@ export const FORM_SHORT: Record<FormType, string> = {
   VERY_GOOD_EVAL:"แบบประเมินดีมาก",
 };
 
+/** File format each form type must be uploaded in. FINANCE_ATTACH is filled in from a .docx
+ *  template and stays a Word file; B1 (the combined บ.วศ.1ก–1ง document) is PDF only. Every
+ *  other type keeps the legacy rule (PDF, plus JPEG/PNG server-side). Shared by FileUploader
+ *  and POST /api/upload so the picker and the server can't disagree. */
+export type FormFileKind = "pdf" | "docx";
+export function formFileKind(formType: string): FormFileKind {
+  return formType === "FINANCE_ATTACH" ? "docx" : "pdf";
+}
+export const FORM_FILE_ACCEPT: Record<FormFileKind, string> = {
+  pdf:  "application/pdf",
+  docx: ".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+export const FORM_FILE_KIND_LABEL: Record<FormFileKind, string> = { pdf: "PDF", docx: "Word (.docx)" };
+/** Client-side check of a picked file against its form type's format. Returns a Thai error or null. */
+export function checkFormFile(formType: string, file: File): string | null {
+  const kind = formFileKind(formType);
+  const ok = kind === "docx" ? /\.docx$/i.test(file.name) : file.type === "application/pdf";
+  if (!ok) return `รับเฉพาะไฟล์ ${FORM_FILE_KIND_LABEL[kind]} เท่านั้น`;
+  if (file.size > 20 * 1024 * 1024) return "ไฟล์ใหญ่เกิน 20 MB";
+  return null;
+}
+
 // Step names for proposal submissions (11 steps)
 export const PROPOSAL_STEP_NAMES: Record<number, string> = {
-  1:  "นิสิตอัปโหลด บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ",
+  1:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ",
   2:  "เจ้าหน้าที่ตรวจรับและอนุมัติ",
   3:  "ประธานหลักสูตรลงนาม บ.วศ.1ก",
   4:  "นิสิตอัปโหลด บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)",

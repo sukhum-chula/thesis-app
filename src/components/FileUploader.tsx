@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { FormType } from "@/types";
-import { FORM_LABELS, FORM_SHORT, formatBytes, cn } from "@/lib/utils";
+import { FORM_LABELS, FORM_SHORT, formatBytes, cn, formFileKind, FORM_FILE_ACCEPT, FORM_FILE_KIND_LABEL, checkFormFile } from "@/lib/utils";
 import { Upload, FileText, CheckCircle2, Loader2, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import type { MockUpload } from "@/types";
@@ -66,8 +66,8 @@ export function UploadSlot({
     const f = e.target.files?.[0] ?? null;
     setError(null);
     if (f) {
-      if (f.type !== "application/pdf") { setError("รับเฉพาะไฟล์ PDF เท่านั้น"); return; }
-      if (f.size > 20 * 1024 * 1024)   { setError("ไฟล์ใหญ่เกิน 20 MB"); return; }
+      const err = checkFormFile(formType, f);
+      if (err) { setError(err); return; }
     }
     onFileSelect(f);
   }
@@ -106,7 +106,7 @@ export function UploadSlot({
         <span className="text-xs text-gray-500 text-center px-2">
           {selectedFile
             ? `${selectedFile.name} (${formatBytes(selectedFile.size)})`
-            : "คลิกเพื่อเลือกไฟล์ PDF (สูงสุด 20 MB)"}
+            : `คลิกเพื่อเลือกไฟล์ ${FORM_FILE_KIND_LABEL[formFileKind(formType)]} (สูงสุด 20 MB)`}
         </span>
       </div>
 
@@ -126,7 +126,7 @@ export function UploadSlot({
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf"
+        accept={FORM_FILE_ACCEPT[formFileKind(formType)]}
         className="hidden"
         onChange={handleChange}
       />
@@ -157,8 +157,8 @@ export function FileUploader({
     const f = e.target.files?.[0] ?? null;
     setError(null);
     if (f) {
-      if (f.type !== "application/pdf") { setError("รับเฉพาะไฟล์ PDF เท่านั้น"); return; }
-      if (f.size > 20 * 1024 * 1024)   { setError("ไฟล์ใหญ่เกิน 20 MB"); return; }
+      const err = checkFormFile(formType, f);
+      if (err) { setError(err); return; }
     }
     if (pickerMode) {
       onFileSelect!(f);
@@ -179,8 +179,8 @@ export function FileUploader({
 
   async function handleUpload() {
     if (!file) return;
-    if (file.type !== "application/pdf") { setError("รับเฉพาะไฟล์ PDF เท่านั้น"); return; }
-    if (file.size > 20 * 1024 * 1024) { setError("ไฟล์ใหญ่เกิน 20 MB"); return; }
+    const err = checkFormFile(formType, file);
+    if (err) { setError(err); return; }
 
     setUploading(true);
     setError(null);
@@ -223,7 +223,7 @@ export function FileUploader({
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf"
+          accept={FORM_FILE_ACCEPT[formFileKind(formType)]}
           className="hidden"
           onChange={handleChange}
         />
@@ -258,7 +258,7 @@ export function FileUploader({
             ? "กำลังอัปโหลด..."
             : activeFile
             ? `${activeFile.name} (${formatBytes(activeFile.size)})`
-            : "คลิกเพื่อเลือกไฟล์ PDF (สูงสุด 20 MB)"}
+            : `คลิกเพื่อเลือกไฟล์ ${FORM_FILE_KIND_LABEL[formFileKind(formType)]} (สูงสุด 20 MB)`}
         </span>
       </div>
 
@@ -274,7 +274,7 @@ export function FileUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf"
+        accept={FORM_FILE_ACCEPT[formFileKind(formType)]}
         className="hidden"
         onChange={handleChange}
       />

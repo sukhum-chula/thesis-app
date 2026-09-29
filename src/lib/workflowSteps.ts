@@ -2,9 +2,9 @@ import { StepStatus, SubmissionType } from "@/types";
 
 // PROPOSAL: 11 steps — บ.วศ.1ก/1ข then บ.วศ.1ค/1ง
 export const PROPOSAL_ROLES = [
-  "STUDENT",               // 1  upload B1A + B1B
+  "STUDENT",               // 1  upload B1 (combined file, บ.วศ.1ก+1ข filled) + FINANCE_ATTACH (.docx)
   "ADMIN",                 // 2  approve
-  "PROGRAM_CHAIR",         // 3  sign B1A → finance email
+  "PROGRAM_CHAIR",         // 3  sign บ.วศ.1ก in B1 → finance email
   "STUDENT",               // 4  upload B1C + B1D
   "HEAD_EXAM_COMMITTEE",   // 5  sign B1C
   "ADVISOR",               // 6  sign B1C

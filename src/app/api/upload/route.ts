@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadFile } from "@/lib/supabase";
-import { FORM_SHORT, getStepName, ROLE_LABELS } from "@/lib/utils";
+import { FORM_SHORT, getStepName, ROLE_LABELS, formFileKind } from "@/lib/utils";
 import { sendStepEmail } from "@/lib/email";
 import type { FormType } from "@/types";
 
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!file || !submissionId || !formType)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const ALLOWED_FORM_TYPES = ["B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"];
+  const ALLOWED_FORM_TYPES = ["B1", "B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"];
   if (!ALLOWED_FORM_TYPES.includes(formType))
     return NextResponse.json({ error: "Invalid form type" }, { status: 400 });
 
@@ -31,10 +31,25 @@ export async function POST(req: NextRequest) {
   const isPdf  = buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46; // %PDF
   const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8;
   const isPng  = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
-  if (!isPdf && !isJpeg && !isPng)
-    return NextResponse.json({ error: "อนุญาตเฉพาะไฟล์ PDF, JPEG หรือ PNG" }, { status: 400 });
+  // .docx is a ZIP (magic bytes 50 4B 03 04) whose entry names are stored uncompressed — a Word document
+  // always contains word/document.xml, which tells it apart from any other ZIP.
+  const isDocx = buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04
+    && buffer.includes("word/document.xml");
 
-  const ext = isPdf ? "pdf" : isJpeg ? "jpg" : "png";
+  // Per-form format rule, shared with the client picker (formFileKind in lib/utils.ts)
+  let ext: string;
+  if (formFileKind(formType) === "docx") {
+    if (!isDocx || !/\.docx$/i.test(file.name))
+      return NextResponse.json({ error: "อนุญาตเฉพาะไฟล์ Word (.docx)" }, { status: 400 });
+    ext = "docx";
+  } else if (formType === "B1") {
+    if (!isPdf) return NextResponse.json({ error: "อนุญาตเฉพาะไฟล์ PDF" }, { status: 400 });
+    ext = "pdf";
+  } else {
+    if (!isPdf && !isJpeg && !isPng)
+      return NextResponse.json({ error: "อนุญาตเฉพาะไฟล์ PDF, JPEG หรือ PNG" }, { status: 400 });
+    ext = isPdf ? "pdf" : isJpeg ? "jpg" : "png";
+  }
 
   // Verify the caller is involved in this submission (or is an admin/program_chair) —
   // submission workflow is ADMIN's exclusive responsibility, SUPER_ADMIN doesn't get a bypass

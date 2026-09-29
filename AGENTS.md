@@ -51,7 +51,7 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
-  PROPOSAL:       step 1 → [B1A, B1B, FINANCE_ATTACH],  step 4 → [B1C, B1D, FINANCE_DOC]
+  PROPOSAL:       step 1 → [B1, FINANCE_ATTACH],        step 4 → [B1C, B1D, FINANCE_DOC]
   THESIS_DEFENSE: step 1 → [B2, B3, FINANCE_ATTACH],      step 9 → [SIGNED],   step 16 → [B4, THESIS]
   ```
   PROPOSAL step 4 requires both student docs AND admin FINANCE_DOC upload before student can advance. Admin uploads FINANCE_DOC via a yellow card shown on the admin panel whenever PROPOSAL step 4 is pending.
@@ -317,6 +317,23 @@ Surfaced in the UI: a `cancel_request` task type at the top of the ADMIN dashboa
 `RoleSubmissionDetail` (every faculty-role view); a "รออนุมัติยกเลิก" pending banner (student) that
 replaces the old immediate "ยกเลิกแล้ว".
 
+### Proposal step 1 upload — one combined บ.วศ.1 file + a Word finance file (2026-09-29)
+บ.วศ.1ก–1ง are physically **one document**, so step 1 takes exactly two upload boxes:
+`B1` (the combined file, **PDF only**; blank form from the same department download page) and `FINANCE_ATTACH` (the student downloads the form from
+the department site, https://me.eng.chula.ac.th/download/ — the app no longer serves its own copy —
+and uploads it filled in, **.docx only** — this applies to FINANCE_ATTACH on
+THESIS_DEFENSE step 1 too, since it's the same form type). The format rule is `formFileKind()` in
+`src/lib/utils.ts`, used by both `FileUploader` pickers and by `POST /api/upload`, which checks
+magic bytes (PDF `%PDF`; DOCX = ZIP containing `word/document.xml` + a `.docx` name). Every other
+form type keeps the legacy PDF/JPEG/PNG rule.
+
+The system can't inspect the PDF, so `StudentSubmissionActions` shows a required checklist before
+ส่งต่อ unlocks: บ.วศ.1ก filled, บ.วศ.1ข filled, and 3 signatures — student in 1ก, student in 1ข,
+advisor in 1ก (`B1_CHECKS`). The step-1 screen no longer offers optional early-upload boxes for
+later steps' forms. `B1A`/`B1B` stay in the `FormType` enum only so older uploads still display;
+nothing uploads them any more. Step 4 still asks for separate `B1C`/`B1D` — not yet decided whether
+it should become a new version of `B1`.
+
 ### Step 1 is NOT auto-approved
 When a submission is created, **step 1 starts as PENDING**. The student must upload the required documents and click submit. Step 2's email notification fires automatically when the student's submit action (approve) completes.
 
@@ -341,7 +358,7 @@ The reject button is embedded directly inside `SignatureButton` and `CommitteeSi
 `RoleSubmissionDetail` computes `formsToShow` from `STEP_SIGN_FORMS` so each role sees only the documents relevant to their step. Passed to both `SignatureButton` and `CommitteeSignPanel`.
 
 ```
-PROPOSAL:       3→[B1A]  5→[B1C]  6→[B1C]  7→[B1C]  8→[B1C]  9→[B1C]  11→[B1C,B1D]
+PROPOSAL:       3→[B1]  5→[B1C]  6→[B1C]  7→[B1C]  8→[B1C]  9→[B1C]  11→[B1C,B1D]
                 (steps 2, 10 are ADMIN approve-only — no signing, not in this map)
 THESIS_DEFENSE: 2→[B3]  3→[B2]  4→[B2]  5→[B2]  6→[B2]
                 (steps 7, 8 are ADMIN relay/upload-only — no signing, not in this map)
@@ -740,7 +757,7 @@ row — the moment ที่จอดรถ is checked.
 #### Phase 1 (Steps 1–3): บ.วศ.1ก + บ.วศ.1ข
 | Step | Role | Action |
 |------|------|--------|
-| 1 | STUDENT | Upload B1A (บ.วศ.1ก) + B1B (บ.วศ.1ข) + FINANCE_ATTACH — **starts PENDING, student must submit** |
+| 1 | STUDENT | Upload B1 (the one combined บ.วศ.1ก–1ง PDF, with 1ก + 1ข filled in) + FINANCE_ATTACH (.docx) and tick the 5-item checklist — **starts PENDING, student must submit** (see "Proposal step 1 upload" below) |
 | 2 | ADMIN | Review and approve |
 | 3 | PROGRAM_CHAIR | Sign บ.วศ.1ก → **triggers finance email** |
 
@@ -861,7 +878,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **Cancellation is a two-step admin-gated request**, not an immediate student action — `request_cancel` only sets `cancelRequested` and freezes all other actions on that submission; only ADMIN's `accept_cancel`/`decline_cancel` actually resolves it. See "Cancellation — student requests, ADMIN accepts or declines" above.
 
 ## UI conventions (recent)
-- **FileList** takes a `submissionType` prop and groups uploads into phase-aware sections. PROPOSAL: เอกสารหลัก (B1A/B1B/B1C/B1D) / เอกสารการเงิน / เอกสารอื่นๆ. THESIS_DEFENSE: บ.2+บ.3 (B2/B3/FINANCE_ATTACH) / เอกสารการเงิน (FINANCE_DOC) / เอกสารจากคณะและผลการสอบ (SIGNED/EXAM_RESULT/INVITE_LETTER/VERY_GOOD_EVAL) / วิทยานิพนธ์ (B4/THESIS). See `FILE_GROUPS_PROPOSAL` / `FILE_GROUPS_THESIS` in `FileList.tsx`. Unknown types fall into the last section. Row labels are always Thai form names (FORM_SHORT primary, full FORM_LABELS as subtitle) — never raw filenames as titles. FileList shows its own file count in the header; callers must NOT add another count to the `title` prop.
+- **FileList** takes a `submissionType` prop and groups uploads into phase-aware sections. PROPOSAL: เอกสารหลัก (B1/B1A/B1B/B1C/B1D) / เอกสารการเงิน / เอกสารอื่นๆ. THESIS_DEFENSE: บ.2+บ.3 (B2/B3/FINANCE_ATTACH) / เอกสารการเงิน (FINANCE_DOC) / เอกสารจากคณะและผลการสอบ (SIGNED/EXAM_RESULT/INVITE_LETTER/VERY_GOOD_EVAL) / วิทยานิพนธ์ (B4/THESIS). See `FILE_GROUPS_PROPOSAL` / `FILE_GROUPS_THESIS` in `FileList.tsx`. Unknown types fall into the last section. Row labels are always Thai form names (FORM_SHORT primary, full FORM_LABELS as subtitle) — never raw filenames as titles. FileList shows its own file count in the header; callers must NOT add another count to the `title` prop.
 - **THESIS step 9 downloads**: the student page shows a download card listing admin's step-8 SIGNED files (those uploaded at/before step 8's `actedAt`) so the student can download แบบรายงานฯ, fill + sign, and re-upload. Files newer than step 8's `actedAt` count as the student's own upload (`effectiveUploads` filter).
 - **FileUploader** slots always render a `SlotHeader`: form-code badge (FORM_SHORT) + description + status chip (อัปโหลดแล้ว / เลือกไฟล์แล้ว / ยังไม่ได้เลือกไฟล์).
 - **Professor dashboard** shows the generic "อาจารย์" label on card badges (a professor can hold several roles per submission); other views keep specific role labels.

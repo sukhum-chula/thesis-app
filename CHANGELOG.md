@@ -7,6 +7,23 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-29
 
+- **Proposal step 1 takes one combined บ.วศ.1 file + a Word finance file.** บ.วศ.1ก–1ง are one
+  physical document, so step 1's upload boxes went from 5 (b1a, b1b, finance, plus optional early
+  b1c/b1d) to 2: new form type `B1` (PDF only) and `FINANCE_ATTACH` (.docx only — also on
+  THESIS_DEFENSE step 1). The format rule is `formFileKind()` in `lib/utils.ts`, shared by
+  `FileUploader` and `POST /api/upload` (magic-byte checked; DOCX was previously rejected outright
+  by the server). ส่งต่อ now also needs a 5-item checklist: บ.วศ.1ก/1ข filled, student signed
+  1ก + 1ข, advisor signed 1ก. Step 3's program chair signs `B1`. The optional early-upload boxes for
+  later steps' forms were removed from every student step. The app's own finance `.docx` templates
+  (`public/templates/`) were deleted — both upload boxes now point to
+  https://me.eng.chula.ac.th/download/. The student detail grid is now 1:1 (steps : upload) from
+  `md` up, was 2:1. DB: `FormType` gained `B1` (`ALTER TYPE ... ADD VALUE`, run live 2026-09-29;
+  0 uploads existed). Step 4 still takes separate `B1C`/`B1D` — undecided. Build clean, lint count
+  unchanged; not browser-verified.
+
+- **Form types `BW1A`/`BW1B` renamed to `B1A`/`B1B`** in code and in the live `FormType` enum
+  (`ALTER TYPE ... RENAME VALUE`), to match the b1a–b1d naming.
+
 - **Admin submission edit now uses the student's committee editor.** `AdminSubmissionPanel`'s edit
   mode dropped its fixed-slot dropdowns (max 3 per multi-member role — a 4th member was silently
   lost on save) for the same `CommitteePeopleEditor`/`ProgramChairAutoField`/`ExamLogisticsSection`

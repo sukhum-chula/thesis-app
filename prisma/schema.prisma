@@ -43,6 +43,7 @@ enum NameTitle {
 }
 
 enum FormType {
+  B1   // combined บ.วศ.1ก–1ง document (one PDF)
   B1A
   B1B
   B1C

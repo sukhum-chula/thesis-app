@@ -11,7 +11,7 @@ import Link from "next/link";
 import {
   Send, Upload, Download,
   AlertCircle, Clock, CheckCircle2, RefreshCw, StickyNote, XCircle, Trash2, TriangleAlert,
-  ArrowLeft, ArrowRight,
+  ArrowLeft, ArrowRight, ExternalLink,
 } from "lucide-react";
 import { FileList } from "@/components/FileList";
 import { SubmissionInfoPanel } from "@/components/SubmissionInfoPanel";
@@ -22,7 +22,7 @@ type StepSuggestion = { forms: FormType[]; label: string; multiUpload?: boolean;
 // Per-type step suggestions — keyed by submissionType → stepOrder
 const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
   PROPOSAL: {
-    1: { forms: ["B1A", "B1B", "FINANCE_ATTACH"], label: "บ.วศ.1ก + บ.วศ.1ข + เอกสารการเงินแนบกรรมการสอบ" },
+    1: { forms: ["B1", "FINANCE_ATTACH"], label: "บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข) + เอกสารการเงินแนบกรรมการสอบ" },
     4: { forms: ["B1C", "B1D"], adminForms: ["FINANCE_DOC"], label: "บ.วศ.1ค + บ.วศ.1ง (กรอกข้อมูลครบถ้วน)" },
   },
   THESIS_DEFENSE: {
@@ -45,22 +45,25 @@ const SUBMIT_LABEL: Record<string, Record<number, string>> = {
   },
 };
 
-// Non-SIGNED forms allowed for early upload per submission type
+// Every form the student uploads over a submission's life — fallback re-upload list after a rejection
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
-  PROPOSAL:       ["B1A", "B1B", "FINANCE_ATTACH", "B1C", "B1D"],
+  PROPOSAL:       ["B1", "FINANCE_ATTACH", "B1C", "B1D"],
   THESIS_DEFENSE: ["B2", "B3", "FINANCE_ATTACH", "B4", "THESIS"],
 };
 
-// Warnings shown above the uploader — reminder of what must be done BEFORE uploading
-const FINANCE_ATTACH_TEMPLATE: Record<string, string> = {
-  PROPOSAL:       "/templates/finance-attach-proposal.docx",
-  THESIS_DEFENSE: "/templates/finance-attach-thesis.docx",
+// Blank forms are published on the department site, not served by this app — the uploader
+// for each of these form types points the student there, naming which form to download.
+const FORM_DOWNLOAD_URL = "https://me.eng.chula.ac.th/download/";
+const FORM_DOWNLOAD_NAME: Partial<Record<FormType, string>> = {
+  B1:             "แบบฟอร์ม บ.วศ.1ก–1ง",
+  FINANCE_ATTACH: "แบบฟอร์มเอกสารการเงินแนบกรรมการสอบ",
 };
 
+// Warnings shown above the uploader — reminder of what must be done BEFORE uploading
+
 const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
-  B1A:           "กรอกข้อมูลให้ครบถ้วน และให้อาจารย์ที่ปรึกษาลงนามก่อนอัปโหลด",
-  B1B:           "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
-  FINANCE_ATTACH: "ดาวน์โหลดแบบฟอร์ม กรอกข้อมูลให้ครบถ้วน แล้วอัปโหลดไฟล์ที่กรอกเสร็จแล้ว",
+  B1:            "ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–1ง — ขั้นตอนนี้กรอกเฉพาะ บ.วศ.1ก และ บ.วศ.1ข",
+  FINANCE_ATTACH: "กรอกข้อมูลให้ครบถ้วน แล้วอัปโหลดเป็นไฟล์ Word (.docx)",
   B1C:   "กรอกข้อมูลให้ครบถ้วน — กรรมการจะลงนามผ่านระบบหลังอัปโหลด",
   B1D:   "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
   B2:    "กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิตก่อนอัปโหลด",
@@ -69,6 +72,19 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
   THESIS: "ต้องเป็นไฟล์ที่ผ่านระบบ e-thesis ของจุฬาฯ และมี barcode กำกับเรียบร้อยแล้ว",
   SIGNED: "ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",
 };
+
+// PROPOSAL step 1 checklist — what the student must have filled in and had signed in บ.วศ.1
+const B1_CHECK_GROUPS = [
+  { key: "fill", title: "กรอกข้อมูล" },
+  { key: "sign", title: "ลงนามครบ 3 จุด (นิสิต 2 จุด, อาจารย์ที่ปรึกษา 1 จุด)" },
+] as const;
+const B1_CHECKS: { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string }[] = [
+  { key: "fillA",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ก ครบถ้วนแล้ว" },
+  { key: "fillB",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ข ครบถ้วนแล้ว" },
+  { key: "stuSignA", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ก แล้ว" },
+  { key: "stuSignB", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ข แล้ว" },
+  { key: "advSignA", group: "sign", label: "อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว" },
+];
 
 /** The student's full action surface for one submission — status banner, committee/exam info,
  *  progress + timeline, file uploads, and cancel — everything needed to actually act on a
@@ -83,6 +99,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const [selectedFiles, setSelectedFiles] = useState<Partial<Record<FormType, File>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [confirmSigns, setConfirmSigns] = useState(false);
+  const [b1Checks, setB1Checks] = useState<Record<string, boolean>>({});
   const [confirmProgram, setConfirmProgram] = useState(false);
 
   const sub = submissions.find((s) => s.id === submissionId);
@@ -141,7 +158,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     ? (SUGGESTED_BY_STEP[subType]?.[currentStep.stepOrder] ?? null)
     : null;
   const effectiveUploadedTypes = new Set(effectiveUploads.map((u) => u.formType));
-  const remaining = (ALL_STUDENT_FORMS[subType] ?? []).filter((f) => !uploadedTypes.has(f));
   const requiredForms = suggested?.forms ?? [];
   const adminRequiredForms = suggested?.adminForms ?? [];
   const studentUploaded   = requiredForms.length === 0 || requiredForms.every((f) => effectiveUploadedTypes.has(f) || !!selectedFiles[f]);
@@ -154,7 +170,10 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const needsSignConfirm   = subType === "THESIS_DEFENSE" && isMyTurn &&
     (currentStep?.stepOrder === 9 || currentStep?.stepOrder === 16);
   const needsProgramConfirm = subType === "THESIS_DEFENSE" && isMyTurn && currentStep?.stepOrder === 16;
-  const preSubmitAllChecked = (!needsSignConfirm || confirmSigns) && (!needsProgramConfirm || confirmProgram);
+  const needsB1Confirm = subType === "PROPOSAL" && isMyTurn && currentStep?.stepOrder === 1;
+  const b1AllChecked = B1_CHECKS.every((c) => b1Checks[c.key]);
+  const preSubmitAllChecked = (!needsSignConfirm || confirmSigns) && (!needsProgramConfirm || confirmProgram)
+    && (!needsB1Confirm || b1AllChecked);
 
   // Student can submit as soon as their own files are ready — FINANCE_DOC is handled by admin in parallel
   const allRequiredUploaded = studentUploaded && preSubmitAllChecked;
@@ -379,10 +398,10 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Timeline — second on mobile so upload/action is reachable first */}
         {subStatus !== "DRAFT" && (
-          <div className="order-2 md:order-none md:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
+          <div className="order-2 md:order-none bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-5">ขั้นตอนทั้งหมด</h2>
             <WorkflowTimeline steps={sub.workflowSteps} users={allUsers} submissionType={sub.submissionType} submission={sub} />
           </div>
@@ -615,18 +634,23 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   const existing = effectiveUploads
                     .filter((u) => u.formType === ft)
                     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-                  const templateUrl = ft === "FINANCE_ATTACH" ? FINANCE_ATTACH_TEMPLATE[subType] : null;
                   return (
                     <div key={`${ft}-${idx}`} className="space-y-1">
-                      {templateUrl && (
-                        <a
-                          href={templateUrl}
-                          download
-                          className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2 hover:bg-blue-100 transition w-full"
-                        >
-                          <Upload className="w-3.5 h-3.5 shrink-0" />
-                          ดาวน์โหลดแบบฟอร์มเอกสารการเงินแนบกรรมการสอบ (.docx)
-                        </a>
+                      {FORM_DOWNLOAD_NAME[ft] && (
+                        <p className="flex items-start gap-1.5 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2">
+                          <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <span>
+                            ดาวน์โหลด{FORM_DOWNLOAD_NAME[ft]}ได้ที่{" "}
+                            <a
+                              href={FORM_DOWNLOAD_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold underline break-all hover:text-blue-600"
+                            >
+                              {FORM_DOWNLOAD_URL}
+                            </a>
+                          </span>
+                        </p>
                       )}
                       {FORM_UPLOAD_WARNINGS[ft] && (
                         <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
@@ -654,34 +678,32 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   );
                 })}
 
-              {/* Optional remaining forms (not required for this step) */}
-              {remaining.filter((f) => !suggested?.forms.includes(f)).map((ft) => {
-                const existing = sub.uploads
-                  .filter((u) => u.formType === ft)
-                  .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-                return (
-                  <div key={ft} className="space-y-1">
-                    {FORM_UPLOAD_WARNINGS[ft] && (
-                      <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        {FORM_UPLOAD_WARNINGS[ft]}
-                      </p>
-                    )}
-                    <FileUploader
-                      submissionId={sub.id}
-                      formType={ft}
-                      existingUpload={existing}
-                      selectedFile={selectedFiles[ft] ?? null}
-                      onFileSelect={(file) =>
-                        setSelectedFiles((prev) => {
-                          if (!file) { const next = { ...prev }; delete next[ft]; return next; }
-                          return { ...prev, [ft]: file };
-                        })
-                      }
-                    />
-                  </div>
-                );
-              })}
+              {/* Pre-submit checklist for PROPOSAL step 1 — the combined บ.วศ.1 file can't be
+                  inspected by the system, so the student confirms what they filled and who signed */}
+              {needsB1Confirm && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง
+                  </p>
+                  {B1_CHECK_GROUPS.map((group) => (
+                    <div key={group.title} className="space-y-2">
+                      <p className="text-xs font-semibold text-amber-900">{group.title}</p>
+                      {B1_CHECKS.filter((c) => c.group === group.key).map((c) => (
+                        <label key={c.key} className="flex items-start gap-2.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!b1Checks[c.key]}
+                            onChange={(e) => setB1Checks((prev) => ({ ...prev, [c.key]: e.target.checked }))}
+                            className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0"
+                          />
+                          <span className="text-xs text-amber-800">{c.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Pre-submit confirmation checkboxes for THESIS_DEFENSE signing steps */}
               {needsSignConfirm && (
@@ -747,6 +769,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                           if (!res.ok) throw new Error(`upload failed: ${ft}`);
                         }
                         setSelectedFiles({});
+                        setB1Checks({});
                         const res = await fetch(`/api/submissions/${sub.id}`, {
                           method: "PATCH",
                           headers: { "Content-Type": "application/json" },
