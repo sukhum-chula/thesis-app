@@ -94,7 +94,10 @@ there, not duplicated here. Quick reminders specific to this deployment:
   generate`.** A running Turbopack dev server keeps its old compiled Prisma client in memory even
   after the client is regenerated on disk; it'll throw `PrismaClientKnownRequestError: column ...
   does not exist` on the renamed/added field until you kill the process (clear `.next/` too if the
-  error persists) and restart.
+  error persists) and restart. **This includes adding an enum value**: after `COVER_PAGE` was added
+  to `FormType` (2026-09-30), a dev server started the night before silently failed every cover-page
+  upload (the old client rejects the unknown value → 500 → the UI only says "อัปโหลดไม่สำเร็จ")
+  until it was restarted. Production is unaffected — every deploy rebuilds the client.
 - Storage bucket `thesis-files` is **private**. `FormUpload.fileUrl` stores a bare storage path,
   never a public URL — previews/downloads always resolve a short-lived signed URL through `GET
   /api/upload/[uploadId]/signed-url`. Don't reintroduce a public bucket or a stored public URL (it
@@ -136,8 +139,11 @@ Roughly in priority order:
    (generate → download → edit → re-upload with the content-differs warning, single version) and
    the finance email now firing on the step-2 approval; the checklists at steps 1, 2, 3, 4 and
    5.x; the 5.1–5.x / 6 / 7 numbering on every screen; and the student not seeing any finance
-   document. A test proposal for นายสมชาย ตั้งใจดี (6951234521) was left waiting at step 4 — with
-   the current code its student just ticks the checklist and presses ส่งต่อ.
+   document. **Partly done 2026-09-30**: a test proposal for นายสมชาย ตั้งใจดี (6951234521) was
+   walked through steps 1–7 by real accounts on the local dev server, and the step-8 cover-page
+   upload was confirmed working (after the dev-server restart above). Still unverified: approving
+   step 8 (completion), the finance email firing on step 2's approval (this proposal's email went
+   out under the old step-3 rule), and a full run on the deployed site.
 5. **Fix the outgoing-mail quota problem** (see warning above) — pick one of the three options and
    do it, rather than continuing to absorb Gmail's daily cap.
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against

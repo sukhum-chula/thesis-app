@@ -7,6 +7,11 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-30
 
+- **Step-8 cover-page upload confirmed working in the browser** (local dev server, test proposal of
+  นายสมชาย ตั้งใจดี). It first failed because the dev server had been started before `COVER_PAGE`
+  existed and was still using the old Prisma client; restarting it fixed it — no code change.
+  `HANDOFF.md`'s dev-server gotcha now names this case.
+
 - **New PROPOSAL step 8 (stepOrder 12): admin recheck + Faculty cover page; step 6 gains a rename
   check.** `PROPOSAL_ROLES` gained a 12th ADMIN step. Its card uploads the new `COVER_PAGE` form
   type (ใบปะหน้าส่งคณะฯ — PDF, single version, ADMIN-only at stepOrder 12 via a generalised
