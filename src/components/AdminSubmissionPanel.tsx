@@ -8,7 +8,7 @@ import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, downloadFile, FORM_SHORT, FORM_FILE_ACCEPT, checkFormFile,
-  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS,
 } from "@/lib/utils";
 import { docxText } from "@/lib/docxText";
 import { stepNumbering } from "@/lib/stepNumbering";
@@ -352,6 +352,97 @@ function ThesisFacultyUploadPanel({ submissionId }: { submissionId: string }) {
 
 const ADMIN_STEP2_CHECKS = [...B1_CHECKS, ...ADMIN_B1_EXTRA_CHECKS];
 
+// ─── Proposal step-8 cover page (ใบปะหน้า) for the Faculty ─────────────────────
+
+function ProposalCoverUploadPanel({ submissionId, submissionTitle, latest, deptChairName }: {
+  submissionId: string; submissionTitle: string; latest: MockUpload | null; deptChairName: string | null;
+}) {
+  const { refresh }   = useApp();
+  const { showToast } = useToast();
+  const [file,  setFile]  = useState<File | null>(null);
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleUpload() {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("submissionId", submissionId);
+      fd.append("formType", "COVER_PAGE");
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง");
+      setFile(null);
+      await refresh();
+      showToast("อัปโหลดใบปะหน้าเรียบร้อยแล้ว ✓");
+    } catch (e) {
+      setError(toUserErrorMessage(e, "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={latest
+      ? "bg-green-50 border-2 border-green-300 rounded-2xl p-5 space-y-3"
+      : "bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5 space-y-3"}>
+      <div className="flex items-center gap-2">
+        {latest ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <Upload className="w-5 h-5 text-yellow-600" />}
+        <h2 className={latest ? "font-semibold text-green-800" : "font-semibold text-yellow-800"}>
+          ใบปะหน้าส่งคณะวิศวกรรมศาสตร์
+        </h2>
+      </div>
+      <p className="text-sm text-gray-600">
+        อัปโหลดใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว เพื่อนำส่งคณะฯ พร้อม บ.วศ.1
+      </p>
+      <p className="text-sm text-gray-700">
+        หัวหน้าภาควิชา:{" "}
+        <span className="font-semibold">{deptChairName ?? "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
+      </p>
+      {latest && (
+        <button
+          type="button"
+          onClick={() => downloadFile(latest.id, latest.fileName, FORM_LABELS.COVER_PAGE, submissionTitle, latest.fileUrl)}
+          className="w-full flex items-center gap-3 px-3 py-2.5 bg-white border border-green-200 rounded-xl hover:bg-green-100 transition text-left"
+        >
+          <Download className="w-4 h-4 text-green-600 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-gray-800 truncate">{latest.fileName}</p>
+            <p className="text-xs text-gray-500">{formatBytes(latest.fileSize)} · {formatDate(latest.uploadedAt)}</p>
+          </div>
+        </button>
+      )}
+      <UploadSlot
+        formType="COVER_PAGE"
+        slotLabel={latest ? "อัปโหลดไฟล์ใหม่ (แทนที่ไฟล์ปัจจุบัน)" : "ใบปะหน้าที่หัวหน้าภาควิชาลงนามแล้ว"}
+        selectedFile={file}
+        onFileSelect={(f) => { setFile(f); setError(null); }}
+        disabled={busy}
+      />
+      {file && (
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={busy}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          {busy ? "กำลังอัปโหลด..." : "อัปโหลดใบปะหน้า"}
+        </button>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Proposal step-2 finance attachment: generate → (download, edit, re-upload) ─
 
 type CompareState = "idle" | "checking" | "same" | "different" | "unknown";
@@ -601,14 +692,26 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 7;
   const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 8;
   const isProposalReviewStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 2;
+  // PROPOSAL step 6 (stepOrder 10): verify the fully-signed B1 before the chair's final signature
+  const isProposalVerifyStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 10;
+  // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
+  const isProposalCoverStep   = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 12;
+  const latestCover = (sub?.uploads ?? [])
+    .filter((u) => u.formType === "COVER_PAGE")
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+  const deptChair = users.find((u) => u.isDepartmentChair) ?? null;
   const latestFinanceAttach = (sub?.uploads ?? [])
     .filter((u) => u.formType === "FINANCE_ATTACH")
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
   // PROPOSAL step 2 can't be approved until the finance attachment exists and the admin has ticked
-  // the student's บ.วศ.1 checklist plus the committee check
-  const [step2Checks, setStep2Checks] = useState<Record<string, boolean>>({});
-  const step2AllChecked = allChecked(ADMIN_STEP2_CHECKS, step2Checks);
-  const approveBlocked = isProposalReviewStep && (!latestFinanceAttach || !step2AllChecked);
+  // the student's บ.วศ.1 checklist plus the committee check; step 6 needs its verification checks
+  const adminChecks = isProposalReviewStep ? ADMIN_STEP2_CHECKS
+    : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
+    : isProposalCoverStep ? ADMIN_STEP8_CHECKS
+    : null;
+  const [adminCheckState, setAdminCheckState] = useState<Record<string, boolean>>({});
+  const adminAllChecked = !adminChecks || allChecked(adminChecks, adminCheckState);
+  const approveBlocked = (isProposalReviewStep && !latestFinanceAttach) || (isProposalCoverStep && !latestCover) || !adminAllChecked;
   const [approveNotes, setApproveNotes] = useState("");
   const [actionMode,   setActionMode]   = useState<"reject" | "return" | null>(null);
   const [actionNotes,  setActionNotes]  = useState("");
@@ -1174,6 +1277,16 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
             <ProposalFinanceGeneratePanel submissionId={sub.id} submissionTitle={sub.title} latest={latestFinanceAttach} />
           )}
 
+          {/* PROPOSAL step 8: the Faculty cover page, signed by the department chair */}
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && isProposalCoverStep && (
+            <ProposalCoverUploadPanel
+              submissionId={sub.id}
+              submissionTitle={sub.title}
+              latest={latestCover}
+              deptChairName={deptChair ? formatUserName(deptChair) : null}
+            />
+          )}
+
           {/* Admin's action panel — SignatureButton for upload steps, simple approve for others */}
           {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (
             isThesisUploadStep ? (
@@ -1194,12 +1307,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       placeholder="หมายเหตุ (ไม่บังคับ)..."
                       className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
-                    {isProposalReviewStep && (
+                    {adminChecks && (
                       <B1Checklist
                         title="ตรวจสอบก่อนอนุมัติ"
-                        checks={ADMIN_STEP2_CHECKS}
-                        value={step2Checks}
-                        onChange={setStep2Checks}
+                        checks={adminChecks}
+                        value={adminCheckState}
+                        onChange={setAdminCheckState}
                       />
                     )}
                     {isProposalReviewStep && (
@@ -1207,11 +1320,18 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         เมื่อกดอนุมัติ ระบบจะส่งเอกสารการเงินแนบกรรมการสอบไปยังเจ้าหน้าที่การเงินทางอีเมลโดยอัตโนมัติ
                       </p>
                     )}
+                    {isProposalCoverStep && (
+                      <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                        เมื่อกดอนุมัติ การสอบโครงร่างวิทยานิพนธ์จะเสร็จสมบูรณ์ และนิสิตจะสามารถยื่นขอสอบวิทยานิพนธ์ต่อได้
+                      </p>
+                    )}
                     {approveBlocked && (
                       <p className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                         <Info className="w-3.5 h-3.5 shrink-0" />
-                        {!latestFinanceAttach
+                        {isProposalReviewStep && !latestFinanceAttach
                           ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
+                          : isProposalCoverStep && !latestCover
+                          ? "ต้องอัปโหลดใบปะหน้าก่อนจึงจะอนุมัติได้"
                           : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
                       </p>
                     )}

@@ -5,7 +5,26 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-09-30
+
+- **New PROPOSAL step 8 (stepOrder 12): admin recheck + Faculty cover page; step 6 gains a rename
+  check.** `PROPOSAL_ROLES` gained a 12th ADMIN step. Its card uploads the new `COVER_PAGE` form
+  type (ใบปะหน้าส่งคณะฯ — PDF, single version, ADMIN-only at stepOrder 12 via a generalised
+  admin-only-upload map in `POST /api/upload`) and shows the department chair's name; approve needs
+  the file (server-gated) and a 3-item checklist (`ADMIN_STEP8_CHECKS`), and completes the proposal
+  — the "completes the proposal" note moved here from the chair's step 7. Step 6's checklist adds
+  "rename the system title to match บ.วศ.1ง". Missing-upload errors now name forms in Thai
+  (`FORM_SHORT`) instead of enum codes. **DB**: `FormType` gained `COVER_PAGE` (`ALTER TYPE ... ADD
+  VALUE`, run live 2026-09-30). Proposals created earlier keep 11 steps and finish
+  after step 7. Build clean, lint count unchanged; not browser-verified.
+
 ## 2026-09-29
+
+- **Proposal steps 6 and 7 match the rest.** Step 6 (ADMIN, stepOrder 10) now needs a 3-item
+  verification checklist before อนุมัติ (`ADMIN_STEP6_CHECKS`: committee signatures on บ.วศ.1ค
+  complete, 1ค/1ง complete, 1ง topic correct), sharing step 2's checklist/gate code. Step 7
+  (PROGRAM_CHAIR, stepOrder 11) gets two own-signature checkboxes (1ค, 1ง) and a note that
+  ส่งต่อ completes the proposal. Build clean, lint count unchanged; not browser-verified.
 
 - **Proposal finance email moved to step 2; steps 3+ have no finance content.** `sendFinanceEmail`
   for a PROPOSAL now fires when the ADMIN approves step 2 (after generating/editing the finance

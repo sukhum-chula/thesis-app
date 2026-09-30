@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCutoff, isHiddenFromStudent } from "@/lib/utils";
+import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCutoff, isHiddenFromStudent, FORM_SHORT } from "@/lib/utils";
+import type { FormType } from "@/types";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps, planCommitteeStepSync, currentTurn } from "@/lib/workflowSteps";
@@ -180,7 +181,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // PROPOSAL step 4: student and admin upload in parallel — only student docs required here;
       // FINANCE_DOC is checked separately and auto-advances the step when both sides are ready.
       const REQUIRED_UPLOADS: Record<string, Record<number, string[]>> = {
-        PROPOSAL:       { 1: ["B1"], 2: ["FINANCE_ATTACH"], 4: ["B1"] },
+        PROPOSAL:       { 1: ["B1"], 2: ["FINANCE_ATTACH"], 4: ["B1"], 12: ["COVER_PAGE"] },
         THESIS_DEFENSE: { 1: ["B2", "B3", "FINANCE_ATTACH"], 9: ["SIGNED"], 16: ["B4", "THESIS"] },
       };
       const subType = sub.submissionType ?? "PROPOSAL";
@@ -199,7 +200,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (subType === "PROPOSAL" && step.stepOrder === 2)
           return NextResponse.json({ error: "กรุณากดสร้างเอกสารการเงินก่อนอนุมัติ" }, { status: 400 });
         return NextResponse.json(
-          { error: `กรุณาอัปโหลดเอกสารให้ครบก่อน: ${missing.join(", ")}` },
+          { error: `กรุณาอัปโหลดเอกสารให้ครบก่อน: ${missing.map((f) => FORM_SHORT[f as FormType] ?? f).join(", ")}` },
           { status: 400 }
         );
       }

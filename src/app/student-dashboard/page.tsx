@@ -99,8 +99,8 @@ export default function StudentDashboard() {
   const inactiveList = mine.filter((s) => s.id !== currentProposal?.id && s.id !== currentDefense?.id);
 
   // Step counts for the "(0/y)" preview suffix shown before any submission of that type exists.
-  const previewProposalTotal = PREVIEW_PROPOSAL_STEPS.filter((s) => s.status !== "SKIPPED").length;
-  const previewDefenseTotal = PREVIEW_DEFENSE_STEPS.filter((s) => s.status !== "SKIPPED").length;
+  const previewProposalTotal = stepNumbering(PREVIEW_PROPOSAL_STEPS, "PROPOSAL").total;
+  const previewDefenseTotal = stepNumbering(PREVIEW_DEFENSE_STEPS, "THESIS_DEFENSE").total;
 
   // The moment the student opens the defense tab with a completed, not-yet-used proposal, get
   // (or lazily create) the auto-imported DRAFT defense so it's just sitting there ready to review

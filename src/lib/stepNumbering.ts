@@ -5,9 +5,9 @@
  * and the DB all key off it, and nothing here changes that. What changes is only what people are
  * shown: a run of consecutive committee-signing steps is presented as ONE numbered step with
  * sub-steps. For a PROPOSAL, steps 5–9 (head of committee → advisor → co-advisors → external →
- * exam committee) read as 5.1, 5.2, …, so the admin check reads as step 6 and the program chair's
- * final signature as step 7. SKIPPED steps are hidden and never numbered, so the sub-numbers stay
- * dense (5.1–5.4 when there is no co-advisor).
+ * exam committee) read as 5.1, 5.2, …, so the admin check reads as step 6, the program chair's
+ * final signature as step 7 and the admin's cover-page step as step 8. SKIPPED steps are hidden
+ * and never numbered, so the sub-numbers stay dense (5.1–5.4 when there is no co-advisor).
  *
  * Pure (no Prisma/React), so both client components and API routes use it.
  */

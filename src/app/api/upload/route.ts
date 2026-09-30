@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!file || !submissionId || !formType)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const ALLOWED_FORM_TYPES = ["B1", "B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"];
+  const ALLOWED_FORM_TYPES = ["B1", "B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL", "COVER_PAGE"];
   if (!ALLOWED_FORM_TYPES.includes(formType))
     return NextResponse.json({ error: "Invalid form type" }, { status: 400 });
 
@@ -75,14 +75,20 @@ export async function POST(req: NextRequest) {
     if (!involved) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // PROPOSAL finance attachment is the ADMIN's file at step 2 (generated, optionally edited and
-  // re-uploaded) — nobody else uploads it, and not at any other point in the workflow.
-  if (subCheck.submissionType === "PROPOSAL" && formType === "FINANCE_ATTACH") {
+  // PROPOSAL files that only the ADMIN uploads, and only at their own step: the finance
+  // attachment at stepOrder 2 (generated, optionally edited and re-uploaded) and the Faculty cover
+  // page at stepOrder 12 (shown as step 8).
+  const ADMIN_ONLY_AT_STEP: Record<string, { step: number; label: string }> = {
+    FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
+    COVER_PAGE:     { step: 12, label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+  };
+  const adminOnly = subCheck.submissionType === "PROPOSAL" ? ADMIN_ONLY_AT_STEP[formType] : undefined;
+  if (adminOnly) {
     const current = await prisma.workflowStep.findFirst({
       where: { submissionId, status: "PENDING" }, orderBy: { stepOrder: "asc" }, select: { stepOrder: true },
     });
-    if (!sessionRoles.includes("ADMIN") || subCheck.status !== "IN_PROGRESS" || current?.stepOrder !== 2)
-      return NextResponse.json({ error: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" }, { status: 400 });
+    if (!sessionRoles.includes("ADMIN") || subCheck.status !== "IN_PROGRESS" || current?.stepOrder !== adminOnly.step)
+      return NextResponse.json({ error: adminOnly.label }, { status: 400 });
   }
 
   // SIGNED uploads (committee's own signed copies) keep their original filename — it's already descriptive.

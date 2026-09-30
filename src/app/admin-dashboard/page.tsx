@@ -194,6 +194,9 @@ export default function AdminDashboard() {
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === 8) {
                 taskLabel = "รับเอกสารจากคณะ อัปโหลด แล้วส่งต่อนิสิต";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "PROPOSAL" && step?.stepOrder === 12) {
+                taskLabel = "ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ";
+                taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else {
                 taskLabel = "ตรวจสอบเอกสารและอนุมัติ";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;

@@ -1,6 +1,6 @@
 import { StepStatus, SubmissionType } from "@/types";
 
-// PROPOSAL: 11 steps — บ.วศ.1ก/1ข then บ.วศ.1ค/1ง
+// PROPOSAL: 12 steps — one combined บ.วศ.1 file (1ก/1ข, then 1ค/1ง), shown as 1–4, 5.1–5.x, 6–8
 export const PROPOSAL_ROLES = [
   "STUDENT",               // 1  upload B1 (combined file, บ.วศ.1ก+1ข filled) + FINANCE_ATTACH (.docx)
   "ADMIN",                 // 2  approve
@@ -13,6 +13,7 @@ export const PROPOSAL_ROLES = [
   "EXAM_COMMITTEE",        // 9  sign B1C + B1D (all members)
   "ADMIN",                 // 10 approve
   "PROGRAM_CHAIR",         // 11 sign B1C + B1D
+  "ADMIN",                 // 12 recheck everything + upload the cover page (COVER_PAGE) for the Faculty
 ] as const;
 
 // THESIS_DEFENSE: 22 steps — บ.2/3 through thesis cover signing

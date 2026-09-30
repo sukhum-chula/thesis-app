@@ -62,6 +62,7 @@ type FileGroup = { key: string; label: string; types: Set<FormType> };
 const FILE_GROUPS_PROPOSAL: FileGroup[] = [
   { key: "main",    label: "เอกสารหลัก",                 types: new Set<FormType>(["B1", "B1A", "B1B", "B1C", "B1D"]) },
   { key: "finance", label: "เอกสารการเงิน",              types: new Set<FormType>(["FINANCE_DOC", "FINANCE_ATTACH"]) },
+  { key: "cover",   label: "เอกสารส่งคณะฯ",              types: new Set<FormType>(["COVER_PAGE"]) },
   { key: "faculty", label: "เอกสารอื่นๆ",                types: new Set<FormType>(["SIGNED", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"]) },
 ];
 

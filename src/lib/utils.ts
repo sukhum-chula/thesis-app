@@ -87,6 +87,7 @@ export const FORM_LABELS: Record<FormType, string> = {
   EXAM_RESULT:    "ใบรายงานผลการสอบวิทยานิพนธ์",
   INVITE_LETTER: "หนังสือเชิญกรรมการสอบ",
   VERY_GOOD_EVAL:"แบบประเมินวิทยานิพนธ์ดีมาก",
+  COVER_PAGE:    "ใบปะหน้าส่งคณะวิศวกรรมศาสตร์",
 };
 
 export const PROGRAM_LABELS: Record<string, string> = {
@@ -356,6 +357,7 @@ export const FORM_SHORT: Record<FormType, string> = {
   EXAM_RESULT:    "ใบรายงานผล",
   INVITE_LETTER: "หนังสือเชิญ",
   VERY_GOOD_EVAL:"แบบประเมินดีมาก",
+  COVER_PAGE:    "ใบปะหน้า",
 };
 
 /** File format each form type must be uploaded in. FINANCE_ATTACH is filled in from a .docx
@@ -416,7 +418,7 @@ export function isHiddenFromStudent(submissionType: string | null | undefined, f
  *  FileList shows no ประวัติ for them. Only the ADMIN-generated PROPOSAL finance attachment so far:
  *  whichever copy is newest — generated, or the admin's edited upload — is the one kept. */
 const SINGLE_VERSION_FORMS: Record<string, string[]> = {
-  PROPOSAL: ["FINANCE_ATTACH"],
+  PROPOSAL: ["FINANCE_ATTACH", "COVER_PAGE"],
 };
 export function isSingleVersionForm(submissionType: string | null | undefined, formType: string): boolean {
   return (SINGLE_VERSION_FORMS[submissionType ?? "PROPOSAL"] ?? []).includes(formType);
@@ -435,6 +437,8 @@ export const B1_CHECK_GROUPS = [
   { key: "b1d",       title: "บ.วศ.1ง" },
   { key: "confirm",   title: "การยืนยันข้อมูล" },
   { key: "mySign",    title: "การลงนามของท่าน" },
+  { key: "verify",    title: "การตรวจสอบของเจ้าหน้าที่" },
+  { key: "cover",     title: "ใบปะหน้าส่งคณะฯ" },
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
 export const B1_CHECKS: B1Check[] = [
@@ -462,6 +466,22 @@ export const B1_STEP4_CHECKS: B1Check[] = [
 export const ADMIN_B1_EXTRA_CHECKS: B1Check[] = [
   { key: "committee", group: "committee", label: "ตรวจสอบรายชื่อคณะกรรมการในคำร้องและเอกสารการเงินถูกต้องแล้ว" },
 ];
+/** PROPOSAL step 6 (stepOrder 10) — the ADMIN verifies the fully-signed B1 before the chair's
+ *  final signature */
+export const ADMIN_STEP6_CHECKS: B1Check[] = [
+  { key: "committeeSigned", group: "verify", label: "ลายมือชื่อคณะกรรมการใน บ.วศ.1ค ครบทุกท่านแล้ว" },
+  { key: "formsComplete",   group: "verify", label: "ข้อมูลใน บ.วศ.1ค และ บ.วศ.1ง ครบถ้วนถูกต้องแล้ว" },
+  { key: "topicOk",         group: "verify", label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการ (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
+  { key: "renameTopic",     group: "verify", label: "แก้ไขชื่อหัวข้อวิทยานิพนธ์ในระบบให้ตรงกับหัวข้อใน บ.วศ.1ง แล้ว (ปุ่ม \"แก้ไข\" ในหน้านี้)" },
+];
+/** PROPOSAL step 8 (stepOrder 12) — the ADMIN's final recheck before the package goes to the
+ *  Faculty, plus the cover page (COVER_PAGE, uploaded on the same card) signed by the
+ *  department chair (SystemSetting "departmentChair") */
+export const ADMIN_STEP8_CHECKS: B1Check[] = [
+  { key: "allSigned",   group: "verify", label: "ตรวจสอบ บ.วศ.1ก–ง ครบถ้วน และมีลายมือชื่อครบทุกจุดแล้ว" },
+  { key: "titleSynced", group: "verify", label: "ชื่อหัวข้อวิทยานิพนธ์ในระบบตรงกับหัวข้อใน บ.วศ.1ง แล้ว" },
+  { key: "coverSigned", group: "cover",  label: "ใบปะหน้ามีลายมือชื่อหัวหน้าภาควิชาแล้ว" },
+];
 export const CHAIR_B1_CHECKS: B1Check[] = [
   { key: "chairSignA", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ก แล้ว" },
 ];
@@ -469,6 +489,11 @@ export const CHAIR_B1_CHECKS: B1Check[] = [
  *  place, on บ.วศ.1ค in the combined B1, and confirms it here. */
 const SIGN_B1C_CHECKS: B1Check[] = [
   { key: "mySignC", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" },
+];
+/** PROPOSAL step 7 (stepOrder 11) — the program chair's final signatures, on บ.วศ.1ค and 1ง */
+const CHAIR_FINAL_CHECKS: B1Check[] = [
+  { key: "chairSignC", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ค แล้ว" },
+  { key: "chairSignD", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ง แล้ว" },
 ];
 /** Pre-approve checklist for each PROPOSAL signing step, keyed by stepOrder */
 export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
@@ -478,9 +503,10 @@ export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
   7: SIGN_B1C_CHECKS,
   8: SIGN_B1C_CHECKS,
   9: SIGN_B1C_CHECKS,
+  11: CHAIR_FINAL_CHECKS,
 };
 
-// Step names for proposal submissions (11 steps)
+// Step names for proposal submissions (12 steps)
 export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   1:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)",
   2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
@@ -493,6 +519,7 @@ export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   9:  "กรรมการสอบลงนาม บ.วศ.1ค",
   10: "เจ้าหน้าที่ตรวจสอบ (รอบ 2)",
   11: "ประธานหลักสูตรลงนาม บ.วศ.1ค + บ.วศ.1ง",
+  12: "เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ",
 };
 
 // Step names for thesis defense submissions (22 steps)

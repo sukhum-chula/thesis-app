@@ -46,12 +46,12 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 ## Key facts
 
 - **All API logic is in `src/app/api/`**. State is server-fetched; client state lives in `AppContext` which polls the API.
-- Two submission types: **PROPOSAL** (11 steps) and **THESIS_DEFENSE** (22 steps). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/app/api/submissions/route.ts`.
+- Two submission types: **PROPOSAL** (12 steps, shown as 1–4, 5.1–5.x, 6–8) and **THESIS_DEFENSE** (22 steps). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/lib/workflowSteps.ts`. A PROPOSAL created before 2026-09-30 has only 11 step rows (no step 12) — every rule treats "no PENDING step left" as completion, so it simply finishes after the chair's signature.
 - **Step names**: `PROPOSAL_STEP_NAMES` / `THESIS_STEP_NAMES` in `src/lib/utils.ts`. Always call `getStepName(stepOrder, submissionType)` — never access the maps directly.
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
-  PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)]
+  PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)],  step 12 (ADMIN) → [COVER_PAGE]
   THESIS_DEFENSE: step 1 → [B2, B3, FINANCE_ATTACH],      step 9 → [SIGNED],   step 16 → [B4, THESIS]
   ```
   PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE step 8's FINANCE_DOC is unrelated and unchanged.)
@@ -386,7 +386,8 @@ Internal `stepOrder` never changes (1–11 PROPOSAL / 1–22 THESIS_DEFENSE — 
 (`src/lib/stepNumbering.ts`): a PROPOSAL's committee-signing run, stepOrder 5–9 (head → advisor →
 co-advisors → external → exam committee), is shown as one step with sub-steps **5.1–5.x** — dense,
 since SKIPPED steps are hidden and never numbered — so the admin check (stepOrder 10) reads as
-**step 6** and the program chair's final signature (stepOrder 11) as **step 7**. The "X/Y ขั้น"
+**step 6**, the program chair's final signature (stepOrder 11) as **step 7**, and the admin's
+final recheck + Faculty cover page (stepOrder 12) as **step 8**. The "X/Y ขั้น"
 progress counts and bars count top-level steps (a sub-step group counts once, when all of it is
 approved). Used by `WorkflowTimeline`, `AdminSubmissionPanel` (step cards, status, progress),
 `RoleSubmissionDetail`, `StudentSubmissionActions`, `/admin-dashboard`, `/student-dashboard`,
@@ -817,7 +818,7 @@ row — the moment ที่จอดรถ is checked.
 
 ## Workflow — source of truth
 
-### PROPOSAL (11 steps)
+### PROPOSAL (12 steps)
 
 Every document in a PROPOSAL is the one combined `B1` file (บ.วศ.1ก–ง); each step downloads the
 latest `B1` and, if it signs, uploads the signed copy as a new `B1` version (PDF only). "Shown as"
@@ -840,8 +841,9 @@ internal `stepOrder` every rule keys off.
 | 7  | 5.x | CO_ADVISOR | Sign บ.วศ.1ค (one place each); one checkbox — **auto-SKIPPED (and not numbered) if no co-advisors assigned** |
 | 8  | 5.x | INVITED_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
 | 9  | 5.x | EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
-| 10 | 6   | ADMIN | Verify and approve |
-| 11 | 7   | PROGRAM_CHAIR | Sign บ.วศ.1ค + บ.วศ.1ง |
+| 10 | 6   | ADMIN | Verify the fully-signed B1; 4-item checklist (committee signatures all on 1ค, 1ค/1ง complete, 1ง topic correct — it is registered in Chula's system, and **the submission's title renamed to match 1ง** via the panel's แก้ไข button) before approve (`ADMIN_STEP6_CHECKS`) |
+| 11 | 7   | PROGRAM_CHAIR | Sign บ.วศ.1ค + บ.วศ.1ง; two checkboxes (own signature on each) |
+| 12 | 8   | ADMIN | Final recheck + upload the **cover page** (`COVER_PAGE`, ใบปะหน้าส่งคณะฯ, PDF, single version, ADMIN-only at this step) signed by the department chair (the card shows who that is — SystemSetting `departmentChair`); 3-item checklist (`ADMIN_STEP8_CHECKS`: บ.วศ.1ก–ง complete and fully signed, system title matches 1ง, cover page signed by the department chair). Approve is gated on the cover page (server `REQUIRED_UPLOADS.PROPOSAL[12]`) and completes the proposal. |
 
 If rejected, the step stays `REJECTED` (does not move) until the student resubmits — see "Rejection stays on the step" above. ส่งกลับ (admin-only) is the separate action that moves back one step (e.g. step 9 → step 8).
 
@@ -1068,7 +1070,7 @@ through to a detail page" step):
    exam date/time — since the whole point of a draft is to let the student leave and come back
    later; only a value that's actually filled in but outright wrong (e.g. a malformed phone number,
    an exam date in the past) is rejected either way. Only `confirm: true` enforces the full
-   requirements (see "Draft save vs. confirm validation" below). The "ความคืบหน้าปัจจุบัน (0/11)" preview
+   requirements (see "Draft save vs. confirm validation" below). The "ความคืบหน้าปัจจุบัน (0/8)" preview (top-level count from `stepNumbering`)
    + `WorkflowTimeline` (`preview` prop, see below) stay visible under both the blank template *and*
    `ProposalDraftReview` — nothing has actually progressed yet in either state, since no workflow
    steps exist until confirm — and only disappear once a real (non-draft) proposal exists, at which
