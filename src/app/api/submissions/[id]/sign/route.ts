@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStepName, ROLE_LABELS, formatUserName } from "@/lib/utils";
+import { isParallelRole } from "@/lib/workflowSteps";
 import { sendStepEmail } from "@/lib/email";
 import { getProgramChairUserId } from "@/lib/systemSettings";
 
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const currentStep = sub.workflowSteps.find((s: any) => s.status === "PENDING");
   if (
     !currentStep ||
-    !["EXAM_COMMITTEE", "CO_ADVISOR", "INVITED_EXAM_COMMITTEE"].includes(currentStep.role) ||
+    !["EXAM_COMMITTEE", "CO_ADVISOR", "INVITED_EXAM_COMMITTEE", "ALL_COMMITTEE"].includes(currentStep.role) ||
     !(currentStep.committeeMembers as string[])?.includes(userId)
   ) {
     return NextResponse.json({ error: "ยังไม่ถึงคิวของท่าน หรือท่านไม่ได้เป็นกรรมการของขั้นตอนนี้" }, { status: 403 });
@@ -65,8 +66,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (prevActionsCheck.some((a) => a.userId === userId))
     return NextResponse.json({ error: "Already signed" }, { status: 400 });
 
-  // Enforce sequential order: all members before this one must have approved
-  const memberIndex = (step.committeeMembers as string[]).indexOf(userId);
+  // Enforce sequential order: all members before this one must have approved — except on a
+  // parallel step (ALL_COMMITTEE), where every member may sign in any order
+  const memberIndex = isParallelRole(userRole) ? 0 : (step.committeeMembers as string[]).indexOf(userId);
   const notYetSigned = (step.committeeMembers as string[])
     .slice(0, memberIndex)
     .filter((mid) => prevActionsCheck.find((a) => a.userId === mid)?.decision !== "APPROVED");
@@ -132,6 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           actedAt: now,
           actedByName: userRole === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วมครบทุกท่าน"
             : userRole === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอกครบทุกท่าน"
+            : userRole === "ALL_COMMITTEE" ? "คณะกรรมการสอบครบทุกท่าน"
             : "กรรมการสอบครบทุกท่าน",
           actedById: userId,
         },
@@ -183,7 +186,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   else if (outcome === "PARTIAL") {
-    if (nextMemberId) {
+    // A parallel step notified every member when it opened — nobody is "next"
+    if (nextMemberId && !isParallelRole(userRole)) {
       await prisma.notification.create({
         data: { recipientId: nextMemberId, message: `ถึงคิวของท่าน: ${currentStepName}`, detail: sub.title, submissionId, type: "pending" },
       });

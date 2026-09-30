@@ -3,13 +3,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadFile } from "@/lib/supabase";
 import { FORM_SHORT, formatUserName } from "@/lib/utils";
-import { buildProposalFinanceDocx, DOCX_MIME, FINANCE_POSITION, type FinanceMember } from "@/lib/financeDoc";
+import { buildFinanceDocx, DOCX_MIME, FINANCE_POSITION, type FinanceMember } from "@/lib/financeDoc";
 import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
 
 /**
- * POST — ADMIN generates the PROPOSAL's เอกสารการเงินแนบกรรมการสอบ from the submission's own
+ * POST — ADMIN generates a PROPOSAL's or THESIS_DEFENSE's เอกสารการเงินแนบกรรมการสอบ from the submission's own
  * student info + committee and stores it as a new FINANCE_ATTACH version (the file step 3's
- * finance email attaches). Only while PROPOSAL step 2 (ADMIN review) is the current step. The file
+ * finance email attaches). Only while step 2 (the ADMIN check, both types) is the current step. The file
  * is single-version: generating again (or the admin uploading an edited copy) replaces it.
  */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -31,8 +31,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     },
   });
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (sub.submissionType !== "PROPOSAL")
-    return NextResponse.json({ error: "สร้างเอกสารการเงินได้เฉพาะคำร้องสอบโครงร่าง" }, { status: 400 });
+  if (sub.submissionType !== "PROPOSAL" && sub.submissionType !== "THESIS_DEFENSE")
+    return NextResponse.json({ error: "ไม่รองรับคำร้องประเภทนี้" }, { status: 400 });
   if (sub.cancelRequested)
     return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ" }, { status: 400 });
   const current = sub.workflowSteps.find((s) => s.status === "PENDING");
@@ -60,12 +60,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const studentCode = sub.studentCode ?? sub.student.studentId ?? "";
   let buffer: Buffer;
   try {
-    buffer = await buildProposalFinanceDocx({
+    buffer = await buildFinanceDocx({
       studentName: sub.studentFullName ?? formatUserName(sub.student),
       studentCode,
       program: sub.program,
       members,
-    });
+    }, sub.submissionType);
   } catch (e) {
     console.error("[finance-attach/generate]", e);
     return NextResponse.json({ error: "สร้างเอกสารการเงินไม่สำเร็จ" }, { status: 500 });

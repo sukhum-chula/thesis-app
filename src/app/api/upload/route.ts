@@ -78,11 +78,17 @@ export async function POST(req: NextRequest) {
   // PROPOSAL files that only the ADMIN uploads, and only at their own step: the finance
   // attachment at stepOrder 2 (generated, optionally edited and re-uploaded) and the Faculty cover
   // page at stepOrder 12 (shown as step 8).
-  const ADMIN_ONLY_AT_STEP: Record<string, { step: number; label: string }> = {
-    FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
-    COVER_PAGE:     { step: 12, label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+  // THESIS_DEFENSE: the finance attachment is the ADMIN's step-2 file too (since 2026-09-30).
+  const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { step: number; label: string }>> = {
+    PROPOSAL: {
+      FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
+      COVER_PAGE:     { step: 12, label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+    },
+    THESIS_DEFENSE: {
+      FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
+    },
   };
-  const adminOnly = subCheck.submissionType === "PROPOSAL" ? ADMIN_ONLY_AT_STEP[formType] : undefined;
+  const adminOnly = ADMIN_ONLY_AT_STEP[subCheck.submissionType ?? "PROPOSAL"]?.[formType];
   if (adminOnly) {
     const current = await prisma.workflowStep.findFirst({
       where: { submissionId, status: "PENDING" }, orderBy: { stepOrder: "asc" }, select: { stepOrder: true },

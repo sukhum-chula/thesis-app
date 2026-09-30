@@ -3,8 +3,8 @@ import path from "path";
 import JSZip from "jszip";
 
 /**
- * Fills the department's เอกสารการเงินแนบกรรมการสอบ form (templates/finance-attach-proposal.docx,
- * an unmodified copy of the official form) for one PROPOSAL submission.
+ * Fills the department's เอกสารการเงินแนบกรรมการสอบ form (templates/finance-attach-{proposal,thesis}.docx,
+ * unmodified copies of the official form) for one submission at its ADMIN step 2.
  *
  * Filled: student name, student code, สาขาวิชา (only rewritten for ME_CPS — the form prints
  * วิศวกรรมเครื่องกล), and one committee-table row per member, numbered 1..n. Deliberately left
@@ -16,7 +16,12 @@ import JSZip from "jszip";
  * so a mismatched template fails loudly instead of producing a wrong document.
  */
 
-const TEMPLATE_PATH = path.join(process.cwd(), "templates", "finance-attach-proposal.docx");
+// The department's two versions of the form — identical layout, only the heading differs
+// ("ขอเบิกค่าสอบโครงร่างวิทยานิพนธ์" / "ขอเบิกค่าสอบวิทยานิพนธ์")
+const TEMPLATE_PATH: Record<string, string> = {
+  PROPOSAL:       path.join(process.cwd(), "templates", "finance-attach-proposal.docx"),
+  THESIS_DEFENSE: path.join(process.cwd(), "templates", "finance-attach-thesis.docx"),
+};
 
 export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -119,8 +124,10 @@ function fillMajor(xml: string, program: string | null): string {
   return xml.replace(row, row.replace(cell, newCell));
 }
 
-export async function buildProposalFinanceDocx(data: FinanceDocData): Promise<Buffer> {
-  const zip = await JSZip.loadAsync(await readFile(TEMPLATE_PATH));
+export async function buildFinanceDocx(data: FinanceDocData, submissionType: string): Promise<Buffer> {
+  const template = TEMPLATE_PATH[submissionType];
+  if (!template) throw new Error(`finance template: no template for ${submissionType}`);
+  const zip = await JSZip.loadAsync(await readFile(template));
   const doc = zip.file("word/document.xml");
   if (!doc) throw new Error("finance template: word/document.xml missing");
   let xml = await doc.async("string");

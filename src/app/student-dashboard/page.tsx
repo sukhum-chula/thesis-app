@@ -74,7 +74,8 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
 export default function StudentDashboard() {
   const { user, submissions, users, getOrCreateDefenseDraft, getOrCreateProposalDraft } = useApp();
   const mine = submissions.filter((s) => s.studentId === user?.id);
-  const [tab, setTab] = useState<"proposal" | "defense" | "external">("proposal");
+  // null until the student clicks a tab — until then the landing tab follows their progress
+  const [tabChoice, setTab] = useState<"proposal" | "defense" | "external" | null>(null);
   const [creatingDefenseDraft, setCreatingDefenseDraft] = useState(false);
 
   // Gating for the defense creation entry point — see AGENTS.md workflow rules. A defense may
@@ -97,6 +98,10 @@ export default function StudentDashboard() {
     .filter((s) => s.submissionType === "THESIS_DEFENSE" && s.status !== "CANCELLED")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   const inactiveList = mine.filter((s) => s.id !== currentProposal?.id && s.id !== currentDefense?.id);
+  // A student with a defense under way (any non-cancelled one, draft included) lands on the
+  // defense tab; everyone else on the proposal tab. Derived, so it's right as soon as the
+  // submissions arrive, and an explicit click always wins.
+  const tab = tabChoice ?? (currentDefense ? "defense" : "proposal");
 
   // Step counts for the "(0/y)" preview suffix shown before any submission of that type exists.
   const previewProposalTotal = stepNumbering(PREVIEW_PROPOSAL_STEPS, "PROPOSAL").total;

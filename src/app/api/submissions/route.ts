@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
       invitedCommitteeIds: resolved.invitedCommitteeIds,
       programChairId: resolved.programChairId,
       workflowSteps: {
-        create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds),
+        create: buildWorkflowSteps(data.submissionType, resolved.coAdvisorIds, resolved.committeeIds, resolved.invitedCommitteeIds, resolved),
       },
     },
     include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },

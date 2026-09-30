@@ -5,7 +5,8 @@ import { useApp } from "@/context/AppContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { FileUploader } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, freshUploadCutoff } from "@/lib/utils";
+import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
+import { THESIS_STEP } from "@/lib/workflowSteps";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { FormType } from "@/types";
@@ -39,9 +40,9 @@ const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
     },
   },
   THESIS_DEFENSE: {
-    1:  { forms: ["B2", "B3", "FINANCE_ATTACH"], label: "บ.2 + บ.3 + เอกสารการเงินแนบกรรมการสอบ" },
-    9:  { forms: ["SIGNED"],       label: "แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต)" },
-    16: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)" },
+    [THESIS_STEP.STUDENT_B2_B3]:  { forms: ["B2", "B3"], label: "บ.2 + บ.3" },
+    [THESIS_STEP.STUDENT_REPORT]: { forms: ["SIGNED"],       label: "แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต)" },
+    [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)" },
   },
 };
 
@@ -52,14 +53,17 @@ const SUBMIT_LABEL: Record<string, Record<number, string>> = {
     4: "ส่งต่อ",
   },
   THESIS_DEFENSE: {
-    1:  "ส่งต่อ",
-    9:  "ส่งต่อ",
-    16: "ส่งต่อ",
+    [THESIS_STEP.STUDENT_B2_B3]:  "ส่งต่อ",
+    [THESIS_STEP.STUDENT_REPORT]: "ส่งต่อ",
+    [THESIS_STEP.STUDENT_THESIS]: "ส่งต่อ",
   },
 };
 
-// PROPOSAL student steps that end with the บ.วศ.1 checklist, and which items each one asks for
-const B1_STEP_CHECKS: Record<number, typeof B1_CHECKS> = { 1: B1_CHECKS, 4: B1_STEP4_CHECKS };
+// Student steps that end with a document checklist, and which items each one asks for
+const B1_STEP_CHECKS: Record<string, Record<number, typeof B1_CHECKS>> = {
+  PROPOSAL:       { 1: B1_CHECKS, 4: B1_STEP4_CHECKS },
+  THESIS_DEFENSE: { [THESIS_STEP.STUDENT_B2_B3]: DEFENSE_STEP1_CHECKS },
+};
 
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
@@ -72,6 +76,8 @@ const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
 const FORM_DOWNLOAD_URL = "https://me.eng.chula.ac.th/download/";
 const FORM_DOWNLOAD_NAME: Partial<Record<FormType, string>> = {
   B1:             "แบบฟอร์ม บ.วศ.1ก–ง",
+  B2:             "แบบฟอร์ม บ.2",
+  B3:             "แบบฟอร์ม บ.3",
   FINANCE_ATTACH: "แบบฟอร์มเอกสารการเงินแนบกรรมการสอบ",
 };
 
@@ -82,8 +88,8 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
   FINANCE_ATTACH: "กรอกข้อมูลให้ครบถ้วน แล้วอัปโหลดเป็นไฟล์ Word (.docx)",
   B1C:   "กรอกข้อมูลให้ครบถ้วน — กรรมการจะลงนามผ่านระบบหลังอัปโหลด",
   B1D:   "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
-  B2:    "กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิตก่อนอัปโหลด",
-  B3:    "กรอกข้อมูลการสอบให้ครบถ้วนก่อนอัปโหลด",
+  B2:    "ไฟล์ PDF — กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิต เว้นช่องลงนามอื่นว่างไว้",
+  B3:    "ไฟล์ PDF หน้าเดียว — กรอกข้อมูลนิสิต หัวข้อ รายชื่อคณะกรรมการ และวันที่ เว้นช่องประเมินและลงนามว่างไว้ให้กรรมการกรอกเอง",
   B4:    "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
   THESIS: "ต้องเป็นไฟล์ที่ผ่านระบบ e-thesis ของจุฬาฯ และมี barcode กำกับเรียบร้อยแล้ว",
   SIGNED: "ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",
@@ -137,11 +143,11 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const linkedProposal = sub.sourceProposalId ? submissions.find((s) => s.id === sub.sourceProposalId) ?? null : null;
   const linkedDefense = subType === "PROPOSAL" ? submissions.find((s) => s.sourceProposalId === sub.id) ?? null : null;
 
-  // At THESIS step 9 (student uploads แบบรายงานฯ), admin already uploaded SIGNED at step 8.
-  // Filter those out so the checklist and uploader don't count the admin's file as the student's own.
-  const step8ActedAt = (subType === "THESIS_DEFENSE" && currentStep?.stepOrder === 9)
+  // At the THESIS student-report step (แบบรายงานฯ), admin already uploaded SIGNED at the faculty-docs
+  // step. Filter those out so the checklist and uploader don't count the admin's file as the student's own.
+  const step8ActedAt = (subType === "THESIS_DEFENSE" && currentStep?.stepOrder === THESIS_STEP.STUDENT_REPORT)
     ? (() => {
-        const s8 = sub.workflowSteps.find((s) => s.stepOrder === 8);
+        const s8 = sub.workflowSteps.find((s) => s.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS);
         return s8?.actedAt ? new Date(s8.actedAt).getTime() : 0;
       })()
     : null;
@@ -173,10 +179,10 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const studentUploaded   = requiredForms.length === 0 || requiredForms.every((f) => effectiveUploadedTypes.has(f) || !!selectedFiles[f]);
 
   const needsSignConfirm   = subType === "THESIS_DEFENSE" && isMyTurn &&
-    (currentStep?.stepOrder === 9 || currentStep?.stepOrder === 16);
-  const needsProgramConfirm = subType === "THESIS_DEFENSE" && isMyTurn && currentStep?.stepOrder === 16;
-  const b1StepChecks = subType === "PROPOSAL" && isMyTurn && currentStep
-    ? (B1_STEP_CHECKS[currentStep.stepOrder] ?? null)
+    (currentStep?.stepOrder === THESIS_STEP.STUDENT_REPORT || currentStep?.stepOrder === THESIS_STEP.STUDENT_THESIS);
+  const needsProgramConfirm = subType === "THESIS_DEFENSE" && isMyTurn && currentStep?.stepOrder === THESIS_STEP.STUDENT_THESIS;
+  const b1StepChecks = isMyTurn && currentStep
+    ? (B1_STEP_CHECKS[subType]?.[currentStep.stepOrder] ?? null)
     : null;
   const needsB1Confirm = b1StepChecks !== null;
   const b1AllChecked = !b1StepChecks || allChecked(b1StepChecks, b1Checks);
@@ -678,7 +684,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   inspected by the system, so the student confirms what they filled and who signed */}
               {b1StepChecks && (
                 <B1Checklist
-                  title="กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง"
+                  title={subType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง"}
                   checks={b1StepChecks}
                   value={b1Checks}
                   onChange={setB1Checks}

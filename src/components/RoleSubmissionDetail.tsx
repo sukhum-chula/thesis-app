@@ -8,7 +8,8 @@ import { SignatureButton } from "./SignatureButton";
 import { CommitteeSignPanel } from "./CommitteeSignPanel";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
-import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, PROPOSAL_SIGN_CHECKS } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS } from "@/lib/utils";
+import { THESIS_STEP } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { ArrowLeft, Clock, AlertCircle, StickyNote, CalendarDays } from "lucide-react";
 import Link from "next/link";
@@ -71,6 +72,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       case "CO_ADVISOR":            return ((sub.coAdvisorIds ?? []) as string[]).includes(user.id);
       case "EXAM_COMMITTEE":        return ((sub.committeeIds ?? []) as string[]).includes(user.id);
       case "INVITED_EXAM_COMMITTEE":return ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id);
+      case "ALL_COMMITTEE":         return (currentStep.committeeMembers ?? []).includes(user.id);
       case "PROGRAM_CHAIR":
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
       default:                      return user.roles.includes(currentStep.role as any);
@@ -79,7 +81,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
 
   const isThesisAdvisorResultStep =
     sub.submissionType === "THESIS_DEFENSE" &&
-    currentStep?.stepOrder === 10 &&
+    currentStep?.stepOrder === THESIS_STEP.ADVISOR_RESULT &&
     (sub as any).advisorId === user?.id &&
     isMyTurn;
 
@@ -104,25 +106,25 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       11: ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ค + 1ง
     },
     THESIS_DEFENSE: {
-      2:  ["B3"],            // EXAM_COMMITTEE signs B3
-      3:  ["B2"],            // ADVISOR signs B2
-      4:  ["B2"],            // CO_ADVISOR signs B2
-      5:  ["B2"],            // HEAD_EXAM_COMMITTEE signs B2
-      6:  ["B2"],            // PROGRAM_CHAIR signs B2
+      3:  ["B3"],            // ALL_COMMITTEE — every member judges + signs the student's บ.3, in parallel
+      4:  ["B2"],            // ADVISOR signs B2
+      5:  ["B2"],            // CO_ADVISOR signs B2
+      6:  ["B2"],            // HEAD_EXAM_COMMITTEE signs B2
+      7:  ["B2"],            // PROGRAM_CHAIR signs B2
       // Step 7 (ADMIN relay) omitted — admin physically delivers, no signing, uses own page
       // Step 8 (ADMIN upload) omitted — admin uploads new docs from Faculty, handled via admin page
-      10: ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
-      11: ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
-      12: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
-      13: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
-      14: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
-      15: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
-      17: ["B4"],            // PROGRAM_CHAIR signs B4
-      18: ["THESIS"],        // ADVISOR signs thesis cover
-      19: ["THESIS"],        // CO_ADVISOR signs thesis cover
-      20: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
-      21: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
-      22: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
+      11: ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
+      12: ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
+      13: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
+      14: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
+      15: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
+      16: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
+      18: ["B4"],            // PROGRAM_CHAIR signs B4
+      19: ["THESIS"],        // ADVISOR signs thesis cover
+      20: ["THESIS"],        // CO_ADVISOR signs thesis cover
+      21: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
+      22: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
+      23: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
     },
   };
   const formsToShow = currentStep
@@ -133,10 +135,11 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const doneCount   = numbering.done;
   const totalSteps  = numbering.total;
   const currentDisplayOrder = currentStep ? numbering.label(currentStep.stepOrder) : "";
-  // PROPOSAL signing steps (3 and 5.1–5.x) end with the signer's own-signature checklist
-  const signChecks = sub.submissionType === "PROPOSAL" && currentStep && isMyTurn
-    ? (PROPOSAL_SIGN_CHECKS[currentStep.stepOrder] ?? null)
+  // Signing steps with an own-signature checklist (PROPOSAL 3, 5.x, 7; THESIS 3.x) — lib/utils SIGN_CHECKS
+  const signChecks = currentStep && isMyTurn
+    ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;
+  const signChecksTitle = sub.submissionType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบ บ.3 ก่อนส่งต่อ" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
 
   return (
     <div className="space-y-6">
@@ -345,25 +348,25 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
           )}
 
           {/* Action — committee steps (EXAM_COMMITTEE, CO_ADVISOR, INVITED_EXAM_COMMITTEE) use sequential multi-member panel */}
-          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR" || currentStep?.role === "INVITED_EXAM_COMMITTEE") && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR" || currentStep?.role === "INVITED_EXAM_COMMITTEE" || currentStep?.role === "ALL_COMMITTEE") && (
             <CommitteeSignPanel
               submissionId={sub.id}
               step={currentStep}
               formsToShow={formsToShow}
-              title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : currentStep.role === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอก" : undefined}
-              checklist={signChecks ? { title: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ", checks: signChecks } : undefined}
+              title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : currentStep.role === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอก" : currentStep.role === "ALL_COMMITTEE" ? "คณะกรรมการสอบทุกท่าน (ลงนามพร้อมกันได้)" : undefined}
+              checklist={signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
               onSuccess={() => router.push(backPath)}
             />
           )}
 
-          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && currentStep?.role !== "INVITED_EXAM_COMMITTEE" && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && currentStep?.role !== "INVITED_EXAM_COMMITTEE" && currentStep?.role !== "ALL_COMMITTEE" && (
             <SignatureButton
               submissionId={sub.id}
               formsToShow={formsToShow}
               onSuccess={() => router.push(backPath)}
               notePrefix={(isThesisAdvisorResultStep || isProposalHeadResultStep) && thesisResult ? `ผลการสอบ: ${thesisResult}` : undefined}
               requireNotePrefix={isThesisAdvisorResultStep || isProposalHeadResultStep}
-              checklist={signChecks ? { title: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ", checks: signChecks } : undefined}
+              checklist={signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
               extraSlots={
                 isThesisAdvisorResultStep && thesisResult === "ดีมาก"
                   ? [{ slotKey: "VERY_GOOD_EVAL", label: "แบบประเมินวิทยานิพนธ์ดีมาก", formType: "VERY_GOOD_EVAL" }]

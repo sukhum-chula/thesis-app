@@ -330,9 +330,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
       case "CO_ADVISOR":
       case "EXAM_COMMITTEE":
-      case "INVITED_EXAM_COMMITTEE": {
+      case "INVITED_EXAM_COMMITTEE":
+      case "ALL_COMMITTEE": {
         if (!step.committeeMembers?.includes(user.id)) return false;
         if ((step.committeeActions ?? []).some((a) => a.userId === user.id)) return false;
+        if (step.role === "ALL_COMMITTEE") return true; // parallel: any unsigned member can act
         // Only the next unsigned member can act (sequential)
         const members = step.committeeMembers ?? [];
         const idx = members.indexOf(user.id);
@@ -359,9 +361,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
         case "CO_ADVISOR":
         case "EXAM_COMMITTEE":
-        case "INVITED_EXAM_COMMITTEE": {
+        case "INVITED_EXAM_COMMITTEE":
+        case "ALL_COMMITTEE": {
           if (!step.committeeMembers?.includes(user.id)) return false;
           if ((step.committeeActions ?? []).some((a) => a.userId === user.id)) return false;
+          if (step.role === "ALL_COMMITTEE") return true; // parallel
           const members = step.committeeMembers ?? [];
           const idx = members.indexOf(user.id);
           const prevUnsigned = members.slice(0, idx).some(

@@ -90,7 +90,9 @@ src/lib/
   uploadVersions.ts          keepOnlyLatestVersion() — single-version form types (PROPOSAL
                              FINANCE_ATTACH): a new copy deletes the old row + storage object
   docxText.ts                docxText() — body text of a .docx, for "did the content change" checks
-  workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + buildWorkflowSteps(), shared by the
+  workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + THESIS_STEP (named defense stepOrders —
+                             branch on these, never bare numbers) + PARALLEL_ROLES/allCommitteeIds
+                             (the ALL_COMMITTEE any-order step) + buildWorkflowSteps(), shared by the
                              initial-create path and the draft-confirm finalize path
   utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn,
                              degreeOfProgram/committeeRoleScope/accountFitsScope — the one

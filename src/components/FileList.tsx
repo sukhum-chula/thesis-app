@@ -68,8 +68,8 @@ const FILE_GROUPS_PROPOSAL: FileGroup[] = [
 
 // THESIS_DEFENSE: phase-aware — B2+B3 / finance / from faculty / thesis
 const FILE_GROUPS_THESIS: FileGroup[] = [
-  { key: "b2b3",    label: "บ.2 + บ.3 (เสนอผลการสอบ)",        types: new Set<FormType>(["B2", "B3", "FINANCE_ATTACH"]) },
-  { key: "finance", label: "เอกสารการเงิน",                     types: new Set<FormType>(["FINANCE_DOC"]) },
+  { key: "b2b3",    label: "บ.2 + บ.3 (เสนอผลการสอบ)",        types: new Set<FormType>(["B2", "B3"]) },
+  { key: "finance", label: "เอกสารการเงิน",                     types: new Set<FormType>(["FINANCE_ATTACH", "FINANCE_DOC"]) },
   { key: "faculty", label: "เอกสารจากคณะและผลการสอบ",          types: new Set<FormType>(["SIGNED", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL"]) },
   { key: "thesis",  label: "วิทยานิพนธ์ (ขั้นตอนสุดท้าย)",     types: new Set<FormType>(["B4", "THESIS"]) },
 ];

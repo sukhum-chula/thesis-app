@@ -3,6 +3,7 @@
 import { MockUser, MockWorkflowStep, MockSubmission, MockUpload } from "@/types";
 import { ROLE_LABELS, getStepName, formatDate, formatUserName } from "@/lib/utils";
 import { stepNumbering } from "@/lib/stepNumbering";
+import { allCommitteeIds } from "@/lib/workflowSteps";
 import { StepStatusBadge } from "./StatusBadge";
 import { CheckCircle2, Clock, XCircle, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,10 @@ function resolveAssignees(
         : (sub.committeeIds ?? [])) as string[];
       return ids.map((id) => { const u = find(id); return { id, name: u ? formatUserName(u) : id }; });
     }
+    case "ALL_COMMITTEE": {
+      const ids: string[] = (step.committeeMembers?.length ? step.committeeMembers : allCommitteeIds(sub)) as string[];
+      return ids.map((id) => { const u = find(id); return { id, name: u ? formatUserName(u) : id }; });
+    }
     default:
       return [];
   }
@@ -96,7 +101,7 @@ export function WorkflowTimeline({
     : 0;
 
   const isCommitteeRole = (role: string) =>
-    role === "EXAM_COMMITTEE" || role === "CO_ADVISOR";
+    role === "EXAM_COMMITTEE" || role === "CO_ADVISOR" || role === "ALL_COMMITTEE";
 
   return (
     <>

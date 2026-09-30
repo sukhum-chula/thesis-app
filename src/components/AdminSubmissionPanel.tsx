@@ -8,8 +8,9 @@ import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, downloadFile, FORM_SHORT, FORM_FILE_ACCEPT, checkFormFile,
-  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_STEP2_CHECKS,
 } from "@/lib/utils";
+import { THESIS_STEP } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
@@ -689,9 +690,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
   const pendingStep$ = sub?.workflowSteps.find((s) => s.status === "PENDING");
   const isMyTurn = pendingStep$?.role === "ADMIN";
-  const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 7;
-  const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === 8;
-  const isProposalReviewStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 2;
+  const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RELAY;
+  const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS;
+  // Step 2, both types: the ADMIN check that generates the finance form; approving sends the email
+  const isFinanceReviewStep = (sub?.submissionType === "PROPOSAL" || sub?.submissionType === "THESIS_DEFENSE")
+    && pendingStep$?.stepOrder === 2 && pendingStep$?.role === "ADMIN";
   // PROPOSAL step 6 (stepOrder 10): verify the fully-signed B1 before the chair's final signature
   const isProposalVerifyStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 10;
   // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
@@ -705,13 +708,13 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
   // PROPOSAL step 2 can't be approved until the finance attachment exists and the admin has ticked
   // the student's บ.วศ.1 checklist plus the committee check; step 6 needs its verification checks
-  const adminChecks = isProposalReviewStep ? ADMIN_STEP2_CHECKS
+  const adminChecks = isFinanceReviewStep ? (sub?.submissionType === "THESIS_DEFENSE" ? ADMIN_DEFENSE_STEP2_CHECKS : ADMIN_STEP2_CHECKS)
     : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
     : isProposalCoverStep ? ADMIN_STEP8_CHECKS
     : null;
   const [adminCheckState, setAdminCheckState] = useState<Record<string, boolean>>({});
   const adminAllChecked = !adminChecks || allChecked(adminChecks, adminCheckState);
-  const approveBlocked = (isProposalReviewStep && !latestFinanceAttach) || (isProposalCoverStep && !latestCover) || !adminAllChecked;
+  const approveBlocked = (isFinanceReviewStep && !latestFinanceAttach) || (isProposalCoverStep && !latestCover) || !adminAllChecked;
   const [approveNotes, setApproveNotes] = useState("");
   const [actionMode,   setActionMode]   = useState<"reject" | "return" | null>(null);
   const [actionNotes,  setActionNotes]  = useState("");
@@ -1200,6 +1203,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 else if (step.role === "ADVISOR") assignedName = advisor ? formatUserName(advisor) : null;
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.headCommitteeId); assignedName = u ? formatUserName(u) : null; }
+                else if (step.role === "ALL_COMMITTEE") assignedName = (step.committeeMembers ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "INVITED_EXAM_COMMITTEE") assignedName = (sub.invitedCommitteeIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "PROGRAM_CHAIR") {
                   const u = allUsers.find((u) => u.id === (sub as any).programChairId)
@@ -1208,7 +1212,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 }
 
                 // Committee sign breakdown
-                const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR" || step.role === "INVITED_EXAM_COMMITTEE")
+                const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR" || step.role === "INVITED_EXAM_COMMITTEE" || step.role === "ALL_COMMITTEE")
                   ? (step.committeeMembers?.length ? step.committeeMembers : (step.role === "CO_ADVISOR" ? (sub.coAdvisorIds ?? []) : step.role === "INVITED_EXAM_COMMITTEE" ? (sub.invitedCommitteeIds ?? []) : (sub.committeeIds ?? []))).map((uid) => {
                       const u = allUsers.find((u) => u.id === uid);
                       const action = step.committeeActions?.find((a) => a.userId === uid);
@@ -1273,7 +1277,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
           )}
 
           {/* PROPOSAL step 2: generate the finance attachment from the submission's data */}
-          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && isProposalReviewStep && (
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && isFinanceReviewStep && (
             <ProposalFinanceGeneratePanel submissionId={sub.id} submissionTitle={sub.title} latest={latestFinanceAttach} />
           )}
 
@@ -1315,7 +1319,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         onChange={setAdminCheckState}
                       />
                     )}
-                    {isProposalReviewStep && (
+                    {isFinanceReviewStep && (
                       <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                         เมื่อกดอนุมัติ ระบบจะส่งเอกสารการเงินแนบกรรมการสอบไปยังเจ้าหน้าที่การเงินทางอีเมลโดยอัตโนมัติ
                       </p>
@@ -1328,7 +1332,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     {approveBlocked && (
                       <p className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                         <Info className="w-3.5 h-3.5 shrink-0" />
-                        {isProposalReviewStep && !latestFinanceAttach
+                        {isFinanceReviewStep && !latestFinanceAttach
                           ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
                           : isProposalCoverStep && !latestCover
                           ? "ต้องอัปโหลดใบปะหน้าก่อนจึงจะอนุมัติได้"

@@ -7,6 +7,28 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-30
 
+- **Student dashboard lands on the defense tab when a defense is under way** (any non-cancelled
+  THESIS_DEFENSE, draft included); otherwise on the proposal tab. The student's own tab click still
+  wins. Derived from the loaded submissions rather than set in an effect.
+
+- **THESIS_DEFENSE steps 1–3 redesigned; workflow is now 23 steps with one parallel step.** Step 1:
+  the student uploads บ.2 and บ.3 as two PDFs (department-site links, 7-item checklist); บ.3 is a
+  single page for the whole committee with student info, topic, committee names and date, judgement
+  and signatures left blank. The student no longer uploads the finance form. New step 2: the ADMIN
+  checks, generates the defense finance form (`templates/finance-attach-thesis.docx`, same generator
+  and card as the proposal's) and approving sends the finance email (moved from the chair's บ.2
+  signature). New step 3 `ALL_COMMITTEE`: the whole committee fills in its judgement and signs บ.3
+  **in parallel** — the first non-sequential multi-member step (`PARALLEL_ROLES`,
+  `allCommitteeIds()`); wired through the sign route, approve block, notifications/emails (everyone
+  at once), exam-reminder cron, AppContext/professor "my turn", `CommitteeSignPanel` (no order;
+  everyone downloads the files uploaded before the step opened), timeline, admin step cards and the
+  admin committee-edit sync. Everything after shifts by +1 (22 → 23); new `THESIS_STEP` constants
+  replace every bare defense step number in the code. The defense finance form is hidden from the
+  student and single-version. No DB migration needed: the only existing defense is a DRAFT with no
+  steps. Membership, numbering, step constants and the committee-edit sync of the parallel step
+  checked with a throwaway `tsx` script; the defense finance form rendered through Word; build clean,
+  lint count unchanged; not browser-verified.
+
 - **Step-8 cover-page upload confirmed working in the browser** (local dev server, test proposal of
   นายสมชาย ตั้งใจดี). It first failed because the dev server had been started before `COVER_PAGE`
   existed and was still using the old Prisma client; restarting it fixed it — no code change.
