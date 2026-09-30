@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadFile } from "@/lib/supabase";
-import { FORM_SHORT, formFileKind, isSingleVersionForm } from "@/lib/utils";
+import { FORM_SHORT, formFileKind, isSingleVersionForm, formatUserName } from "@/lib/utils";
 import type { FormType } from "@/types";
 import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
+import { allCommitteeIds, isPerMemberForm, THESIS_STEP } from "@/lib/workflowSteps";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
   const file = formData.get("file") as File | null;
   const submissionId = formData.get("submissionId") as string;
   const formType = formData.get("formType") as string;
+  const memberIdRaw = formData.get("memberId");
+  const memberId = typeof memberIdRaw === "string" && memberIdRaw ? memberIdRaw : null;
 
   if (!file || !submissionId || !formType)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -85,7 +88,7 @@ export async function POST(req: NextRequest) {
       COVER_PAGE:     { step: 12, label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
     },
     THESIS_DEFENSE: {
-      FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
+      FINANCE_ATTACH: { step: THESIS_STEP.ADMIN_CHECK, label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
     },
   };
   const adminOnly = ADMIN_ONLY_AT_STEP[subCheck.submissionType ?? "PROPOSAL"]?.[formType];
@@ -97,6 +100,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: adminOnly.label }, { status: 400 });
   }
 
+  // Per-member forms (the defense's บ.3, one signed copy per committee member) must name a member
+  // of this submission's committee; every other upload carries no member.
+  let memberName: string | null = null;
+  if (isPerMemberForm(subCheck.submissionType, formType)) {
+    if (!memberId || !allCommitteeIds(subCheck).includes(memberId))
+      return NextResponse.json({ error: "กรุณาระบุกรรมการของไฟล์ บ.3 นี้" }, { status: 400 });
+    const member = await prisma.user.findUnique({ where: { id: memberId }, select: { title: true, name: true } });
+    memberName = member ? formatUserName(member) : null;
+  }
+
   // SIGNED uploads (committee's own signed copies) keep their original filename — it's already descriptive.
   // All other form types get renamed: e.g. "บ.วศ.1ก_6300001.pdf"
   let displayFileName: string;
@@ -105,9 +118,10 @@ export async function POST(req: NextRequest) {
   } else {
     const sub = await prisma.submission.findUnique({ where: { id: submissionId }, select: { studentCode: true } });
     const shortLabel = FORM_SHORT[formType as FormType] ?? formType;
+    const memberPart = memberName ? `_${memberName}` : "";
     displayFileName = sub?.studentCode
-      ? `${shortLabel}_${sub.studentCode}.${ext}`
-      : `${shortLabel}.${ext}`;
+      ? `${shortLabel}_${sub.studentCode}${memberPart}.${ext}`
+      : `${shortLabel}${memberPart}.${ext}`;
   }
 
   const safeFormType = formType.replace(/[^A-Z0-9_]/g, "");
@@ -131,6 +145,7 @@ export async function POST(req: NextRequest) {
       fileUrl: fileUrl ?? null,
       submissionId,
       uploadedById: session.user.id,
+      memberId: isPerMemberForm(subCheck.submissionType, formType) ? memberId : null,
     },
   });
 

@@ -52,6 +52,8 @@ export interface MockUpload {
   fileSize: number;
   uploadedAt: string;
   fileUrl?: string | null;
+  /** committee member this copy belongs to — only for per-member forms (THESIS_DEFENSE บ.3) */
+  memberId?: string | null;
 }
 
 export interface CommitteeAction {

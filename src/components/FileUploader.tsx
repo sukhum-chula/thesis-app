@@ -12,6 +12,8 @@ interface Props {
   formType: FormType;
   existingUpload?: MockUpload | null;
   onSuccess?: () => void;
+  /** replaces the form's description in the slot header, e.g. the committee member a บ.3 belongs to */
+  slotLabel?: string;
   // Picker mode — parent owns the file, no upload button
   selectedFile?: File | null;
   onFileSelect?: (file: File | null) => void;
@@ -143,6 +145,7 @@ export function FileUploader({
   onSuccess,
   selectedFile,
   onFileSelect,
+  slotLabel,
 }: Props) {
   const { refresh } = useApp();
   const [file, setFile] = useState<File | null>(null);
@@ -205,7 +208,7 @@ export function FileUploader({
   if (existingUpload && !activeFile) {
     return (
       <div className="border-2 border-green-200 rounded-xl p-4 space-y-3 bg-green-50">
-        <SlotHeader formType={formType} status="done" />
+        <SlotHeader formType={formType} status="done" desc={slotLabel} />
         <div className="flex items-center gap-3">
           <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -237,7 +240,7 @@ export function FileUploader({
       "border-2 rounded-xl p-4 space-y-3 bg-white",
       activeFile ? "border-blue-300" : "border-dashed border-gray-300"
     )}>
-      <SlotHeader formType={formType} status={activeFile ? "picked" : "empty"} />
+      <SlotHeader formType={formType} status={activeFile ? "picked" : "empty"} desc={slotLabel} />
 
       <div
         onClick={() => !uploading && inputRef.current?.click()}

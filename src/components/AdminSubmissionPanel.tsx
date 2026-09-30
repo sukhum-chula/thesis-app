@@ -10,7 +10,7 @@ import {
   toUserErrorMessage, formatUserName, downloadFile, FORM_SHORT, FORM_FILE_ACCEPT, checkFormFile,
   B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_STEP2_CHECKS,
 } from "@/lib/utils";
-import { THESIS_STEP } from "@/lib/workflowSteps";
+import { THESIS_STEP, financeStepOf } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
@@ -692,9 +692,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const isMyTurn = pendingStep$?.role === "ADMIN";
   const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RELAY;
   const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS;
-  // Step 2, both types: the ADMIN check that generates the finance form; approving sends the email
+  // The ADMIN check that generates the finance form (PROPOSAL 2, THESIS_DEFENSE 4); approving sends the email
   const isFinanceReviewStep = (sub?.submissionType === "PROPOSAL" || sub?.submissionType === "THESIS_DEFENSE")
-    && pendingStep$?.stepOrder === 2 && pendingStep$?.role === "ADMIN";
+    && pendingStep$?.stepOrder === financeStepOf(sub?.submissionType) && pendingStep$?.role === "ADMIN";
   // PROPOSAL step 6 (stepOrder 10): verify the fully-signed B1 before the chair's final signature
   const isProposalVerifyStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 10;
   // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
@@ -1188,11 +1188,13 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   const to = step.actedAt ? new Date(step.actedAt).getTime() : Infinity;
                   return t >= from && t <= to;
                 });
-                // Deduplicate: one entry per formType (most recent wins)
+                // Deduplicate: one entry per formType — and per member for per-member forms (the
+                // defense's บ.3, one copy per committee member) — most recent wins
                 const _byType = new Map<string, MockUpload>();
                 for (const u of allStepUploads) {
-                  const ex = _byType.get(u.formType);
-                  if (!ex || new Date(u.uploadedAt) > new Date(ex.uploadedAt)) _byType.set(u.formType, u);
+                  const key = `${u.formType}:${u.memberId ?? ""}`;
+                  const ex = _byType.get(key);
+                  if (!ex || new Date(u.uploadedAt) > new Date(ex.uploadedAt)) _byType.set(key, u);
                 }
                 const stepUploads = Array.from(_byType.values());
 
@@ -1203,7 +1205,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 else if (step.role === "ADVISOR") assignedName = advisor ? formatUserName(advisor) : null;
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.headCommitteeId); assignedName = u ? formatUserName(u) : null; }
-                else if (step.role === "ALL_COMMITTEE") assignedName = (step.committeeMembers ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "INVITED_EXAM_COMMITTEE") assignedName = (sub.invitedCommitteeIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "PROGRAM_CHAIR") {
                   const u = allUsers.find((u) => u.id === (sub as any).programChairId)
@@ -1212,7 +1213,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 }
 
                 // Committee sign breakdown
-                const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR" || step.role === "INVITED_EXAM_COMMITTEE" || step.role === "ALL_COMMITTEE")
+                const committeeStatus = (step.role === "EXAM_COMMITTEE" || step.role === "CO_ADVISOR" || step.role === "INVITED_EXAM_COMMITTEE")
                   ? (step.committeeMembers?.length ? step.committeeMembers : (step.role === "CO_ADVISOR" ? (sub.coAdvisorIds ?? []) : step.role === "INVITED_EXAM_COMMITTEE" ? (sub.invitedCommitteeIds ?? []) : (sub.committeeIds ?? []))).map((uid) => {
                       const u = allUsers.find((u) => u.id === uid);
                       const action = step.committeeActions?.find((a) => a.userId === uid);

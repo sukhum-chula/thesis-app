@@ -72,7 +72,6 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       case "CO_ADVISOR":            return ((sub.coAdvisorIds ?? []) as string[]).includes(user.id);
       case "EXAM_COMMITTEE":        return ((sub.committeeIds ?? []) as string[]).includes(user.id);
       case "INVITED_EXAM_COMMITTEE":return ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id);
-      case "ALL_COMMITTEE":         return (currentStep.committeeMembers ?? []).includes(user.id);
       case "PROGRAM_CHAIR":
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
       default:                      return user.roles.includes(currentStep.role as any);
@@ -106,25 +105,24 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       11: ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ค + 1ง
     },
     THESIS_DEFENSE: {
-      3:  ["B3"],            // ALL_COMMITTEE — every member judges + signs the student's บ.3, in parallel
-      4:  ["B2"],            // ADVISOR signs B2
-      5:  ["B2"],            // CO_ADVISOR signs B2
-      6:  ["B2"],            // HEAD_EXAM_COMMITTEE signs B2
-      7:  ["B2"],            // PROGRAM_CHAIR signs B2
+      // บ.3 is collected outside the system and uploaded by the student at step 1 (one per member)
+      2:  ["B2"],            // ADVISOR signs B2
+      3:  ["B2"],            // HEAD_EXAM_COMMITTEE signs B2
+      5:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 4)
       // Step 7 (ADMIN relay) omitted — admin physically delivers, no signing, uses own page
       // Step 8 (ADMIN upload) omitted — admin uploads new docs from Faculty, handled via admin page
-      11: ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
-      12: ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
-      13: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
-      14: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
-      15: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
-      16: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
-      18: ["B4"],            // PROGRAM_CHAIR signs B4
-      19: ["THESIS"],        // ADVISOR signs thesis cover
-      20: ["THESIS"],        // CO_ADVISOR signs thesis cover
-      21: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
-      22: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
-      23: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
+      9:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
+      10: ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
+      11: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
+      12: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
+      13: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
+      14: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
+      16: ["B4"],            // PROGRAM_CHAIR signs B4
+      17: ["THESIS"],        // ADVISOR signs thesis cover
+      18: ["THESIS"],        // CO_ADVISOR signs thesis cover
+      19: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
+      20: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
+      21: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
     },
   };
   const formsToShow = currentStep
@@ -139,7 +137,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const signChecks = currentStep && isMyTurn
     ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;
-  const signChecksTitle = sub.submissionType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบ บ.3 ก่อนส่งต่อ" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
+  const signChecksTitle = "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
 
   return (
     <div className="space-y-6">
@@ -348,18 +346,18 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
           )}
 
           {/* Action — committee steps (EXAM_COMMITTEE, CO_ADVISOR, INVITED_EXAM_COMMITTEE) use sequential multi-member panel */}
-          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR" || currentStep?.role === "INVITED_EXAM_COMMITTEE" || currentStep?.role === "ALL_COMMITTEE") && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR" || currentStep?.role === "INVITED_EXAM_COMMITTEE") && (
             <CommitteeSignPanel
               submissionId={sub.id}
               step={currentStep}
               formsToShow={formsToShow}
-              title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : currentStep.role === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอก" : currentStep.role === "ALL_COMMITTEE" ? "คณะกรรมการสอบทุกท่าน (ลงนามพร้อมกันได้)" : undefined}
+              title={currentStep.role === "CO_ADVISOR" ? "อาจารย์ที่ปรึกษาร่วม" : currentStep.role === "INVITED_EXAM_COMMITTEE" ? "กรรมการภายนอก" : undefined}
               checklist={signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
               onSuccess={() => router.push(backPath)}
             />
           )}
 
-          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && currentStep?.role !== "INVITED_EXAM_COMMITTEE" && currentStep?.role !== "ALL_COMMITTEE" && (
+          {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && currentStep?.role !== "EXAM_COMMITTEE" && currentStep?.role !== "CO_ADVISOR" && currentStep?.role !== "INVITED_EXAM_COMMITTEE" && (
             <SignatureButton
               submissionId={sub.id}
               formsToShow={formsToShow}

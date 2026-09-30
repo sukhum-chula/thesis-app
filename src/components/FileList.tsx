@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Eye, Download, FileText, History, ChevronDown, ChevronUp } from "lucide-react";
-import { FORM_LABELS, FORM_SHORT, formatBytes, formatDate, previewFile, isSingleVersionForm } from "@/lib/utils";
+import { FORM_LABELS, FORM_SHORT, formatBytes, formatDate, previewFile, isSingleVersionForm, formatUserName } from "@/lib/utils";
+import { useApp } from "@/context/AppContext";
 import type { MockUpload, FormType } from "@/types";
 
 /** Short primary label — the form code for known types. */
@@ -23,6 +24,8 @@ function fileDesc(formType: string): string {
 
 interface Group {
   formType: FormType;
+  /** set for per-member forms (the defense's บ.3) — one row per committee member */
+  memberId?: string | null;
   latest: MockUpload;
   history: MockUpload[];
 }
@@ -39,7 +42,12 @@ function buildGroups(uploads: MockUpload[]): Group[] {
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     if (!byType.length) continue;
     seen.add(ft);
-    groups.push({ formType: ft, latest: byType[0], history: byType.slice(1) });
+    // A per-member form (memberId set) is one row per member, each with its own history
+    const memberIds = [...new Set(byType.map((u) => u.memberId ?? null))];
+    for (const mid of memberIds) {
+      const mine = byType.filter((u) => (u.memberId ?? null) === mid);
+      groups.push({ formType: ft, memberId: mid, latest: mine[0], history: mine.slice(1) });
+    }
   }
 
   // Catch any types not in FORM_LABELS order
@@ -85,6 +93,7 @@ interface Props {
 
 export function FileList({ uploads, submissionTitle, submissionType, title = "เอกสารแนบ", compact = false, hideHistory = false }: Props) {
   const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
+  const { users } = useApp();
 
   if (!uploads.length) return null;
 
@@ -112,10 +121,12 @@ export function FileList({ uploads, submissionTitle, submissionType, title = "�
     });
   }
 
-  function renderGroup({ formType, latest, history }: Group) {
-    const key = `${formType}-${latest.id}`;
+  function renderGroup({ formType, memberId, latest, history }: Group) {
+    const key = `${formType}-${memberId ?? ""}-${latest.id}`;
     const isOpen = openHistory.has(key);
-    const label = fileLabel(formType, latest.fileName);
+    const member = memberId ? users.find((u) => u.id === memberId) : null;
+    const baseLabel = fileLabel(formType, latest.fileName);
+    const label = memberId ? `${baseLabel} — ${member ? formatUserName(member) : "กรรมการ"}` : baseLabel;
     const desc  = fileDesc(formType);
 
     return (

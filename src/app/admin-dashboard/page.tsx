@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
 import { stepNumbering } from "@/lib/stepNumbering";
-import { THESIS_STEP } from "@/lib/workflowSteps";
+import { THESIS_STEP, financeStepOf } from "@/lib/workflowSteps";
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -189,7 +189,7 @@ export default function AdminDashboard() {
               if (type === "cancel_request") {
                 taskLabel = "นิสิตขอยกเลิกคำร้อง — รอการอนุมัติ";
                 taskIcon  = <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />;
-              } else if (step?.stepOrder === 2 && step.role === "ADMIN") {
+              } else if (step?.stepOrder === financeStepOf(sub.submissionType) && step.role === "ADMIN") {
                 taskLabel = "ตรวจสอบเอกสาร สร้างเอกสารการเงิน และอนุมัติ";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RELAY) {

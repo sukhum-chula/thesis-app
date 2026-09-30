@@ -5,11 +5,12 @@ import { uploadFile } from "@/lib/supabase";
 import { FORM_SHORT, formatUserName } from "@/lib/utils";
 import { buildFinanceDocx, DOCX_MIME, FINANCE_POSITION, type FinanceMember } from "@/lib/financeDoc";
 import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
+import { financeStepOf } from "@/lib/workflowSteps";
 
 /**
  * POST — ADMIN generates a PROPOSAL's or THESIS_DEFENSE's เอกสารการเงินแนบกรรมการสอบ from the submission's own
  * student info + committee and stores it as a new FINANCE_ATTACH version (the file step 3's
- * finance email attaches). Only while step 2 (the ADMIN check, both types) is the current step. The file
+ * finance email attaches). Only while the ADMIN check (financeStepOf: PROPOSAL 2, THESIS_DEFENSE 4) is current. The file
  * is single-version: generating again (or the admin uploading an edited copy) replaces it.
  */
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,8 +37,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (sub.cancelRequested)
     return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ" }, { status: 400 });
   const current = sub.workflowSteps.find((s) => s.status === "PENDING");
-  if (sub.status !== "IN_PROGRESS" || current?.stepOrder !== 2)
-    return NextResponse.json({ error: "สร้างเอกสารการเงินได้เฉพาะขั้นตอนที่ 2 (เจ้าหน้าที่ตรวจรับ)" }, { status: 400 });
+  if (sub.status !== "IN_PROGRESS" || current?.stepOrder !== financeStepOf(sub.submissionType))
+    return NextResponse.json({ error: `สร้างเอกสารการเงินได้เฉพาะขั้นตอนที่ ${financeStepOf(sub.submissionType)} (เจ้าหน้าที่ตรวจรับ)` }, { status: 400 });
 
   // Committee in the form's row order; a role with nobody in it simply produces no row
   const slots: { id: string; position: string }[] = [

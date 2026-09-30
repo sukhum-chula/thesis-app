@@ -8,7 +8,6 @@ import { CheckCircle2, XCircle, Clock, Loader2, Users, Download, Pen } from "luc
 import { FORM_LABELS, FORM_SHORT, downloadFile, toUserErrorMessage, formatUserName } from "@/lib/utils";
 import { UploadSlot } from "@/components/FileUploader";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
-import { isParallelRole } from "@/lib/workflowSteps";
 import type { FormType } from "@/types";
 import type { B1Check } from "@/lib/utils";
 
@@ -44,17 +43,8 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
   const myAction  = actions.find((a) => a.userId === user?.id);
   const iAmMember = user ? members.includes(user.id) : false;
   const myIndex   = user ? members.indexOf(user.id) : -1;
-  // ALL_COMMITTEE signs in parallel: any member may act at any time
-  const parallel  = isParallelRole(step.role);
-  const prevMembers = !parallel && myIndex > 0 ? members.slice(0, myIndex) : [];
+  const prevMembers = myIndex > 0 ? members.slice(0, myIndex) : [];
   const isMyTurn  = prevMembers.every((mid) => actions.find((a) => a.userId === mid)?.decision === "APPROVED");
-  // On a parallel step every member works from the same original — the files uploaded before the
-  // step opened — not from whichever member happened to upload a signed copy first
-  const stepOpenedAt = parallel
-    ? Math.max(0, ...(sub?.workflowSteps ?? [])
-        .filter((s) => s.stepOrder < step.stepOrder && s.actedAt)
-        .map((s) => new Date(s.actedAt!).getTime()))
-    : null;
 
   async function act(decision: "APPROVED" | "REJECTED") {
     if (decision === "APPROVED" && !signedFile) {
@@ -116,16 +106,16 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
         </span>
       </div>
 
-      {/* Member roster — list order (sequential steps) or any order (parallel) */}
+      {/* Member roster — sequential order */}
       <ul className="space-y-2">
         {members.map((mid, idx) => {
           const m = users.find((u) => u.id === mid);
           const a = actions.find((x) => x.userId === mid);
-          const prevDone = parallel || members.slice(0, idx).every((pid) => actions.find((x) => x.userId === pid)?.decision === "APPROVED");
+          const prevDone = members.slice(0, idx).every((pid) => actions.find((x) => x.userId === pid)?.decision === "APPROVED");
           const isActive = !a && prevDone;
           return (
             <li key={mid} className="flex items-center gap-2.5 text-sm">
-              {!parallel && <span className="text-xs font-bold text-gray-400 w-5 shrink-0 text-center">{idx + 1}</span>}
+              <span className="text-xs font-bold text-gray-400 w-5 shrink-0 text-center">{idx + 1}</span>
               {a?.decision === "APPROVED" ? (
                 <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
               ) : a?.decision === "REJECTED" ? (
@@ -159,7 +149,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
       ) : myAction ? (
         <div className={`rounded-xl px-4 py-3 text-sm font-medium ${myAction.decision === "APPROVED" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
           {myAction.decision === "APPROVED"
-            ? (parallel ? "✓ ท่านอัปโหลดแล้ว — รอกรรมการท่านอื่น" : "✓ ท่านอัปโหลดแล้ว — รอกรรมการลำดับถัดไป")
+            ? "✓ ท่านอัปโหลดแล้ว — รอกรรมการลำดับถัดไป"
             : "ท่านไม่อนุมัติวิทยานิพนธ์นี้"}
         </div>
       ) : !isMyTurn ? (
@@ -188,10 +178,9 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
               {sub?.uploads && sub.uploads.length > 0 ? (
                 <div className="space-y-1.5">
                   {(() => {
-                    const filtered = (formsToShow?.length
+                    const filtered = formsToShow?.length
                       ? sub.uploads.filter((u) => formsToShow.includes(u.formType))
-                      : sub.uploads)
-                      .filter((u) => stepOpenedAt === null || new Date(u.uploadedAt).getTime() <= stepOpenedAt);
+                      : sub.uploads;
                     // Show latest version of each formType
                     const latestByType = new Map<string, typeof sub.uploads[0]>();
                     for (const u of [...filtered].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())) {

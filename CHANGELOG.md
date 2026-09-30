@@ -7,6 +7,21 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-09-30
 
+- **Defense บ.3 collected outside the system; the parallel committee step is gone (22 steps).** The
+  `ALL_COMMITTEE` step deployed earlier today (81c226d) was removed along with all of its parallel
+  wiring (sign route, emails, reminders, AppContext/professor "my turn", `CommitteeSignPanel`,
+  timeline, admin cards, committee-edit sync). Instead the student and advisor contact each committee
+  member outside the system, and at step 1 the student uploads บ.2 (signed by the student) plus **one
+  signed บ.3 per committee member** — one upload box per member of the submission's committee
+  (`committeeRoster()`), stored with the new nullable `FormUpload.memberId`; the approve gate names
+  any member still missing. `FileList` and the admin step cards show บ.3 per member. The advisor and head of committee now sign บ.2 **before** the ADMIN check
+  (steps 2–3), the admin check is step 4 and the program chair signs บ.2 at step 5; the co-advisor
+  บ.2 step was dropped (บ.2 has no co-advisor signature) — 21 steps. The finance step is now
+  `financeStepOf(type)` (PROPOSAL 2, THESIS_DEFENSE 4) everywhere that used to assume step 2. **DB**: needs
+  `form_uploads."memberId"` (`ALTER TABLE ... ADD COLUMN`) before this code runs against it.
+  Roster/numbering/constants checked with a throwaway `tsx` script; build clean, lint count unchanged;
+  not browser-verified.
+
 - **Student dashboard lands on the defense tab when a defense is under way** (any non-cancelled
   THESIS_DEFENSE, draft included); otherwise on the proposal tab. The student's own tab click still
   wins. Derived from the loaded submissions rather than set in an effect.

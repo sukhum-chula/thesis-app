@@ -16,68 +16,86 @@ export const PROPOSAL_ROLES = [
   "ADMIN",                 // 12 recheck everything + upload the cover page (COVER_PAGE) for the Faculty
 ] as const;
 
-// THESIS_DEFENSE: 23 steps — บ.2/3 through thesis cover signing. Restructured 2026-09-30: step 2 is
-// the ADMIN check that generates the finance form, and step 3 is ONE step in which the whole
-// committee fills in its judgement and signs the student's single-page บ.3 — in parallel
-// (ALL_COMMITTEE, see PARALLEL_ROLES). Everything from the บ.2 signatures on is the old workflow
-// shifted by +1. Refer to steps through THESIS_STEP below, never bare numbers.
+// THESIS_DEFENSE: 21 steps — บ.2/3 through thesis cover signing. Restructured 2026-09-30: the
+// committee's บ.3 evaluations are collected OUTSIDE the system (the student and advisor contact each
+// member) and uploaded by the student at step 1, one copy per member (FormUpload.memberId); the
+// advisor and head of committee then sign บ.2 BEFORE the ADMIN check, which generates the finance
+// form; the program chair signs บ.2 last. บ.2 has no co-advisor signature, so there is no co-advisor
+// บ.2 step. Refer to steps through THESIS_STEP below, never bare numbers.
 export const THESIS_ROLES = [
-  "STUDENT",               // 1  upload B2 + B3 (two PDFs)
-  "ADMIN",                 // 2  check + generate FINANCE_ATTACH → approve sends the finance email
-  "ALL_COMMITTEE",         // 3  every committee member fills in + signs บ.3, in any order (parallel)
-  "ADVISOR",               // 4  sign B2
-  "CO_ADVISOR",            // 5  sign B2 (sequential, skipped if no co-advisors)
-  "HEAD_EXAM_COMMITTEE",   // 6  sign B2
-  "PROGRAM_CHAIR",         // 7  sign B2 → notify admin
-  "ADMIN",                 // 8  collect + send B2+B3 to Faculty
-  "ADMIN",                 // 9  receive faculty docs + upload + send invitation letters
-  "STUDENT",               // 10 fill + sign แบบรายงานฯ
-  "ADVISOR",               // 11 sign แบบรายงาน + ใบรายงานผล
-  "CO_ADVISOR",            // 12 sign แบบรายงาน + ใบรายงานผล (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 13 sign ใบรายงานผล
-  "EXAM_COMMITTEE",        // 14 sign ใบรายงานผล (sequential)
-  "INVITED_EXAM_COMMITTEE",// 15 sign ใบรายงานผล
-  "PROGRAM_CHAIR",         // 16 sign ใบรายงานผล
-  "STUDENT",               // 17 upload B4 + THESIS
-  "PROGRAM_CHAIR",         // 18 sign B4
-  "ADVISOR",               // 19 sign thesis cover
-  "CO_ADVISOR",            // 20 sign thesis cover (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 21 sign thesis cover
-  "EXAM_COMMITTEE",        // 22 sign thesis cover (sequential)
-  "INVITED_EXAM_COMMITTEE",// 23 sign thesis cover
+  "STUDENT",               // 1  upload B2 (signed by the student) + one signed B3 per committee member
+  "ADVISOR",               // 2  sign B2
+  "HEAD_EXAM_COMMITTEE",   // 3  sign B2
+  "ADMIN",                 // 4  check + generate FINANCE_ATTACH → approve sends the finance email
+  "PROGRAM_CHAIR",         // 5  sign B2 → notify admin
+  "ADMIN",                 // 6  collect + send B2+B3 to Faculty
+  "ADMIN",                 // 7  receive faculty docs + upload + send invitation letters
+  "STUDENT",               // 8  fill + sign แบบรายงานฯ
+  "ADVISOR",               // 9  sign แบบรายงาน + ใบรายงานผล
+  "CO_ADVISOR",            // 10 sign แบบรายงาน + ใบรายงานผล (sequential, skipped if none)
+  "HEAD_EXAM_COMMITTEE",   // 11 sign ใบรายงานผล
+  "EXAM_COMMITTEE",        // 12 sign ใบรายงานผล (sequential)
+  "INVITED_EXAM_COMMITTEE",// 13 sign ใบรายงานผล
+  "PROGRAM_CHAIR",         // 14 sign ใบรายงานผล
+  "STUDENT",               // 15 upload B4 + THESIS
+  "PROGRAM_CHAIR",         // 16 sign B4
+  "ADVISOR",               // 17 sign thesis cover
+  "CO_ADVISOR",            // 18 sign thesis cover (sequential, skipped if none)
+  "HEAD_EXAM_COMMITTEE",   // 19 sign thesis cover
+  "EXAM_COMMITTEE",        // 20 sign thesis cover (sequential)
+  "INVITED_EXAM_COMMITTEE",// 21 sign thesis cover
 ] as const;
 
 /** Named THESIS_DEFENSE stepOrders for the steps code branches on — use these, never bare numbers,
  *  so the next restructure only has to touch THESIS_ROLES and this map. */
 export const THESIS_STEP = {
-  STUDENT_B2_B3:      1,
-  ADMIN_CHECK:        2,  // generates FINANCE_ATTACH; approving sends the finance email
-  COMMITTEE_B3:       3,  // ALL_COMMITTEE: whole committee judges + signs บ.3 in parallel
-  CHAIR_B2:           7,  // last บ.2 signature → admins notified to send to the Faculty
-  ADMIN_RELAY:        8,
-  ADMIN_FACULTY_DOCS: 9,  // uploads SIGNED/EXAM_RESULT/INVITE_LETTER/FINANCE_DOC → invitation emails
-  STUDENT_REPORT:     10, // student signs แบบรายงานฯ (SIGNED)
-  ADVISOR_RESULT:     11, // advisor picks the exam result
-  STUDENT_THESIS:     17, // B4 + THESIS
+  STUDENT_B2_B3:      1,  // B2 + one B3 per committee member (committeeRoster)
+  ADVISOR_B2:         2,
+  HEAD_B2:            3,
+  ADMIN_CHECK:        4,  // generates FINANCE_ATTACH; approving sends the finance email
+  CHAIR_B2:           5,  // last บ.2 signature → admins notified to send to the Faculty
+  ADMIN_RELAY:        6,
+  ADMIN_FACULTY_DOCS: 7,  // uploads SIGNED/EXAM_RESULT/INVITE_LETTER/FINANCE_DOC → invitation emails
+  STUDENT_REPORT:     8,  // student signs แบบรายงานฯ (SIGNED)
+  ADVISOR_RESULT:     9,  // advisor picks the exam result
+  STUDENT_THESIS:     15, // B4 + THESIS
 } as const;
 
-/** Multi-member roles whose members may sign in ANY order (all at once) instead of in list order.
- *  ALL_COMMITTEE is the whole committee on one step — its member list is allCommitteeIds(). */
-export const PARALLEL_ROLES = ["ALL_COMMITTEE"] as const;
-export function isParallelRole(role: string): boolean {
-  return (PARALLEL_ROLES as readonly string[]).includes(role);
+/** The ADMIN step that generates the finance attachment (and whose approval emails it), by type:
+ *  PROPOSAL step 2, THESIS_DEFENSE step 4. The one place this number lives. */
+export function financeStepOf(submissionType: string | null | undefined): number {
+  return submissionType === "THESIS_DEFENSE" ? THESIS_STEP.ADMIN_CHECK : 2;
 }
 
-/** Every committee member of a submission, in the committee's usual order (head → advisor →
- *  co-advisors → external → exam committee), deduped. The ALL_COMMITTEE step's member list. */
-export function allCommitteeIds(c: {
+type CommitteeFields = {
   headCommitteeId?: string | null; advisorId?: string | null;
   coAdvisorIds?: string[] | null; invitedCommitteeIds?: string[] | null; committeeIds?: string[] | null;
-}): string[] {
-  return [...new Set([
-    c.headCommitteeId, c.advisorId,
-    ...(c.coAdvisorIds ?? []), ...(c.invitedCommitteeIds ?? []), ...(c.committeeIds ?? []),
-  ].filter((x): x is string => !!x))];
+};
+/** Every committee member of a submission with the role they hold, in the committee's usual order
+ *  (head → advisor → co-advisors → external → exam committee), deduped (first role wins). The
+ *  list the THESIS_DEFENSE step-1 per-member บ.3 uploads are checked against. */
+export function committeeRoster(c: CommitteeFields): { id: string; role: string }[] {
+  const pairs: [string | null | undefined, string][] = [
+    [c.headCommitteeId, "HEAD_EXAM_COMMITTEE"], [c.advisorId, "ADVISOR"],
+    ...(c.coAdvisorIds ?? []).map((id): [string, string] => [id, "CO_ADVISOR"]),
+    ...(c.invitedCommitteeIds ?? []).map((id): [string, string] => [id, "INVITED_EXAM_COMMITTEE"]),
+    ...(c.committeeIds ?? []).map((id): [string, string] => [id, "EXAM_COMMITTEE"]),
+  ];
+  const seen = new Set<string>();
+  const out: { id: string; role: string }[] = [];
+  for (const [id, role] of pairs) if (id && !seen.has(id)) { seen.add(id); out.push({ id, role }); }
+  return out;
+}
+export function allCommitteeIds(c: CommitteeFields): string[] {
+  return committeeRoster(c).map((m) => m.id);
+}
+
+/** Form types collected once per committee member (FormUpload.memberId), by submission type. */
+export const PER_MEMBER_FORMS: Record<string, string[]> = {
+  THESIS_DEFENSE: ["B3"],
+};
+export function isPerMemberForm(submissionType: string | null | undefined, formType: string): boolean {
+  return (PER_MEMBER_FORMS[submissionType ?? "PROPOSAL"] ?? []).includes(formType);
 }
 
 /** Builds the create-input array for a submission's workflow steps, shared by initial
@@ -86,9 +104,7 @@ export function buildWorkflowSteps(
   submissionType: SubmissionType | null | undefined,
   coAdvisorIds: string[],
   committeeIds: string[],
-  invitedCommitteeIds: string[],
-  /** the single-holder roles, needed only for the ALL_COMMITTEE (whole-committee) step */
-  people: { advisorId?: string | null; headCommitteeId?: string | null } = {}
+  invitedCommitteeIds: string[]
 ): { stepOrder: number; role: string; status: StepStatus; committeeMembers: string[] }[] {
   const roles = submissionType === "THESIS_DEFENSE" ? THESIS_ROLES : PROPOSAL_ROLES;
   return roles.map((role, i) => ({
@@ -98,8 +114,7 @@ export function buildWorkflowSteps(
     committeeMembers:
       role === "EXAM_COMMITTEE"          ? committeeIds :
       role === "CO_ADVISOR"              ? coAdvisorIds :
-      role === "INVITED_EXAM_COMMITTEE"  ? invitedCommitteeIds :
-      role === "ALL_COMMITTEE"           ? allCommitteeIds({ ...people, coAdvisorIds, invitedCommitteeIds, committeeIds }) : [],
+      role === "INVITED_EXAM_COMMITTEE"  ? invitedCommitteeIds : [],
   }));
 }
 
@@ -109,7 +124,7 @@ export function buildWorkflowSteps(
 // snapshot. So when an ADMIN edits the committee on a running submission (`admin_update`), every
 // step that is still open has to be brought in line, or it keeps waiting on the old people.
 
-export const MULTI_MEMBER_ROLES = ["CO_ADVISOR", "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE", "ALL_COMMITTEE"] as const;
+export const MULTI_MEMBER_ROLES = ["CO_ADVISOR", "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE"] as const;
 
 type CommitteeAction = { userId: string; decision: string; [k: string]: unknown };
 type SyncableStep = {
@@ -137,7 +152,6 @@ const ALL_APPROVED_LABEL: Record<string, string> = {
   CO_ADVISOR: "อาจารย์ที่ปรึกษาร่วมครบทุกท่าน",
   EXAM_COMMITTEE: "กรรมการสอบครบทุกท่าน",
   INVITED_EXAM_COMMITTEE: "กรรมการภายนอกครบทุกท่าน",
-  ALL_COMMITTEE: "คณะกรรมการสอบครบทุกท่าน",
 };
 
 /** Plans the step updates that bring a submission's open multi-member steps in line with its
@@ -154,10 +168,7 @@ const ALL_APPROVED_LABEL: Record<string, string> = {
  *    admin_reset refreshes the member lists when a cancelled one is revived. */
 export function planCommitteeStepSync(
   steps: SyncableStep[],
-  committee: {
-    coAdvisorIds: string[]; committeeIds: string[]; invitedCommitteeIds: string[];
-    advisorId?: string | null; headCommitteeId?: string | null;
-  },
+  committee: { coAdvisorIds: string[]; committeeIds: string[]; invitedCommitteeIds: string[] },
   submissionStatus: string,
   now: Date
 ): StepSyncPatch[] {
@@ -169,7 +180,6 @@ export function planCommitteeStepSync(
   const membersFor = (role: string) =>
     role === "CO_ADVISOR" ? committee.coAdvisorIds
     : role === "EXAM_COMMITTEE" ? committee.committeeIds
-    : role === "ALL_COMMITTEE" ? allCommitteeIds(committee)
     : committee.invitedCommitteeIds;
   const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
   const cleared = { committeeActions: [], actedAt: null, actedByName: null, actedById: null, notes: null };

@@ -6,7 +6,7 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { FileUploader } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
-import { THESIS_STEP } from "@/lib/workflowSteps";
+import { THESIS_STEP, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { FormType } from "@/types";
@@ -40,7 +40,7 @@ const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
     },
   },
   THESIS_DEFENSE: {
-    [THESIS_STEP.STUDENT_B2_B3]:  { forms: ["B2", "B3"], label: "บ.2 + บ.3" },
+    [THESIS_STEP.STUDENT_B2_B3]:  { forms: ["B2", "B3"], label: "บ.2 + บ.3 ของกรรมการทุกท่าน" },
     [THESIS_STEP.STUDENT_REPORT]: { forms: ["SIGNED"],       label: "แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต)" },
     [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)" },
   },
@@ -89,7 +89,7 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
   B1C:   "กรอกข้อมูลให้ครบถ้วน — กรรมการจะลงนามผ่านระบบหลังอัปโหลด",
   B1D:   "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
   B2:    "ไฟล์ PDF — กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิต เว้นช่องลงนามอื่นว่างไว้",
-  B3:    "ไฟล์ PDF หน้าเดียว — กรอกข้อมูลนิสิต หัวข้อ รายชื่อคณะกรรมการ และวันที่ เว้นช่องประเมินและลงนามว่างไว้ให้กรรมการกรอกเอง",
+  B3:    "ไฟล์ PDF หนึ่งไฟล์ต่อกรรมการหนึ่งท่าน — บ.3 ที่กรรมการท่านนั้นประเมินและลงนามแล้ว (ติดต่อกรรมการนอกระบบร่วมกับอาจารย์ที่ปรึกษา)",
   B4:    "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
   THESIS: "ต้องเป็นไฟล์ที่ผ่านระบบ e-thesis ของจุฬาฯ และมี barcode กำกับเรียบร้อยแล้ว",
   SIGNED: "ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",
@@ -105,7 +105,8 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const { user, submissions, users, approveCurrentStep, studentResubmit, requestCancelSubmission, refresh } = useApp();
   const { showToast } = useToast();
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<Partial<Record<FormType, File>>>({});
+  // Keyed by upload slot: the form type, or "<formType>:<memberId>" for per-member forms (บ.3)
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
   const [submitting, setSubmitting] = useState(false);
   const [confirmSigns, setConfirmSigns] = useState(false);
   const [b1Checks, setB1Checks] = useState<Record<string, boolean>>({});
@@ -174,9 +175,41 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     ? sub.uploads.filter((u) => u.formType === "SIGNED" && new Date(u.uploadedAt).getTime() <= step8ActedAt)
     : [];
 
-  const effectiveUploadedTypes = new Set(effectiveUploads.map((u) => u.formType));
   const requiredForms = suggested?.forms ?? [];
-  const studentUploaded   = requiredForms.length === 0 || requiredForms.every((f) => effectiveUploadedTypes.has(f) || !!selectedFiles[f]);
+  // Upload slots: one per form, except per-member forms (the defense's บ.3, collected outside the
+  // system from each committee member) get one slot per member on the submission's committee
+  const roster = committeeRoster(sub);
+  type Slot = { key: string; formType: FormType; memberId?: string; label?: string };
+  const slotsFor = (forms: FormType[]): Slot[] => forms.flatMap((ft): Slot[] =>
+    isPerMemberForm(subType, ft)
+      ? roster.map((m) => {
+          const person = allUsers.find((x) => x.id === m.id);
+          return { key: `${ft}:${m.id}`, formType: ft, memberId: m.id,
+                   label: `${person ? formatUserName(person) : "กรรมการ"} (${ROLE_LABELS[m.role] ?? m.role})` };
+        })
+      : [{ key: ft, formType: ft }]);
+  const latestFor = (list: typeof sub.uploads, slot: Slot) =>
+    list
+      .filter((u) => u.formType === slot.formType && (!slot.memberId || u.memberId === slot.memberId))
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+  const requiredSlots = slotsFor(requiredForms);
+  const studentUploaded   = requiredSlots.length === 0 || requiredSlots.every((sl) => !!latestFor(effectiveUploads, sl) || !!selectedFiles[sl.key]);
+  // Uploads every picked file, each to its own slot (form type + member for per-member forms)
+  async function uploadSelected() {
+    for (const [key, file] of Object.entries(selectedFiles)) {
+      const [ft, mid] = key.split(":");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("submissionId", sub!.id);
+      formData.append("formType", ft);
+      if (mid) formData.append("memberId", mid);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `upload failed: ${ft}`);
+      }
+    }
+  }
 
   const needsSignConfirm   = subType === "THESIS_DEFENSE" && isMyTurn &&
     (currentStep?.stepOrder === THESIS_STEP.STUDENT_REPORT || currentStep?.stepOrder === THESIS_STEP.STUDENT_THESIS);
@@ -451,11 +484,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                 </div>
               </div>
 
-              {rejectedFixForms.map((ft) => {
-                const existing = sub.uploads
-                  .filter((u) => u.formType === ft)
-                  .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-                return (
+              {rejectedFixForms.map((ft) => (
                   <div key={ft} className="space-y-1">
                     {FORM_UPLOAD_WARNINGS[ft] && (
                       <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
@@ -463,34 +492,30 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                         {FORM_UPLOAD_WARNINGS[ft]}
                       </p>
                     )}
-                    <FileUploader
-                      submissionId={sub.id}
-                      formType={ft}
-                      existingUpload={existing}
-                      selectedFile={selectedFiles[ft] ?? null}
-                      onFileSelect={(file) =>
-                        setSelectedFiles((prev) => {
-                          if (!file) { const next = { ...prev }; delete next[ft]; return next; }
-                          return { ...prev, [ft]: file };
-                        })
-                      }
-                    />
+                    {slotsFor([ft]).map((sl) => (
+                      <FileUploader
+                        key={sl.key}
+                        submissionId={sub.id}
+                        formType={ft}
+                        slotLabel={sl.label}
+                        existingUpload={latestFor(sub.uploads, sl)}
+                        selectedFile={selectedFiles[sl.key] ?? null}
+                        onFileSelect={(file) =>
+                          setSelectedFiles((prev) => {
+                            if (!file) { const next = { ...prev }; delete next[sl.key]; return next; }
+                            return { ...prev, [sl.key]: file };
+                          })
+                        }
+                      />
+                    ))}
                   </div>
-                );
-              })}
+                ))}
 
               <button
                 onClick={async () => {
                   setSubmitting(true);
                   try {
-                    for (const [ft, file] of Object.entries(selectedFiles) as [FormType, File][]) {
-                      const formData = new FormData();
-                      formData.append("file", file);
-                      formData.append("submissionId", sub.id);
-                      formData.append("formType", ft);
-                      const res = await fetch("/api/upload", { method: "POST", body: formData });
-                      if (!res.ok) throw new Error(`upload failed: ${ft}`);
-                    }
+                    await uploadSelected();
                     setSelectedFiles({});
                     await studentResubmit(sub.id);
                     showToast("ยื่นคำร้องใหม่แล้ว — กรุณาแนบเอกสารที่แก้ไข", "info");
@@ -593,17 +618,18 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                     เอกสารที่ต้องอัปโหลดก่อนส่ง
                     {suggested.multiUpload && <span className="font-normal">(อัปโหลดได้หลายไฟล์)</span>}
                   </p>
-                  {suggested.forms.map((ft) => {
-                    const alreadyUploaded = effectiveUploadedTypes.has(ft);
-                    const fileSelected = !!selectedFiles[ft];
+                  {requiredSlots.map((sl) => {
+                    const ft = sl.formType;
+                    const alreadyUploaded = !!latestFor(effectiveUploads, sl);
+                    const fileSelected = !!selectedFiles[sl.key];
                     const done = alreadyUploaded || fileSelected;
                     return (
-                      <div key={ft} className="flex items-center gap-2">
+                      <div key={sl.key} className="flex items-center gap-2">
                         {done
                           ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
                           : <XCircle className="w-4 h-4 text-orange-400 shrink-0" />}
                         <span className={`text-xs flex-1 ${done ? "text-green-700" : "text-gray-800 font-medium"}`}>
-                          {FORM_LABELS[ft]}
+                          {sl.label ? `${FORM_SHORT[ft]} — ${sl.label}` : FORM_LABELS[ft]}
                         </span>
                         <span className={`text-xs font-semibold shrink-0 ${done ? "text-green-500" : "text-orange-500"}`}>
                           {alreadyUploaded ? "✓ อัปโหลดแล้ว" : fileSelected ? "✓ เลือกแล้ว" : "รอ"}
@@ -660,22 +686,26 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                           {warning}
                         </p>
                       )}
-                      <FileUploader
-                        submissionId={sub.id}
-                        formType={ft}
-                        existingUpload={existing}
-                        selectedFile={selectedFiles[ft] ?? null}
-                        onFileSelect={(file) =>
-                          setSelectedFiles((prev) => {
-                            if (!file) {
-                              const next = { ...prev };
-                              delete next[ft];
-                              return next;
-                            }
-                            return { ...prev, [ft]: file };
-                          })
-                        }
-                      />
+                      {slotsFor([ft]).map((sl) => (
+                        <FileUploader
+                          key={sl.key}
+                          submissionId={sub.id}
+                          formType={ft}
+                          slotLabel={sl.label}
+                          existingUpload={sl.memberId ? latestFor(effectiveUploads, sl) : existing}
+                          selectedFile={selectedFiles[sl.key] ?? null}
+                          onFileSelect={(file) =>
+                            setSelectedFiles((prev) => {
+                              if (!file) {
+                                const next = { ...prev };
+                                delete next[sl.key];
+                                return next;
+                              }
+                              return { ...prev, [sl.key]: file };
+                            })
+                          }
+                        />
+                      ))}
                     </div>
                   );
                 })}
@@ -739,15 +769,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                     onClick={async () => {
                       setSubmitting(true);
                       try {
-                        const toUpload = Object.entries(selectedFiles) as [FormType, File][];
-                        for (const [ft, file] of toUpload) {
-                          const formData = new FormData();
-                          formData.append("file", file);
-                          formData.append("submissionId", sub.id);
-                          formData.append("formType", ft);
-                          const res = await fetch("/api/upload", { method: "POST", body: formData });
-                          if (!res.ok) throw new Error(`upload failed: ${ft}`);
-                        }
+                        await uploadSelected();
                         setSelectedFiles({});
                         setB1Checks({});
                         const res = await fetch(`/api/submissions/${sub.id}`, {

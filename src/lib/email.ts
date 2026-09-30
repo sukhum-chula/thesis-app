@@ -1,7 +1,6 @@
 import nodemailer from "nodemailer";
 import { prisma } from "./prisma";
 import { ROLE_LABELS, formatUserName } from "./utils";
-import { allCommitteeIds } from "./workflowSteps";
 import { getSignedUrl } from "./supabase";
 import { getProgramChairUser, getFinanceContactUser } from "./systemSettings";
 
@@ -141,11 +140,6 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
           if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
         }
       }
-    } else if (role === "ALL_COMMITTEE") {
-      // Parallel whole-committee step: every member acts at once, so every member is emailed
-      const ids = allCommitteeIds(sub);
-      const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } } }) : [];
-      recipients = users.map((u) => ({ id: u.id, name: formatUserName(u), email: u.email }));
     } else if (role === "PROGRAM_CHAIR") {
       // Per-submission chair (assigned by the student) with per-program admin-designated fallback
       const u = sub.programChairId

@@ -245,6 +245,11 @@ model FormUpload {
   uploadedBy   User   @relation(fields: [uploadedById], references: [id])
   uploadedById String
 
+  // Which committee member this copy belongs to, for forms collected once per member — the
+  // THESIS_DEFENSE step-1 บ.3 (one signed copy per committee member). Null for every other upload.
+  // A plain id like the committee id columns, not an FK.
+  memberId String?
+
   @@map("form_uploads")
 }
 

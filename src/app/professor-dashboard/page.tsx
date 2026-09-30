@@ -10,7 +10,7 @@ import { ChevronRight, Clock, CheckCircle2, FileText } from "lucide-react";
 
 const PROFESSOR_STEP_ROLES = [
   "ADVISOR", "CO_ADVISOR", "HEAD_EXAM_COMMITTEE",
-  "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE", "PROGRAM_CHAIR", "ALL_COMMITTEE",
+  "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE", "PROGRAM_CHAIR",
 ];
 
 const STATUS_TABS: { label: string; value: SubmissionStatus | "ALL" }[] = [
@@ -43,7 +43,6 @@ export default function ProfessorDashboard() {
     const idx = members.indexOf(user?.id ?? "");
     if (idx === -1) return false;
     if ((step.committeeActions ?? []).some((a: any) => a.userId === user?.id)) return false;
-    if (step.role === "ALL_COMMITTEE") return true; // parallel whole-committee step
     const prevNotApproved = members.slice(0, idx).some(
       (mid: string) => !(step.committeeActions ?? []).some((a: any) => a.userId === mid && a.decision === "APPROVED")
     );

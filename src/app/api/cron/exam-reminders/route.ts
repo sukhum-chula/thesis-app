@@ -107,11 +107,6 @@ export async function GET(req: NextRequest) {
           if (role === "INVITED_EXAM_COMMITTEE"&& sub.invitedCommitteeIds?.[0]) recipIds.add(sub.invitedCommitteeIds[0]);
           if (role === "EXAM_COMMITTEE"        && sub.committeeIds?.[0])   recipIds.add(sub.committeeIds[0]);
           if (role === "CO_ADVISOR"            && sub.coAdvisorIds?.[0])   recipIds.add(sub.coAdvisorIds[0]);
-          if (role === "ALL_COMMITTEE") {
-            // parallel step: remind every member who hasn't signed yet
-            const done = new Set(((pendingStep.committeeActions as { userId: string }[] | null) ?? []).map((a) => a.userId));
-            for (const mid of pendingStep.committeeMembers ?? []) if (!done.has(mid)) recipIds.add(mid);
-          }
           if (role === "PROGRAM_CHAIR") {
             if ((sub as any).programChairId) {
               recipIds.add((sub as any).programChairId);

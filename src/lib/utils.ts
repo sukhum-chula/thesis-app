@@ -175,7 +175,6 @@ export const ROLE_LABELS: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:   "ประธานกรรมการสอบ",
   EXAM_COMMITTEE:        "กรรมการสอบ",
   INVITED_EXAM_COMMITTEE:"กรรมการภายนอก",
-  ALL_COMMITTEE:         "คณะกรรมการสอบทุกท่าน",
   DEPT_STAFF:            "เจ้าหน้าที่ภาควิชา",
   FACULTY_DEAN:          "คณบดี",
   GRADUATE_SCHOOL:       "บัณฑิตวิทยาลัย",
@@ -193,7 +192,6 @@ export const ROLE_EMOJI: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:    "📋",
   EXAM_COMMITTEE:         "📋",
   INVITED_EXAM_COMMITTEE: "🎓",
-  ALL_COMMITTEE:          "👥",
   DEPT_STAFF:             "🛡️",
   FACULTY_DEAN:           "🏫",
   GRADUATE_SCHOOL:        "🎓",
@@ -211,7 +209,6 @@ export const ROLE_GRADIENT: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:    "from-orange-500 to-amber-600",
   EXAM_COMMITTEE:         "from-teal-500 to-cyan-600",
   INVITED_EXAM_COMMITTEE: "from-sky-500 to-blue-600",
-  ALL_COMMITTEE:          "from-teal-500 to-cyan-600",
   DEPT_STAFF:             "from-slate-700 to-gray-900",
   FACULTY_DEAN:           "from-rose-500 to-red-700",
   GRADUATE_SCHOOL:        "from-emerald-500 to-green-700",
@@ -504,29 +501,25 @@ const CHAIR_FINAL_CHECKS: B1Check[] = [
   { key: "chairSignC", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ค แล้ว" },
   { key: "chairSignD", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ง แล้ว" },
 ];
-/** THESIS_DEFENSE step 1 — the student prepares บ.2 (one page, signed by the student only) and
- *  ONE single-page บ.3 for the whole committee: student info, topic, committee names and date filled
- *  in; the judgement and signature areas left blank for each member to fill at step 3 */
+/** THESIS_DEFENSE step 1 — the student prepares บ.2 (one page, signed by the student only), and
+ *  with the advisor collects บ.3 from each committee member OUTSIDE the system (student info, topic,
+ *  committee names and date filled in by the student; judgement + signature by the member), then
+ *  uploads one signed บ.3 per member */
 export const DEFENSE_STEP1_CHECKS: B1Check[] = [
   { key: "fillB2",    group: "b2",      label: "กรอกข้อมูลใน บ.2 ครบถ้วน (ข้อมูลนิสิต ผลงานที่เผยแพร่ วัน เวลา และสถานที่สอบ)" },
   { key: "namesB2",   group: "b2",      label: "กรอกรายชื่อคณะกรรมการสอบใน บ.2 แล้ว" },
   { key: "signB2",    group: "b2",      label: "นิสิตลงนามใน บ.2 แล้ว (ช่องนิสิตผู้ขอสอบวิทยานิพนธ์) โดยเว้นช่องลงนามอื่นว่างไว้" },
-  { key: "pagesB3",   group: "b3",      label: "จัดทำ บ.3 หน้าเดียว ฉบับเดียวสำหรับคณะกรรมการทุกท่าน" },
   { key: "fillB3",    group: "b3",      label: "กรอกข้อมูลนิสิต หัวข้อวิทยานิพนธ์ รายชื่อคณะกรรมการ และวันที่ใน บ.3 แล้ว" },
-  { key: "blankB3",   group: "b3",      label: "เว้นช่องผลการประเมิน ความเห็น และลงนามใน บ.3 ว่างไว้ (กรรมการแต่ละท่านกรอกเอง)" },
+  { key: "contactB3", group: "b3",      label: "ติดต่อกรรมการแต่ละท่าน (ร่วมกับอาจารย์ที่ปรึกษา) เพื่อประเมินและลงนามใน บ.3 นอกระบบแล้ว" },
+  { key: "signedB3",  group: "b3",      label: "อัปโหลด บ.3 ที่กรรมการลงนามแล้ว ครบทุกท่าน (หนึ่งไฟล์ต่อกรรมการหนึ่งท่าน)" },
   { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาหลักแล้ว" },
 ];
 /** THESIS_DEFENSE step 2 — the ADMIN checks the student's บ.2/บ.3 and the committee before
  *  generating the finance form (same approve gate as PROPOSAL step 2) */
 export const ADMIN_DEFENSE_STEP2_CHECKS: B1Check[] = [
   { key: "b2Ok", group: "verify", label: "ตรวจสอบ บ.2 ครบถ้วนถูกต้อง และมีลายมือชื่อนิสิตแล้ว" },
-  { key: "b3Ok", group: "verify", label: "ตรวจสอบ บ.3 กรอกข้อมูลนิสิต หัวข้อ รายชื่อคณะกรรมการ และวันที่ครบถ้วนแล้ว" },
+  { key: "b3Ok", group: "verify", label: "ตรวจสอบ บ.3 ของกรรมการครบทุกท่าน และมีผลการประเมินพร้อมลายมือชื่อแล้ว" },
   ...ADMIN_B1_EXTRA_CHECKS,
-];
-/** THESIS_DEFENSE step 3 (ALL_COMMITTEE) — each committee member, in any order, fills in their
- *  judgement and signs the student's บ.3 */
-const SIGN_B3_CHECKS: B1Check[] = [
-  { key: "mySignB3", group: "mySign", label: "ท่านกรอกผลการประเมินและลงนามใน บ.3 แล้ว" },
 ];
 /** Pre-approve checklist for each PROPOSAL signing step, keyed by stepOrder */
 export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
@@ -541,7 +534,7 @@ export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
 /** Pre-approve checklist for each faculty signing step, by submission type → stepOrder */
 export const SIGN_CHECKS: Record<string, Record<number, B1Check[]>> = {
   PROPOSAL: PROPOSAL_SIGN_CHECKS,
-  THESIS_DEFENSE: { 3: SIGN_B3_CHECKS },
+  THESIS_DEFENSE: {},
 };
 
 // Step names for proposal submissions (12 steps)
@@ -560,31 +553,29 @@ export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   12: "เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ",
 };
 
-// Step names for thesis defense submissions (23 steps — see THESIS_ROLES / THESIS_STEP)
+// Step names for thesis defense submissions (21 steps — see THESIS_ROLES / THESIS_STEP)
 export const THESIS_STEP_NAMES: Record<number, string> = {
-  1:  "นิสิตอัปโหลด บ.2 + บ.3",
-  2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
-  3:  "คณะกรรมการสอบประเมินและลงนาม บ.3 (ทุกท่าน ลงนามพร้อมกันได้)",
-  4:  "อาจารย์ที่ปรึกษาลงนาม บ.2",
-  5:  "อาจารย์ที่ปรึกษาร่วมลงนาม บ.2",
-  6:  "ประธานกรรมการสอบลงนาม บ.2",
-  7:  "ประธานหลักสูตรลงนาม บ.2",
-  8:  "เจ้าหน้าที่นำส่งเอกสารไปคณะ",
-  9:  "เจ้าหน้าที่อัปโหลดเอกสารจากคณะ",
-  10: "นิสิตอัปโหลดแบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนาม)",
-  11: "อาจารย์ที่ปรึกษาลงนาม แบบรายงานฯ + ใบรายงานผล",
-  12: "อาจารย์ที่ปรึกษาร่วมลงนาม แบบรายงานฯ + ใบรายงานผล",
-  13: "ประธานกรรมการสอบลงนาม ใบรายงานผล",
-  14: "กรรมการสอบลงนาม ใบรายงานผล",
-  15: "กรรมการภายนอกลงนาม ใบรายงานผล",
-  16: "ประธานหลักสูตรลงนาม ใบรายงานผล",
-  17: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์",
-  18: "ประธานหลักสูตรลงนาม บ.4",
-  19: "อาจารย์ที่ปรึกษาลงนามปกวิทยานิพนธ์",
-  20: "อาจารย์ที่ปรึกษาร่วมลงนามปกวิทยานิพนธ์",
-  21: "ประธานกรรมการสอบลงนามปกวิทยานิพนธ์",
-  22: "กรรมการสอบลงนามปกวิทยานิพนธ์",
-  23: "กรรมการภายนอกลงนามปกวิทยานิพนธ์",
+  1:  "นิสิตอัปโหลด บ.2 + บ.3 ของกรรมการทุกท่าน",
+  2:  "อาจารย์ที่ปรึกษาลงนาม บ.2",
+  3:  "ประธานกรรมการสอบลงนาม บ.2",
+  4:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
+  5:  "ประธานหลักสูตรลงนาม บ.2",
+  6:  "เจ้าหน้าที่นำส่งเอกสารไปคณะ",
+  7:  "เจ้าหน้าที่อัปโหลดเอกสารจากคณะ",
+  8:  "นิสิตอัปโหลดแบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนาม)",
+  9:  "อาจารย์ที่ปรึกษาลงนาม แบบรายงานฯ + ใบรายงานผล",
+  10: "อาจารย์ที่ปรึกษาร่วมลงนาม แบบรายงานฯ + ใบรายงานผล",
+  11: "ประธานกรรมการสอบลงนาม ใบรายงานผล",
+  12: "กรรมการสอบลงนาม ใบรายงานผล",
+  13: "กรรมการภายนอกลงนาม ใบรายงานผล",
+  14: "ประธานหลักสูตรลงนาม ใบรายงานผล",
+  15: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์",
+  16: "ประธานหลักสูตรลงนาม บ.4",
+  17: "อาจารย์ที่ปรึกษาลงนามปกวิทยานิพนธ์",
+  18: "อาจารย์ที่ปรึกษาร่วมลงนามปกวิทยานิพนธ์",
+  19: "ประธานกรรมการสอบลงนามปกวิทยานิพนธ์",
+  20: "กรรมการสอบลงนามปกวิทยานิพนธ์",
+  21: "กรรมการภายนอกลงนามปกวิทยานิพนธ์",
 };
 
 export function getStepName(stepOrder: number, submissionType?: string | null): string {
