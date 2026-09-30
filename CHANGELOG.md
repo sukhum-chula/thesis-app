@@ -15,8 +15,8 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   — the "completes the proposal" note moved here from the chair's step 7. Step 6's checklist adds
   "rename the system title to match บ.วศ.1ง". Missing-upload errors now name forms in Thai
   (`FORM_SHORT`) instead of enum codes. **DB**: `FormType` gained `COVER_PAGE` (`ALTER TYPE ... ADD
-  VALUE`, run live 2026-09-30). Proposals created earlier keep 11 steps and finish
-  after step 7. Build clean, lint count unchanged; not browser-verified.
+  VALUE`, run live 2026-09-30). The two unfinished proposals created earlier were backfilled
+  with a PENDING step-12 row (insert-only, run live 2026-09-30), so they reach step 8 too. Build clean, lint count unchanged; not browser-verified.
 
 ## 2026-09-29
 
