@@ -17,8 +17,8 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
   any member still missing. `FileList` and the admin step cards show บ.3 per member. The advisor and head of committee now sign บ.2 **before** the ADMIN check
   (steps 2–3), the admin check is step 4 and the program chair signs บ.2 at step 5; the co-advisor
   บ.2 step was dropped (บ.2 has no co-advisor signature) — 21 steps. The finance step is now
-  `financeStepOf(type)` (PROPOSAL 2, THESIS_DEFENSE 4) everywhere that used to assume step 2. **DB**: needs
-  `form_uploads."memberId"` (`ALTER TABLE ... ADD COLUMN`) before this code runs against it.
+  `financeStepOf(type)` (PROPOSAL 2, THESIS_DEFENSE 4) everywhere that used to assume step 2. **DB**: added
+  `form_uploads."memberId"` (`ALTER TABLE ... ADD COLUMN`, run live 2026-09-30).
   Roster/numbering/constants checked with a throwaway `tsx` script; build clean, lint count unchanged;
   not browser-verified.
 

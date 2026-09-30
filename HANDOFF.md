@@ -21,12 +21,6 @@ The app is **live with real users** — treat data and email as production, on e
 
 ## Read this before touching real accounts or sending email
 
-- **⚠️ Pending DB change — do this BEFORE deploying anything past commit 81c226d.** The defense
-  redesign committed 2026-09-30 (one signed บ.3 per committee member) adds a nullable
-  `FormUpload.memberId` column that is **not yet in the live database**. Until it is, every บ.3
-  upload fails. Run once (additive, no data touched), then restart any running `next dev`:
-  `ALTER TABLE form_uploads ADD COLUMN IF NOT EXISTS "memberId" TEXT;`
-  Remove this bullet once done.
 - **There are currently 0 `EXTERNAL` accounts in the system** (21 PROFESSOR, 24 users total, and
   0 submissions as of 2026-09-15). Since 2026-09-15 a `PHD` submission needs an `EXTERNAL`
   account to chair its exam committee, and every degree already needed one for กรรมการภายนอก —
