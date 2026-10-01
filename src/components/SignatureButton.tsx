@@ -7,7 +7,7 @@ import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toUserErrorMessage } from "@/lib/utils";
 import {
   UploadSlot, SectionLabel, DownloadRow, NoDownloads, NotesField, ActionError, postUpload,
-  ACTION_CARD, PRIMARY_BUTTON, REJECT_BUTTON,
+  ACTION_CARD, PRIMARY_BUTTON, REJECT_BUTTON, CONFIRM_REJECT_BUTTON, CANCEL_BUTTON,
 } from "@/components/FileUploader";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import type { B1Check } from "@/lib/utils";
@@ -30,11 +30,15 @@ interface Props {
   checklist?: { title: string; checks: B1Check[] };
   /** Extra info line shown above the buttons (e.g. what approving triggers) */
   approveNote?: string;
+  /** Unnumbered info shown at the top of the card in both modes (e.g. the student's exam result) */
+  intro?: React.ReactNode;
+  /** A section that comes before ① download (e.g. the head's ผ่าน/ไม่ผ่าน picker) — given its number */
+  leadSection?: (n: number) => React.ReactNode;
 }
 
 /** Single-signer action card: ① download → ② sign → ③ upload → checklist → notes → ส่งต่อ / ปฏิเสธ.
  *  Same parts, in the same order, as CommitteeSignPanel (built from the FileUploader building blocks). */
-export function SignatureButton({ submissionId, label = "ส่งต่อ", onSuccess, formsToShow, notePrefix, requireNotePrefix, extraSlots, checklist, approveNote }: Props) {
+export function SignatureButton({ submissionId, label = "ส่งต่อ", onSuccess, formsToShow, notePrefix, requireNotePrefix, extraSlots, checklist, approveNote, intro, leadSection }: Props) {
   const { approveCurrentStep, rejectCurrentStep, submissions } = useApp();
   const { showToast } = useToast();
   const [notes,      setNotes]      = useState("");
@@ -49,6 +53,8 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
   const checklistDone = !checklist || allChecked(checklist.checks, checks);
 
   const sub = submissions.find((s) => s.id === submissionId);
+  // Section numbers shift by one when a lead section comes first
+  const base = leadSection ? 1 : 0;
 
   // Upload targets: use all formsToShow directly (each uploads as its own formType).
   // Fall back to a single SIGNED slot only when formsToShow is empty and no extraSlots.
@@ -122,10 +128,14 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
     <div className={ACTION_CARD}>
       <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ</h3>
 
+      {intro}
+
       {!showReject && (
         <>
+          {leadSection?.(1)}
+
           <div>
-            <SectionLabel n={1}>ดาวน์โหลดเอกสารเพื่อลงนาม</SectionLabel>
+            <SectionLabel n={base + 1}>ดาวน์โหลดเอกสารเพื่อลงนาม</SectionLabel>
             {downloads.length > 0 ? (
               <div className="space-y-2">
                 {downloads.map((u) => <DownloadRow key={u.id} upload={u} submissionTitle={sub?.title ?? ""} />)}
@@ -134,12 +144,12 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
           </div>
 
           <div>
-            <SectionLabel n={2}>ลงนามในเอกสาร</SectionLabel>
+            <SectionLabel n={base + 2}>ลงนามในเอกสาร</SectionLabel>
             <p className="text-sm text-gray-500 pl-6">ลงนามในไฟล์ที่ดาวน์โหลด แล้วบันทึกเป็นไฟล์ PDF</p>
           </div>
 
           <div>
-            <SectionLabel n={3} required>อัปโหลดเอกสารที่ลงนามแล้ว</SectionLabel>
+            <SectionLabel n={base + 3} required>อัปโหลดเอกสารที่ลงนามแล้ว</SectionLabel>
             <div className="space-y-3">
               {uploadTargets.map((ft) => {
                 const extraSlot = extraSlots?.find((s) => s.slotKey === ft);
@@ -193,7 +203,7 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
             <button
               onClick={handleReject}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-60 transition"
+              className={CONFIRM_REJECT_BUTTON}
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
               {loading ? "กำลังบันทึก..." : "ยืนยันการปฏิเสธ"}
@@ -201,7 +211,7 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
             <button
               onClick={() => { setShowReject(false); setError(null); }}
               disabled={loading}
-              className="px-5 py-3.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-60 transition"
+              className={CANCEL_BUTTON}
             >
               ยกเลิก
             </button>

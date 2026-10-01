@@ -205,6 +205,15 @@ export default function AdminDashboard() {
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RESULT_SEND) {
                 taskLabel = "อัปโหลดใบปะหน้า แล้วส่งอีเมลใบรายงานผลการสอบไปคณะ";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_CHECK) {
+                taskLabel = "ตรวจสอบ บ.4 + วิทยานิพนธ์ และอัปโหลดใบปะหน้า";
+                taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_SEND) {
+                taskLabel = "ส่งอีเมล บ.4 + วิทยานิพนธ์ไปคณะ แล้วกดยืนยัน";
+                taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_FORWARD) {
+                taskLabel = "รออีเมลผลการพิจารณาจากคณะ แล้วส่งต่อให้นิสิต";
+                taskIcon  = <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "PROPOSAL" && step?.stepOrder === 12) {
                 taskLabel = "ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;

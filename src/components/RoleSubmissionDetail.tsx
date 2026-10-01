@@ -8,7 +8,8 @@ import { SignatureButton } from "./SignatureButton";
 import { CommitteeSignPanel } from "./CommitteeSignPanel";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
-import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS, examResultNote, VERY_GOOD_RESULT } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS, examResultNote, VERY_GOOD_RESULT, defenseExamResult } from "@/lib/utils";
+import { ExamResultPicker } from "./ExamResultPicker";
 import { THESIS_STEP } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { ArrowLeft, Clock, AlertCircle, StickyNote, CalendarDays } from "lucide-react";
@@ -21,11 +22,11 @@ interface Props {
 }
 
 export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
-  const { user, submissions, users } = useApp();
+  const { user, submissions, users, needsMyAction } = useApp();
   const router = useRouter();
   const sub = submissions.find((s) => s.id === submissionId);
 
-  const [thesisResult, setThesisResult] = useState("ผ่าน");
+  const [thesisResult, setThesisResult] = useState("ผ่าน"); // PROPOSAL head-of-committee pass/fail
 
   if (!sub) {
     return (
@@ -46,7 +47,9 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     || ((sub as any).headCommitteeId === user.id)
     || ((sub.committeeIds ?? []) as string[]).includes(user.id)
     || ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id)
-    || ((sub as any).programChairId === user.id);
+    || ((sub as any).programChairId === user.id)
+    // The department chair signs every defense's ใบรายงานผลการสอบ, so is involved in all of them
+    || (sub.submissionType === "THESIS_DEFENSE" && users.some((u) => u.id === user.id && u.isDepartmentChair));
 
   if (!authorized) {
     return (
@@ -62,7 +65,9 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const advisor     = allUsers.find((u) => u.id === sub.advisorId);
   const currentStep = sub.workflowSteps.find((s) => s.status === "PENDING");
 
-  // Involvement-based "is it my turn" — checks whether user is assigned to play this step's role
+  // Involvement-based: the user plays the current step's role. For a multi-member step that includes
+  // members still waiting on an earlier one (their card shows the roster + "wait" message) — whether
+  // they can act right now is `canActNow`, which also follows the sign order
   const isMyTurn = (() => {
     if (!user || !currentStep) return false;
     switch (currentStep.role) {
@@ -78,6 +83,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       default:                      return user.roles.includes(currentStep.role as any);
     }
   })();
+
+  const canActNow = needsMyAction(sub);
 
   const isThesisAdvisorResultStep =
     sub.submissionType === "THESIS_DEFENSE" &&
@@ -110,20 +117,15 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       // uploaded by the student at step 1. Steps 2 (ADMIN check), 4 (ADMIN relay) and 5 (ADMIN
       // upload of the Faculty docs) are omitted — no signing, handled via the admin page
       3:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 2)
-      7:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
+      7:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล (แบบรายงานฯ: student + advisor only)
       8:  ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
       9:  ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
       10: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
       11: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
-      12: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
-      // Steps 13 (ADMIN check) and 15 (ADMIN cover page + email to the Faculty) — admin page
-      14: ["EXAM_RESULT"],           // DEPARTMENT_CHAIR signs ใบรายงานผล
-      17: ["B4"],            // PROGRAM_CHAIR signs B4
-      18: ["THESIS"],        // ADVISOR signs thesis cover
-      19: ["THESIS"],        // CO_ADVISOR signs thesis cover
-      20: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
-      21: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
-      22: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
+      // Steps 12 (ADMIN check) and 14 (ADMIN cover page + email to the Faculty) — admin page
+      13: ["EXAM_RESULT"],           // DEPARTMENT_CHAIR signs ใบรายงานผล
+      // Step 16 (ADMIN check + cover page), 18 and 19 (ADMIN confirmations) — admin page
+      17: ["B4", "THESIS"],  // DEPARTMENT_CHAIR signs B4 + the thesis (which arrives committee-signed at step 15)
     },
   };
   const formsToShow = currentStep
@@ -138,7 +140,16 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const signChecks = currentStep && isMyTurn
     ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;
-  const signChecksTitle = "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
+  const signChecksTitle = sub.submissionType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบก่อนส่งต่อ" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
+  // THESIS advisor-result step: the advisor confirms the student's result instead of picking one
+  const studentResult = isThesisAdvisorResultStep ? defenseExamResult(sub.workflowSteps) : null;
+  const advisorResultChecks = isThesisAdvisorResultStep
+    ? [
+        { key: "resultOk",     group: "confirm" as const, label: `ตรวจสอบแล้วว่าผลการสอบ "${studentResult ?? "-"}" ถูกต้องตรงกับใบรายงานผลการสอบ` },
+        { key: "signedReport", group: "mySign" as const, label: "ท่านลงนามในแบบรายงานการเสนอผลงานฯ แล้ว" },
+        { key: "signedResult", group: "mySign" as const, label: "ท่านลงนามในใบรายงานผลการสอบแล้ว" },
+      ]
+    : null;
 
   return (
     <div className="space-y-6">
@@ -225,7 +236,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       )}
 
       {/* "Your turn" banner */}
-      {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (
+      {!sub.cancelRequested && canActNow && sub.status === "IN_PROGRESS" && (
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-300 rounded-2xl px-5 py-4">
           <AlertCircle className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
@@ -265,87 +276,6 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
 
         {/* Sidebar — first on mobile */}
         <div className="order-1 md:order-none space-y-4">
-          {/* Documents — all versions per form type (FileList handles dedup + history) */}
-          {(() => {
-            const PROPOSAL_FORMS = ["B1", "B1A", "B1B", "B1C", "B1D"];
-            const relevantUploads = (sub.submissionType ?? "PROPOSAL") === "PROPOSAL"
-              ? sub.uploads.filter((u) => PROPOSAL_FORMS.includes(u.formType))
-              : sub.uploads;
-            return relevantUploads.length > 0 ? (
-              <FileList uploads={relevantUploads} submissionTitle={sub.title} submissionType={sub.submissionType ?? "PROPOSAL"} />
-            ) : null;
-          })()}
-
-          {/* Thesis result selector — ADVISOR at THESIS_STEP.ADVISOR_RESULT */}
-          {isThesisAdvisorResultStep && (
-            <div className="bg-white border border-purple-200 rounded-2xl p-5 space-y-3">
-              <p className="font-semibold text-gray-800">ผลการสอบวิทยานิพนธ์ <span className="text-red-500">*</span></p>
-              <p className="text-xs text-gray-500">กรุณาเลือกผลการสอบก่อนลงนาม</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "ดีมาก",  label: "ดีมาก",  color: "purple" },
-                  { value: "ดี",     label: "ดี",     color: "blue"   },
-                  { value: "ผ่าน",   label: "ผ่าน",   color: "green"  },
-                  { value: "ไม่ผ่าน",label: "ไม่ผ่าน",color: "red"    },
-                ].map((opt) => {
-                  const selected = thesisResult === opt.value;
-                  const colorMap: Record<string, string> = {
-                    purple: selected ? "border-purple-500 bg-purple-50 text-purple-800" : "border-gray-200 text-gray-600 hover:border-purple-300",
-                    blue:   selected ? "border-blue-500 bg-blue-50 text-blue-800"       : "border-gray-200 text-gray-600 hover:border-blue-300",
-                    green:  selected ? "border-green-500 bg-green-50 text-green-800"    : "border-gray-200 text-gray-600 hover:border-green-300",
-                    red:    selected ? "border-red-500 bg-red-50 text-red-800"          : "border-gray-200 text-gray-600 hover:border-red-300",
-                  };
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setThesisResult(opt.value)}
-                      className={`py-2.5 rounded-xl border-2 font-semibold text-sm transition ${colorMap[opt.color]}`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {thesisResult === VERY_GOOD_RESULT && (
-                <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2.5">
-                  <p className="text-xs font-semibold text-purple-700">📋 ผล ดีมาก — ต้องอัปโหลดเพิ่มเติม</p>
-                  <p className="text-xs text-purple-600 mt-0.5">กรุณาอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากด้วย (ในขั้นตอนอัปโหลดด้านล่าง)</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Pass/fail selector — HEAD_EXAM_COMMITTEE at PROPOSAL step 5 */}
-          {isProposalHeadResultStep && (
-            <div className="bg-white border border-blue-200 rounded-2xl p-5 space-y-3">
-              <p className="font-semibold text-gray-800">ผลการสอบวิทยานิพนธ์ <span className="text-red-500">*</span></p>
-              <p className="text-xs text-gray-500">กรุณาเลือกผลการสอบก่อนลงนาม</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: "ผ่าน",    label: "ผ่าน",    color: "green" },
-                  { value: "ไม่ผ่าน", label: "ไม่ผ่าน", color: "red"   },
-                ].map((opt) => {
-                  const selected = thesisResult === opt.value;
-                  const colorMap: Record<string, string> = {
-                    green: selected ? "border-green-500 bg-green-50 text-green-800" : "border-gray-200 text-gray-600 hover:border-green-300",
-                    red:   selected ? "border-red-500 bg-red-50 text-red-800"       : "border-gray-200 text-gray-600 hover:border-red-300",
-                  };
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setThesisResult(opt.value)}
-                      className={`py-3 rounded-xl border-2 font-semibold text-sm transition ${colorMap[opt.color]}`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Action — committee steps (EXAM_COMMITTEE, CO_ADVISOR, INVITED_EXAM_COMMITTEE) use sequential multi-member panel */}
           {!sub.cancelRequested && isMyTurn && sub.status === "IN_PROGRESS" && (currentStep?.role === "EXAM_COMMITTEE" || currentStep?.role === "CO_ADVISOR" || currentStep?.role === "INVITED_EXAM_COMMITTEE") && (
             <CommitteeSignPanel
@@ -363,14 +293,28 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               submissionId={sub.id}
               formsToShow={formsToShow}
               onSuccess={() => router.push(backPath)}
-              notePrefix={(isThesisAdvisorResultStep || isProposalHeadResultStep) && thesisResult ? examResultNote(thesisResult) : undefined}
+              notePrefix={isThesisAdvisorResultStep && studentResult ? examResultNote(studentResult)
+                : isProposalHeadResultStep && thesisResult ? examResultNote(thesisResult) : undefined}
               requireNotePrefix={isThesisAdvisorResultStep || isProposalHeadResultStep}
-              checklist={signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
-              extraSlots={
-                isThesisAdvisorResultStep && thesisResult === VERY_GOOD_RESULT
-                  ? [{ slotKey: "VERY_GOOD_EVAL", label: "แบบประเมินวิทยานิพนธ์ดีมาก", formType: "VERY_GOOD_EVAL" }]
-                  : undefined
-              }
+              checklist={advisorResultChecks ? { title: "ยืนยันผลการสอบและการลงนาม", checks: advisorResultChecks }
+                : signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
+              intro={isThesisAdvisorResultStep ? (
+                // Exam result — picked by the student at THESIS_STEP.STUDENT_REPORT; the advisor double-checks it
+                <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 space-y-2">
+                  <p className="text-sm font-semibold text-gray-700">ผลการสอบวิทยานิพนธ์ที่นิสิตเลือก</p>
+                  <p className="text-2xl font-bold text-purple-800">{studentResult ?? "— ไม่พบผลการสอบ —"}</p>
+                  <p className="text-sm text-amber-800">
+                    กรุณาตรวจสอบว่าผลการสอบนี้ตรงกับใบรายงานผลการสอบ
+                    {studentResult === VERY_GOOD_RESULT && " และนิสิตอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากแล้ว"}
+                    {" "}— หากไม่ถูกต้อง กรุณากด ปฏิเสธ พร้อมระบุเหตุผล นิสิตจะแก้ไขผลการสอบและยื่นใหม่
+                  </p>
+                </div>
+              ) : undefined}
+              leadSection={isProposalHeadResultStep ? (n) => (
+                // Pass/fail — HEAD_EXAM_COMMITTEE at PROPOSAL step 5.1
+                <ExamResultPicker n={n} value={thesisResult} onChange={setThesisResult}
+                  options={["ผ่าน", "ไม่ผ่าน"]} hint="กรุณาเลือกผลการสอบก่อนลงนาม" />
+              ) : undefined}
             />
           )}
 
@@ -399,9 +343,19 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
                 <Clock className="w-5 h-5" />
                 รอนิสิตแก้ไขและยื่นใหม่
               </div>
-              <p className="text-red-600 text-sm mt-1">คำร้องถูกปฏิเสธ — นิสิตต้องกด "แก้ไขและยื่นใหม่" ก่อน ระบบจะส่งกลับมาให้พิจารณาอีกครั้ง</p>
+              <p className="text-red-600 text-sm mt-1">คำร้องถูกปฏิเสธ — นิสิตต้องแก้ไขแล้วกด &ldquo;ยื่นใหม่อีกครั้ง&rdquo; ก่อน ระบบจะส่งกลับมาให้พิจารณาอีกครั้ง</p>
             </div>
           )}
+          {/* Documents — last, below every action card; all versions per form type (FileList handles dedup + history) */}
+          {(() => {
+            const PROPOSAL_FORMS = ["B1", "B1A", "B1B", "B1C", "B1D"];
+            const relevantUploads = (sub.submissionType ?? "PROPOSAL") === "PROPOSAL"
+              ? sub.uploads.filter((u) => PROPOSAL_FORMS.includes(u.formType))
+              : sub.uploads;
+            return relevantUploads.length > 0 ? (
+              <FileList uploads={relevantUploads} submissionTitle={sub.title} submissionType={sub.submissionType ?? "PROPOSAL"} />
+            ) : null;
+          })()}
         </div>
       </div>
     </div>

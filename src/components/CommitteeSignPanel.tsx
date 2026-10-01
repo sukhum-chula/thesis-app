@@ -8,7 +8,7 @@ import { CheckCircle2, XCircle, Clock, Loader2, Users } from "lucide-react";
 import { toUserErrorMessage, formatUserName } from "@/lib/utils";
 import {
   UploadSlot, SectionLabel, DownloadRow, NoDownloads, NotesField, ActionError, postUpload,
-  ACTION_CARD, PRIMARY_BUTTON, REJECT_BUTTON,
+  ACTION_CARD, PRIMARY_BUTTON, REJECT_BUTTON, CONFIRM_REJECT_BUTTON, CANCEL_BUTTON,
 } from "@/components/FileUploader";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import type { B1Check } from "@/lib/utils";
@@ -234,7 +234,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
                 <button
                   onClick={() => act("REJECTED")}
                   disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-60 transition"
+                  className={CONFIRM_REJECT_BUTTON}
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                   {loading ? "กำลังบันทึก..." : "ยืนยันการปฏิเสธ"}
@@ -242,7 +242,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
                 <button
                   onClick={() => { setReject(false); setError(null); }}
                   disabled={loading}
-                  className="px-5 py-3.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-60 transition"
+                  className={CANCEL_BUTTON}
                 >
                   ยกเลิก
                 </button>

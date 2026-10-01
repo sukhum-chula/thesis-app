@@ -10,8 +10,9 @@ import {
   toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
   B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
   ADMIN_DEFENSE_RESULT_CHECKS, ADMIN_DEFENSE_SEND_CHECKS, freshUploadCutoff,
+  ADMIN_DEFENSE_THESIS_CHECKS, ADMIN_DEFENSE_THESIS_SEND_CHECKS, ADMIN_DEFENSE_THESIS_FORWARD_CHECKS,
 } from "@/lib/utils";
-import { THESIS_STEP, financeStepOf, previousActiveStep } from "@/lib/workflowSteps";
+import { THESIS_STEP, financeStepOf, previousActiveStep, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
@@ -30,8 +31,20 @@ import {
 import { FileList } from "@/components/FileList";
 import {
   FileUploader, SlotHeader, SectionLabel, DownloadRow, NotesField, ActionError, postUpload,
-  ACTION_CARD, PRIMARY_BUTTON,
+  ACTION_CARD, PRIMARY_BUTTON, SEND_BACK_BUTTON, CONFIRM_SEND_BACK_BUTTON, CANCEL_BUTTON,
 } from "@/components/FileUploader";
+
+// Documents the ADMIN checks at each of their steps — shown as the action card's ① download section,
+// latest version of each (one per member for per-member forms). Steps not listed have nothing to check.
+const ADMIN_STEP_FORMS: Record<string, Record<number, string[]>> = {
+  PROPOSAL: { 2: ["B1"], 10: ["B1"], 12: ["B1"] },
+  THESIS_DEFENSE: {
+    [THESIS_STEP.ADMIN_CHECK]:        ["B2", "B3"],
+    [THESIS_STEP.ADMIN_RELAY]:        ["B2", "B3"],
+    [THESIS_STEP.ADMIN_RESULT_CHECK]: ["EXAM_RESULT", "SIGNED", "VERY_GOOD_EVAL"],
+    [THESIS_STEP.ADMIN_RESULT_SEND]:  ["EXAM_RESULT"],
+  },
+};
 
 // ─── Step control card ────────────────────────────────────────────────────────
 
@@ -58,8 +71,13 @@ function StepCard({
   displayOrder: string;
 }) {
   const [open,    setOpen]    = useState(false);
-  // An approved step can only be sent back to; any other step is approved by default
-  const [action,  setAction]  = useState<"APPROVE" | "SEND_BACK">(step.status === "APPROVED" ? "SEND_BACK" : "APPROVE");
+  // The admin's pick between อนุมัติ / ส่งกลับ — only offered on the current PENDING step
+  const [picked,  setAction]  = useState<"APPROVE" | "SEND_BACK">("APPROVE");
+  // Derived from the step's live status, not frozen at mount: an approved step can only be sent
+  // back to (the card may have mounted while it was still PENDING), and a step with no previous
+  // one to return to can only be approved
+  const action: "APPROVE" | "SEND_BACK" =
+    step.status === "APPROVED" ? "SEND_BACK" : onSendBack ? picked : "APPROVE";
   const [notes,   setNotes]   = useState("");
   const [saving,  setSaving]  = useState(false);
   const [errMsg,  setErrMsg]  = useState<string | null>(null);
@@ -483,6 +501,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   // chair signs) upload the cover page and confirm the email to the Faculty
   const isThesisResultCheckStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RESULT_CHECK;
   const isThesisResultSendStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RESULT_SEND;
+  // After the student's บ.4 + thesis: check them + cover page, then (after the department chair signs)
+  // confirm the email to the Faculty, then confirm forwarding the Faculty's reply to the student
+  const isThesisDocCheckStep   = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_THESIS_CHECK;
+  const isThesisDocSendStep    = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_THESIS_SEND;
+  const isThesisDocForwardStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_THESIS_FORWARD;
   // The ADMIN check that generates the finance form (PROPOSAL 2, THESIS_DEFENSE 4); approving sends the email
   const isFinanceReviewStep = (sub?.submissionType === "PROPOSAL" || sub?.submissionType === "THESIS_DEFENSE")
     && pendingStep$?.stepOrder === financeStepOf(sub?.submissionType) && pendingStep$?.role === "ADMIN";
@@ -493,7 +516,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   // Steps whose approve is gated on the department-chair-signed cover page (COVER_PAGE): PROPOSAL
   // step 8, THESIS_DEFENSE step 4 (sent with บ.2 + บ.3) and step 11 (sent with the exam result).
   // Step 11's must be a new copy — the step-4 one already exists (freshUploadCutoff, same as the server)
-  const isCoverStep = isProposalCoverStep || isThesisRelayStep || isThesisResultSendStep;
+  const isCoverStep = isProposalCoverStep || isThesisRelayStep || isThesisResultSendStep || isThesisDocCheckStep;
   const coverCutoff = sub && pendingStep$ ? freshUploadCutoff(sub.workflowSteps, sub.submissionType, pendingStep$.stepOrder) : null;
   const latestCover = (sub?.uploads ?? [])
     .filter((u) => u.formType === "COVER_PAGE" && (coverCutoff === null || new Date(u.uploadedAt).getTime() > coverCutoff))
@@ -510,6 +533,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     : isThesisForwardStep ? ADMIN_DEFENSE_FORWARD_CHECKS
     : isThesisResultCheckStep ? ADMIN_DEFENSE_RESULT_CHECKS
     : isThesisResultSendStep ? ADMIN_DEFENSE_SEND_CHECKS
+    : isThesisDocCheckStep ? ADMIN_DEFENSE_THESIS_CHECKS
+    : isThesisDocSendStep ? ADMIN_DEFENSE_THESIS_SEND_CHECKS
+    : isThesisDocForwardStep ? ADMIN_DEFENSE_THESIS_FORWARD_CHECKS
     : null;
   const [adminCheckState, setAdminCheckState] = useState<Record<string, boolean>>({});
   const adminAllChecked = !adminChecks || allChecked(adminChecks, adminCheckState);
@@ -557,6 +583,27 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   // ประธานหลักสูตร is admin-designated per program (see "จัดการประธานหลักสูตร"), not freely
   // selectable per submission — it always follows whichever หลักสูตร is picked in the edit form.
   const resolvedProgramChair = resolveProgramChair(allUsers, editDraft.program) ?? null;
+
+  // ① download section of the admin's action card
+  const adminStepForms = pendingStep$ ? ADMIN_STEP_FORMS[sub.submissionType ?? "PROPOSAL"]?.[pendingStep$.stepOrder] : undefined;
+  const adminDownloads = (() => {
+    if (!isMyTurn || !adminStepForms) return [];
+    const roster = committeeRoster(sub);
+    const newest = (list: MockUpload[]) =>
+      [...list].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+    return adminStepForms.flatMap((ft) => {
+      if (isPerMemberForm(sub.submissionType ?? "PROPOSAL", ft)) {
+        return roster.flatMap((m) => {
+          const u = newest(sub.uploads.filter((x) => x.formType === ft && x.memberId === m.id));
+          const person = allUsers.find((x) => x.id === m.id);
+          const formLabel = FORM_LABELS[ft as keyof typeof FORM_LABELS] ?? ft;
+          return u ? [{ upload: u, title: `${formLabel} — ${person ? formatUserName(person) : ROLE_LABELS[m.role] ?? m.role}` }] : [];
+        });
+      }
+      const u = newest(sub.uploads.filter((x) => x.formType === ft));
+      return u ? [{ upload: u, title: undefined as string | undefined }] : [];
+    });
+  })();
 
   async function handleAcceptCancel() {
     setCancelActionBusy(true);
@@ -683,6 +730,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       await approveCurrentStep(sub.id, approveNotes || undefined);
       setApproveNotes("");
       setAdminCheckState({});
+      showToast("อนุมัติเรียบร้อยแล้ว ✓");
     } catch (err) {
       setActionError(toUserErrorMessage(err, "อนุมัติไม่สำเร็จ กรุณาลองอีกครั้ง"));
     } finally {
@@ -698,6 +746,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       setActionMode(null);
       setActionNotes("");
       setActionError(null);
+      showToast("ส่งกลับเรียบร้อยแล้ว", "info");
     } catch (err) {
       setActionError(toUserErrorMessage(err, "ส่งกลับไม่สำเร็จ กรุณาลองอีกครั้ง"));
     } finally {
@@ -1064,7 +1113,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
         <div className="space-y-4">
 
           {/* Task description card — numbered instructions for special admin steps */}
-          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisForwardStep || isThesisResultCheckStep || isThesisResultSendStep) && (
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisForwardStep || isThesisResultCheckStep || isThesisResultSendStep
+            || isThesisDocCheckStep || isThesisDocSendStep || isThesisDocForwardStep
+            || (sub.submissionType === "PROPOSAL" && (isFinanceReviewStep || isProposalVerifyStep || isProposalCoverStep))) && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-500" />
@@ -1072,7 +1123,25 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   สิ่งที่ต้องดำเนินการ
                 </h2>
               </div>
-              {isThesisRelayStep ? (
+              {sub.submissionType === "PROPOSAL" && isFinanceReviewStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>ตรวจสอบ บ.วศ.1 ที่นิสิตอัปโหลด (บ.วศ.1ก + 1ข) และรายชื่อคณะกรรมการ</li>
+                  <li>สร้างเอกสารการเงินแนบกรรมการสอบ (แก้ไขและอัปโหลดใหม่ได้หากจำเป็น)</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะส่งเอกสารการเงินทางอีเมล</li>
+                </ol>
+              ) : isProposalVerifyStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>ตรวจสอบ บ.วศ.1 ฉบับล่าสุดที่คณะกรรมการลงนามครบแล้ว</li>
+                  <li>แก้ไขชื่อหัวข้อวิทยานิพนธ์ในระบบให้ตรงกับ บ.วศ.1ง (ปุ่ม &quot;แก้ไข&quot; ด้านบน)</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งประธานหลักสูตรให้ลงนาม</li>
+                </ol>
+              ) : isProposalCoverStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>ตรวจสอบ บ.วศ.1ก–ง ฉบับสุดท้ายว่าครบถ้วนและลงนามครบทุกจุด</li>
+                  <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — การสอบโครงร่างจะเสร็จสมบูรณ์</li>
+                </ol>
+              ) : isThesisRelayStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>พิมพ์ / รวบรวม บ.2 + บ.3 จากระบบ</li>
                   <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
@@ -1090,6 +1159,22 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <li>ส่งอีเมลใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
                 </ol>
+              ) : isThesisDocCheckStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>ตรวจสอบ บ.4 และวิทยานิพนธ์ฉบับสมบูรณ์ที่นิสิตอัปโหลด</li>
+                  <li>เตรียมใบปะหน้า แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
+                </ol>
+              ) : isThesisDocSendStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>ส่งอีเมล บ.4 และวิทยานิพนธ์ที่หัวหน้าภาควิชาลงนามแล้ว พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
+                </ol>
+              ) : isThesisDocForwardStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>เมื่อได้รับอีเมลผลการพิจารณาจากคณะวิศวกรรมศาสตร์ ให้ส่งต่ออีเมลนั้นให้นิสิต</li>
+                  <li>ทำเครื่องหมายยืนยัน และกดอนุมัติ — ระบบจะแจ้งนิสิตให้ยืนยันการส่งเอกสารเข้าระบบ iThesis</li>
+                </ol>
               ) : (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>ส่งต่ออีเมลจากคณะวิศวกรรมศาสตร์ให้นิสิต</li>
@@ -1105,42 +1190,56 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
           )}
 
           {/* Admin's action card — same parts and order as every other role's card:
-              upload (when the step has files) → checklist → notes → อนุมัติ, then ปฏิเสธ / ส่งกลับ */}
+              ① download (the step's documents to check) → ② upload (cover page, when the step has one)
+              → checklist → notes → อนุมัติ, with ส่งกลับ beside it (admin steps never reject) */}
           {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (
               <div className={ACTION_CARD}>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ</h3>
-                  {!isThesisRelayStep && !isThesisForwardStep && (
-                    <p className="text-sm text-gray-500">ตรวจสอบเอกสาร แล้วเลือกการดำเนินการ</p>
-                  )}
+                  <p className="text-sm text-gray-500">ตรวจสอบเอกสาร แล้วเลือกการดำเนินการ</p>
                 </div>
 
-                {/* Upload section — the step's own files, uploaded on อนุมัติ */}
-                {actionMode === null && isCoverStep && (
-                  <div>
-                    <SectionLabel n={1} required>
-                      {isThesisRelayStep ? "อัปโหลดใบปะหน้าส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์"
-                        : isThesisResultSendStep ? "อัปโหลดใบปะหน้าส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
-                        : "อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์"}
-                    </SectionLabel>
-                    <p className="text-sm text-gray-600 mb-2">
-                      ใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
-                      <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
-                    </p>
-                    <FileUploader
-                      submissionId={sub.id}
-                      formType="COVER_PAGE"
-                      slotLabel={latestCover ? "ไฟล์ใหม่จะแทนที่ไฟล์ปัจจุบัน" : undefined}
-                      existingUpload={latestCover}
-                      selectedFile={pendingFiles.COVER_PAGE ?? null}
-                      onFileSelect={(f) => pickPending("COVER_PAGE", f)}
-                    />
-                  </div>
-                )}
+                {actionMode === null && (
+                  <>
+                    {adminStepForms && (
+                      <div>
+                        <SectionLabel n={1}>ดาวน์โหลดเอกสารเพื่อตรวจสอบ</SectionLabel>
+                        {adminDownloads.length > 0 ? (
+                          <div className="space-y-2">
+                            {adminDownloads.map((d) => (
+                              <DownloadRow key={d.upload.id} upload={d.upload} submissionTitle={sub.title} title={d.title} />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-4 py-3 text-center">ยังไม่มีเอกสารในระบบสำหรับขั้นตอนนี้</p>
+                        )}
+                      </div>
+                    )}
 
-                {/* Approve — always visible at top */}
-                {actionMode !== "return" && (
-                  <div className="space-y-4">
+                    {/* Upload section — the step's own files, uploaded on อนุมัติ */}
+                    {isCoverStep && (
+                      <div>
+                        <SectionLabel n={adminStepForms ? 2 : 1} required>
+                          {isThesisRelayStep ? "อัปโหลดใบปะหน้าส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์"
+                            : isThesisResultSendStep ? "อัปโหลดใบปะหน้าส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
+                            : isThesisDocCheckStep ? "อัปโหลดใบปะหน้าส่ง บ.4 + วิทยานิพนธ์ไปคณะวิศวกรรมศาสตร์"
+                            : "อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์"}
+                        </SectionLabel>
+                        <p className="text-sm text-gray-600 mb-2">
+                          ใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
+                          <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
+                        </p>
+                        <FileUploader
+                          submissionId={sub.id}
+                          formType="COVER_PAGE"
+                          slotLabel={latestCover ? "ไฟล์ใหม่จะแทนที่ไฟล์ปัจจุบัน" : undefined}
+                          existingUpload={latestCover}
+                          selectedFile={pendingFiles.COVER_PAGE ?? null}
+                          onFileSelect={(f) => pickPending("COVER_PAGE", f)}
+                        />
+                      </div>
+                    )}
+
                     {adminChecks && (
                       <B1Checklist
                         title="ตรวจสอบก่อนอนุมัติ"
@@ -1171,61 +1270,49 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       </p>
                     )}
                     <ActionError message={actionError} />
-                    <button
-                      onClick={handleApproveStep}
-                      disabled={actionBusy || approveBlocked}
-                      className={PRIMARY_BUTTON}
-                    >
-                      {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                      {actionBusy ? "กำลังดำเนินการ..." : "อนุมัติ"}
-                    </button>
-                  </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleApproveStep}
+                        disabled={actionBusy || approveBlocked}
+                        className={`${PRIMARY_BUTTON} flex-1`}
+                      >
+                        {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                        {actionBusy ? "กำลังดำเนินการ..." : "อนุมัติ"}
+                      </button>
+                      <button
+                        onClick={() => { setActionMode("return"); setActionError(null); }}
+                        disabled={actionBusy}
+                        className={SEND_BACK_BUTTON}
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                        ส่งกลับ
+                      </button>
+                    </div>
+                  </>
                 )}
 
-                {/* Return-to-prev form */}
+                {/* Send-back form — replaces the card body, same as a signer's ปฏิเสธ form */}
                 {actionMode === "return" && (
-                  <div className="space-y-3 border border-orange-200 rounded-xl p-3 bg-orange-50">
-                    <p className="text-sm font-semibold text-orange-700">
+                  <>
+                    <p className="text-sm font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
                       {sendBackToStudent ? "ส่งกลับ — นิสิตต้องแก้ไขและส่งต่อใหม่" : "ส่งกลับ — ขั้นตอนก่อนหน้าต้องดำเนินการใหม่"}
                     </p>
-                    <textarea
-                      value={actionNotes}
-                      onChange={(e) => setActionNotes(e.target.value)}
-                      placeholder="เหตุผล (ไม่บังคับ)..."
-                      autoFocus
-                      className="w-full border border-orange-300 rounded-xl p-3 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    />
+                    <NotesField value={actionNotes} onChange={setActionNotes} sendBack />
                     <ActionError message={actionError} />
-                    <div className="flex gap-2">
-                      <button
-                        disabled={actionBusy}
-                        onClick={handleReturnToPrev}
-                        className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
+                    <div className="flex gap-3">
+                      <button disabled={actionBusy} onClick={handleReturnToPrev} className={CONFIRM_SEND_BACK_BUTTON}>
+                        {actionBusy && <Loader2 className="w-5 h-5 animate-spin" />}
                         {actionBusy ? "กำลังดำเนินการ..." : "ยืนยันส่งกลับ"}
                       </button>
                       <button
                         disabled={actionBusy}
-                        onClick={() => { setActionMode(null); setActionNotes(""); }}
-                        className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                        onClick={() => { setActionMode(null); setActionNotes(""); setActionError(null); }}
+                        className={CANCEL_BUTTON}
                       >
                         ยกเลิก
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {/* Send-back button — ADMIN steps have no ปฏิเสธ */}
-                {!actionMode && (
-                  <div className="flex gap-2 pt-1 border-t border-gray-100">
-                    <button
-                      onClick={() => { setActionMode("return"); setActionError(null); }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border-2 border-orange-200 text-orange-600 font-semibold rounded-xl hover:bg-orange-50 transition text-sm"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      ส่งกลับ
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
           )}
@@ -1237,7 +1324,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <Clock className="w-5 h-5" />
                 รอนิสิตแก้ไขและยื่นใหม่
               </div>
-              <p className="text-red-600 text-sm mt-1">คำร้องถูกปฏิเสธ — นิสิตต้องกด "แก้ไขและยื่นใหม่" ก่อน ระบบจะส่งกลับให้ผู้พิจารณาตรวจสอบอีกครั้ง</p>
+              <p className="text-red-600 text-sm mt-1">คำร้องถูกปฏิเสธ — นิสิตต้องแก้ไขแล้วกด &ldquo;ยื่นใหม่อีกครั้ง&rdquo; ก่อน ระบบจะส่งกลับให้ผู้พิจารณาตรวจสอบอีกครั้ง</p>
             </div>
           )}
 
@@ -1266,11 +1353,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               </div>
             )}
           </div>
-
-          {/* Documents — grouped by form type */}
-          {sub.uploads.length > 0 && (
-            <FileList uploads={sub.uploads} submissionTitle={sub.title} submissionType={sub.submissionType ?? "PROPOSAL"} />
-          )}
 
           {/* Delete */}
           <div className="bg-white rounded-2xl border border-red-200 p-5 space-y-3">
@@ -1313,6 +1395,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
             )}
           </div>
 
+          {/* Documents — last, below every action card; grouped by form type */}
+          {sub.uploads.length > 0 && (
+            <FileList uploads={sub.uploads} submissionTitle={sub.title} submissionType={sub.submissionType ?? "PROPOSAL"} />
+          )}
         </div>
       </div>
     </div>

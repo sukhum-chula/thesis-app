@@ -7,6 +7,74 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-01
 
+- **THESIS_DEFENSE ends with the student confirming iThesis — 20 steps (shown 1–17).** New last step
+  (`THESIS_STEP.STUDENT_ITHESIS`, shown 17): after the admin forwards the Faculty's feedback, the
+  student ticks "ส่งเอกสารที่จำเป็นทั้งหมดเข้าระบบ iThesis เรียบร้อยแล้ว" and presses ยืนยัน — nothing
+  is uploaded; that completes the defense. The test defense got the new row inserted before it
+  reached its end.
+
+- **THESIS_DEFENSE: thesis goes to the Faculty via the admin and the department chair — 19 steps
+  (shown 1–16).** After the student's บ.4 + thesis (shown 12): the ADMIN checks them and uploads a
+  new cover page (13, server-gated on a cover page newer than the student's upload), the
+  department chair signs **both** บ.4 and the thesis (14 — replaces the program chair's บ.4
+  step), the ADMIN confirms emailing them to the Faculty (15), and the ADMIN confirms forwarding
+  the Faculty's feedback to the student (16, the last step). New `THESIS_STEP` names
+  `ADMIN_THESIS_CHECK`/`DEPT_CHAIR_THESIS`/`ADMIN_THESIS_SEND`/`ADMIN_THESIS_FORWARD` (`CHAIR_B4`
+  removed); the test defense `cmuoyo8l…` had its untouched tail rebuilt to match.
+
+- **THESIS_DEFENSE: no in-system thesis-cover signing — 16 steps (shown 1–13).** The five steps where
+  the advisor, co-advisors, head, exam committee and external members signed the thesis cover are
+  removed; the student uploads the thesis at step 15 (shown 12) already signed by the whole
+  committee (new checklist item + upload note), and the program chair's บ.4 signature (shown 13)
+  completes the defense. The test defense `cmuoyo8l…` had its five now-unused PENDING rows deleted.
+
+- **Professor dashboard: "✓ ท่านอนุมัติแล้ว" no longer shows while it's the professor's turn again.**
+  The badge reflects the last step they acted on, so an advisor who approved step 7 saw it on a
+  defense waiting for their thesis-cover signature (step 14). It's now hidden whenever a later step
+  is their turn, and names the step it refers to ("(ขั้นที่ 7)").
+
+- **Action-card review across roles — two bugs fixed, cards made consistent.**
+  - The department chair could not open a defense (`RoleSubmissionDetail`'s access guard didn't
+    know the role), so stepOrder 13 could never be signed from the UI.
+  - The "ถึงคิวของท่านแล้ว" banner showed for every member of a sequential committee step, not
+    just the one whose turn it is — it now uses `AppContext.needsMyAction`.
+  - The admin card gained a ① download section (`ADMIN_STEP_FORMS` in `AdminSubmissionPanel` —
+    the documents each admin step checks, one row per member for บ.3), ส่งกลับ now sits beside
+    อนุมัติ with the shared button styles and `NotesField sendBack`, success toasts on approve /
+    send-back, and the "สิ่งที่ต้องดำเนินการ" box covers PROPOSAL steps 2, 6 and 8 too.
+  - The advisor's exam-result notice and the proposal head's ผ่าน/ไม่ผ่าน picker moved inside the
+    signer card (`SignatureButton` `intro` / `leadSection`); `ExamResultPicker` is now a numbered
+    card section (with `options`/`hint` for the ผ่าน/ไม่ผ่าน case).
+  - Student: the defense step-6/12 confirmations use `B1Checklist` (`DEFENSE_STEP6_CHECKS`,
+    `DEFENSE_STEP15_CHECKS`); the cancel button moved below the action card; the resubmit button
+    is called "ยื่นใหม่อีกครั้ง" on every screen that mentions it.
+  - Admin override card ("จัดการ"): its อนุมัติ/ส่งกลับ choice was frozen when the card mounted, so a
+    step that became APPROVED while the page was open (e.g. the last step, all others complete)
+    showed a green "ยืนยันอนุมัติ" button that actually sent the step back. The choice is now
+    derived from the step's live status.
+
+- **The "เอกสารแนบ" file list sits last** in the right-hand column of every submission view — the
+  student's (`StudentSubmissionActions`), every faculty role's (`RoleSubmissionDetail`) and the
+  admin's (`AdminSubmissionPanel`, below the delete card) — so the step's action card comes first.
+
+- **Who signs the defense's two post-exam forms, made exact — 21 steps.** ใบรายงานผลการสอบ is
+  signed by the whole committee (advisor, co-advisors, head, exam committee, external) and the
+  department chair only: the program chair's ใบรายงานผล step (old stepOrder 12) is removed, so
+  8.x ends at the external members and later stepOrders shift down by one (displayed numbers
+  unchanged). แบบรายงานการเสนอผลงานฯ is signed by the student and the advisor only — the
+  co-advisor's step name no longer claims it. Step-6 wording now says the student doesn't sign
+  ใบรายงานผลการสอบ (its "3 จุด" checkbox is replaced at that step), and the admin's check lists the
+  right signers.
+
+- **The student picks the defense exam result and uploads แบบประเมินวิทยานิพนธ์ดีมาก.** The
+  result picker moved from the advisor (step 7) to the student (step 6, new shared
+  `ExamResultPicker`, ผ่าน preselected); ดีมาก adds a required `VERY_GOOD_EVAL` upload to the
+  student's step. The server requires a valid result on step 6's approval and the form for ดีมาก
+  (the step-7 gate moved here). The advisor now sees the student's result with a double-check
+  notice and confirms it with a checkbox; on a rejection at step 7 the student can re-pick the
+  result when resubmitting (`resubmit` takes `examResult`). The admin's result check now reads
+  "ที่นิสิตเลือกและอาจารย์ที่ปรึกษายืนยัน".
+
 - **THESIS_DEFENSE: 3 steps after the committee's ใบรายงานผล signatures — 22 steps.** New
   stepOrders 13–15 (shown as 9–11): ADMIN checks the signed documents (`ADMIN_DEFENSE_RESULT_CHECKS`),
   the department chair signs ใบรายงานผลการสอบ, then the ADMIN uploads a new cover page and confirms

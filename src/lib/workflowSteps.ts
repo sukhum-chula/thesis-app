@@ -16,15 +16,21 @@ export const PROPOSAL_ROLES = [
   "ADMIN",                 // 12 recheck everything + upload the cover page (COVER_PAGE) for the Faculty
 ] as const;
 
-// THESIS_DEFENSE: 22 steps — บ.2/3 through thesis cover signing. Restructured 2026-09-30, again
+// THESIS_DEFENSE: 20 steps — บ.2/3 through the student's iThesis confirmation. Restructured 2026-09-30, again
 // 2026-10-01: the committee's บ.3 evaluations are collected OUTSIDE the system (the student and
 // advisor contact each member) and uploaded by the student at step 1, one copy per member
 // (FormUpload.memberId); บ.2 is uploaded at step 1 already signed by the student, the advisor and
 // the head of committee (also outside the system — the student attests it in the checklist), so the
 // ADMIN check that generates the finance form comes straight after; the program chair signs บ.2
-// last. After the committee signs ใบรายงานผลการสอบ, the ADMIN checks it, the department chair
+// last. ใบรายงานผลการสอบ is signed by the whole committee (advisor, co-advisors, head, exam
+// committee, external) and then the department chair — never the student or the program chair;
+// แบบรายงานการเสนอผลงานฯ only by the student and the advisor. After the committee signs, the ADMIN checks, the department chair
 // (หัวหน้าภาควิชา, SystemSetting departmentChair) signs it, and the ADMIN sends it to the Faculty
-// with a cover page. Refer to steps through THESIS_STEP below, never bare numbers.
+// with a cover page. The thesis itself is uploaded already signed by the whole committee (no
+// in-system cover-signing steps since 2026-10-01); the ADMIN checks it and adds a cover page, the
+// department chair signs บ.4 + the thesis, and the ADMIN confirms sending it to the Faculty and,
+// once the Faculty replies, forwarding that reply to the student; the student then confirms that
+// every required document is in the iThesis system, which completes the defense. Refer to steps through THESIS_STEP below, never bare numbers.
 export const THESIS_ROLES = [
   "STUDENT",               // 1  upload B2 (signed by student + advisor + head) + one signed B3 per member
   "ADMIN",                 // 2  check + generate FINANCE_ATTACH → approve sends the finance email
@@ -32,22 +38,20 @@ export const THESIS_ROLES = [
   "ADMIN",                 // 4  collect + send B2+B3 to Faculty
   "ADMIN",                 // 5  confirm the Faculty's email was forwarded to the student
   "STUDENT",               // 6  fill + sign แบบรายงานฯ; upload it + ใบรายงานผลการสอบ (from the Faculty email)
-  "ADVISOR",               // 7  sign แบบรายงาน + ใบรายงานผล
-  "CO_ADVISOR",            // 8  sign แบบรายงาน + ใบรายงานผล (sequential, skipped if none)
+  "ADVISOR",               // 7  sign แบบรายงาน + ใบรายงานผล (แบบรายงานฯ: student + advisor only)
+  "CO_ADVISOR",            // 8  sign ใบรายงานผล (sequential, skipped if none)
   "HEAD_EXAM_COMMITTEE",   // 9  sign ใบรายงานผล
   "EXAM_COMMITTEE",        // 10 sign ใบรายงานผล (sequential)
   "INVITED_EXAM_COMMITTEE",// 11 sign ใบรายงานผล
-  "PROGRAM_CHAIR",         // 12 sign ใบรายงานผล
-  "ADMIN",                 // 13 check the signed ใบรายงานผล + แบบรายงานฯ
-  "DEPARTMENT_CHAIR",      // 14 department chair signs ใบรายงานผล
-  "ADMIN",                 // 15 upload the cover page + confirm the email to the Faculty was sent
-  "STUDENT",               // 16 upload B4 + THESIS
-  "PROGRAM_CHAIR",         // 17 sign B4
-  "ADVISOR",               // 18 sign thesis cover
-  "CO_ADVISOR",            // 19 sign thesis cover (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 20 sign thesis cover
-  "EXAM_COMMITTEE",        // 21 sign thesis cover (sequential)
-  "INVITED_EXAM_COMMITTEE",// 22 sign thesis cover
+  "ADMIN",                 // 12 check the signed ใบรายงานผล + แบบรายงานฯ
+  "DEPARTMENT_CHAIR",      // 13 department chair signs ใบรายงานผล (its last signature)
+  "ADMIN",                 // 14 upload the cover page + confirm the email to the Faculty was sent
+  "STUDENT",               // 15 upload B4 + THESIS (already signed by the whole committee, outside the system)
+  "ADMIN",                 // 16 check the student's B4 + THESIS, upload the cover page
+  "DEPARTMENT_CHAIR",      // 17 department chair signs B4 + THESIS
+  "ADMIN",                 // 18 confirm the email to the Faculty was sent
+  "ADMIN",                 // 19 confirm the Faculty's feedback email was forwarded to the student
+  "STUDENT",               // 20 confirm every required document was submitted to iThesis — last step
 ] as const;
 
 /** Named THESIS_DEFENSE stepOrders for the steps code branches on — use these, never bare numbers,
@@ -60,10 +64,15 @@ export const THESIS_STEP = {
   ADMIN_FORWARD:      5,  // confirm only: Faculty email forwarded to the student (no uploads)
   STUDENT_REPORT:     6,  // student uploads แบบรายงานฯ (SIGNED) + ใบรายงานผลการสอบ (EXAM_RESULT)
   ADVISOR_RESULT:     7,  // advisor picks the exam result
-  ADMIN_RESULT_CHECK: 13, // ADMIN checks the committee-signed ใบรายงานผล + แบบรายงานฯ
-  DEPT_CHAIR_RESULT:  14, // department chair signs ใบรายงานผล (role DEPARTMENT_CHAIR)
-  ADMIN_RESULT_SEND:  15, // ADMIN uploads the cover page + confirms the email to the Faculty
-  STUDENT_THESIS:     16, // B4 + THESIS
+  ADMIN_RESULT_CHECK: 12, // ADMIN checks the committee-signed ใบรายงานผล + แบบรายงานฯ
+  DEPT_CHAIR_RESULT:  13, // department chair signs ใบรายงานผล (role DEPARTMENT_CHAIR)
+  ADMIN_RESULT_SEND:  14, // ADMIN uploads the cover page + confirms the email to the Faculty
+  STUDENT_THESIS:     15, // B4 + THESIS
+  ADMIN_THESIS_CHECK: 16, // ADMIN checks B4 + THESIS, uploads the cover page (a new one)
+  DEPT_CHAIR_THESIS:  17, // department chair signs B4 + THESIS (role DEPARTMENT_CHAIR)
+  ADMIN_THESIS_SEND:  18, // ADMIN confirms the email to the Faculty was sent
+  ADMIN_THESIS_FORWARD: 19, // ADMIN confirms the Faculty's feedback was forwarded to the student
+  STUDENT_ITHESIS:    20, // student confirms every required document is in iThesis (no upload)
 } as const;
 
 /** The ADMIN step that generates the finance attachment (and whose approval emails it), by type:

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { getStepName, formatDate } from "@/lib/utils";
+import { stepNumbering } from "@/lib/stepNumbering";
 import { SubmissionStatus } from "@/types";
 import Link from "next/link";
 import { ChevronRight, Clock, CheckCircle2, FileText } from "lucide-react";
@@ -138,9 +139,12 @@ export default function ProfessorDashboard() {
                             {getStepName(currentStep.stepOrder, sub.submissionType) || `ขั้นที่ ${currentStep.stepOrder}`}
                           </span>
                         )}
-                        {myActedStep && (
+                        {/* The last step this professor acted on — hidden while a later step is their turn
+                            again (an advisor signs at several steps), and labelled with its step number */}
+                        {myActedStep && !myTurn && (
                           <span className={`text-xs font-medium ${myActedStep.status === "APPROVED" ? "text-green-600" : "text-red-500"}`}>
                             {myActedStep.status === "APPROVED" ? "✓ ท่านอนุมัติแล้ว" : "✗ ท่านปฏิเสธแล้ว"}
+                            {" "}(ขั้นที่ {stepNumbering(sub.workflowSteps, sub.submissionType).label(myActedStep.stepOrder)})
                             {myActedStep.actedAt && <span className="text-gray-400 font-normal"> · {formatDate(myActedStep.actedAt)}</span>}
                           </span>
                         )}

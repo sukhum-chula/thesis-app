@@ -22,7 +22,8 @@ interface Props {
 // ─── Shared action-card building blocks ─────────────────────────────────────
 // Every "it's your turn" card — student upload, single signer, committee signer, admin — is built
 // from these, so the parts look and read the same whichever role and step is acting:
-// ① download → ② sign/fill → ③ upload → ④ checklist → ⑤ notes → one green ✓ button.
+// ① download → ② sign/fill → ③ upload → ④ checklist → ⑤ notes → one green ✓ button, with ปฏิเสธ
+// (or the admin's ส่งกลับ) beside it.
 
 /** Frame of an action card (the card a user acts in when it's their turn). */
 export const ACTION_CARD = "bg-white border-2 border-blue-300 rounded-2xl p-5 shadow-sm space-y-5";
@@ -30,6 +31,12 @@ export const ACTION_CARD = "bg-white border-2 border-blue-300 rounded-2xl p-5 sh
 export const PRIMARY_BUTTON = "w-full flex items-center justify-center gap-2 py-3.5 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition";
 /** The reject (ปฏิเสธ) button next to the primary one. */
 export const REJECT_BUTTON = "flex-1 flex items-center justify-center gap-2 py-3.5 border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed transition";
+/** The ADMIN's send-back (ส่งกลับ) button — takes ปฏิเสธ's place on an admin card (admin steps never reject). */
+export const SEND_BACK_BUTTON = "flex-1 flex items-center justify-center gap-2 py-3.5 border-2 border-orange-200 text-orange-600 font-semibold rounded-xl hover:bg-orange-50 disabled:opacity-60 disabled:cursor-not-allowed transition";
+/** Confirm button of a reject / send-back form, and its cancel button. */
+export const CONFIRM_REJECT_BUTTON = "flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition";
+export const CONFIRM_SEND_BACK_BUTTON = "flex-1 flex items-center justify-center gap-2 py-3.5 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed transition";
+export const CANCEL_BUTTON = "px-5 py-3.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed transition";
 
 /** Numbered section heading inside an action card. */
 export function SectionLabel({ n, children, required }: { n: number; children: React.ReactNode; required?: boolean }) {
@@ -71,22 +78,27 @@ export function NoDownloads() {
   );
 }
 
-/** The card's notes box — optional on approve, required (red) on reject. */
-export function NotesField({ value, onChange, reject = false }: {
-  value: string; onChange: (v: string) => void; reject?: boolean;
+/** The card's notes box — optional on approve, required (red) on reject, optional (orange) on send-back. */
+export function NotesField({ value, onChange, reject = false, sendBack = false }: {
+  value: string; onChange: (v: string) => void; reject?: boolean; sendBack?: boolean;
 }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
-        {reject ? <>เหตุผลในการปฏิเสธ <span className="text-red-500">*</span></> : "หมายเหตุ (ไม่บังคับ)"}
+        {reject ? <>เหตุผลในการปฏิเสธ <span className="text-red-500">*</span></>
+          : sendBack ? "เหตุผลในการส่งกลับ (ไม่บังคับ)"
+          : "หมายเหตุ (ไม่บังคับ)"}
       </label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={reject ? "ระบุเหตุผล..." : "หมายเหตุเพิ่มเติม..."}
+        autoFocus={reject || sendBack}
+        placeholder={reject || sendBack ? "ระบุเหตุผล..." : "หมายเหตุเพิ่มเติม..."}
         className={cn(
           "w-full border rounded-xl p-3 text-base resize-none h-20 focus:outline-none focus:ring-2",
-          reject ? "border-red-300 focus:ring-red-400" : "border-gray-200 focus:ring-blue-400"
+          reject ? "border-red-300 focus:ring-red-400"
+            : sendBack ? "border-orange-300 focus:ring-orange-400"
+            : "border-gray-200 focus:ring-blue-400"
         )}
       />
     </div>

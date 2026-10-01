@@ -7,7 +7,9 @@ import {
   FileUploader, SectionLabel, DownloadRow, ActionError, postUpload, ACTION_CARD, PRIMARY_BUTTON,
 } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
+import { ROLE_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, DEFENSE_STEP6_CHECKS, DEFENSE_STEP15_CHECKS, DEFENSE_ITHESIS_CHECKS, freshUploadCutoff,
+  DEFAULT_DEFENSE_EXAM_RESULT, VERY_GOOD_RESULT, examResultNote, defenseExamResult } from "@/lib/utils";
+import { ExamResultPicker } from "@/components/ExamResultPicker";
 import { THESIS_STEP, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import { stepNumbering } from "@/lib/stepNumbering";
@@ -47,10 +49,10 @@ const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
       forms: ["SIGNED", "EXAM_RESULT"], label: "แบบรายงานการเสนอผลงานฯ + ใบรายงานผลการสอบ (จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้)",
       warnings: {
         SIGNED:      "แบบรายงานการเสนอผลงานทางวิชาการของนิสิต (ไฟล์ PDF) — ใช้แบบฟอร์มจากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้ กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิตก่อนอัปโหลด เว้นช่องลงนามของอาจารย์ที่ปรึกษาว่างไว้ (อาจารย์ที่ปรึกษาจะลงนามในขั้นตอนถัดไป)",
-        EXAM_RESULT: "ใบรายงานผลการสอบวิทยานิพนธ์ (ไฟล์ PDF) — ไฟล์จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้ อัปโหลดตามที่ได้รับโดยไม่ต้องลงนาม คณะกรรมการและประธานหลักสูตรจะลงนามผ่านระบบในขั้นตอนถัดไป",
+        EXAM_RESULT: "ใบรายงานผลการสอบวิทยานิพนธ์ (ไฟล์ PDF) — ไฟล์จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้ อัปโหลดตามที่ได้รับ นิสิตไม่ต้องลงนาม คณะกรรมการสอบทุกท่านและหัวหน้าภาควิชาจะลงนามผ่านระบบในขั้นตอนถัดไป",
       },
     },
-    [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)" },
+    [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode และลายมือชื่อคณะกรรมการครบ)" },
   },
 };
 
@@ -64,13 +66,24 @@ const SUBMIT_LABEL: Record<string, Record<number, string>> = {
     [THESIS_STEP.STUDENT_B2_B3]:  "ส่งต่อ",
     [THESIS_STEP.STUDENT_REPORT]: "ส่งต่อ",
     [THESIS_STEP.STUDENT_THESIS]: "ส่งต่อ",
+    [THESIS_STEP.STUDENT_ITHESIS]: "ยืนยัน",
   },
 };
 
 // Student steps that end with a document checklist, and which items each one asks for
 const B1_STEP_CHECKS: Record<string, Record<number, typeof B1_CHECKS>> = {
   PROPOSAL:       { 1: B1_CHECKS, 4: B1_STEP4_CHECKS },
-  THESIS_DEFENSE: { [THESIS_STEP.STUDENT_B2_B3]: DEFENSE_STEP1_CHECKS },
+  THESIS_DEFENSE: {
+    [THESIS_STEP.STUDENT_B2_B3]:  DEFENSE_STEP1_CHECKS,
+    [THESIS_STEP.STUDENT_REPORT]: DEFENSE_STEP6_CHECKS,
+    [THESIS_STEP.STUDENT_THESIS]: DEFENSE_STEP15_CHECKS,
+    [THESIS_STEP.STUDENT_ITHESIS]: DEFENSE_ITHESIS_CHECKS, // confirm only — no upload
+  },
+};
+// Checklist heading per student step (default: "กรุณาตรวจสอบก่อนส่ง")
+const CHECKLIST_TITLE: Record<string, Record<number, string>> = {
+  PROPOSAL:       { 1: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง", 4: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง" },
+  THESIS_DEFENSE: { [THESIS_STEP.STUDENT_B2_B3]: "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง" },
 };
 
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection
@@ -99,8 +112,9 @@ const FORM_UPLOAD_WARNINGS: Partial<Record<FormType, string>> = {
   B2:    "ไฟล์ PDF — กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิต เว้นช่องลงนามอื่นว่างไว้",
   B3:    "ไฟล์ PDF หนึ่งไฟล์ต่อกรรมการหนึ่งท่าน — บ.3 ที่กรรมการท่านนั้นประเมินและลงนามแล้ว (ติดต่อกรรมการนอกระบบร่วมกับอาจารย์ที่ปรึกษา)",
   B4:    "กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด",
-  THESIS: "ต้องเป็นไฟล์ที่ผ่านระบบ e-thesis ของจุฬาฯ และมี barcode กำกับเรียบร้อยแล้ว",
+  THESIS: "ต้องเป็นไฟล์ที่ผ่านระบบ e-thesis ของจุฬาฯ มี barcode กำกับ และคณะกรรมการสอบลงนามครบทุกท่านแล้ว (ลงนามนอกระบบ)",
   SIGNED: "ต้องลงนามโดยนิสิตในเอกสารก่อนอัปโหลด",
+  VERY_GOOD_EVAL: "แบบประเมินวิทยานิพนธ์ดีมาก (ไฟล์ PDF) — กรอกข้อมูลให้ครบถ้วนก่อนอัปโหลด (ต้องอัปโหลดเมื่อผลการสอบเป็น ดีมาก)",
 };
 
 /** The student's full action surface for one submission — status banner, committee/exam info,
@@ -116,10 +130,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   // Keyed by upload slot: the form type, or "<formType>:<memberId>" for per-member forms (บ.3)
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [confirmSigns, setConfirmSigns] = useState(false);
   const [b1Checks, setB1Checks] = useState<Record<string, boolean>>({});
-  const [confirmProgram, setConfirmProgram] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // THESIS student-report step: the exam result the student picks (ผ่าน preselected by design);
+  // null on the resubmit screen means "keep the stored one"
+  const [examResult, setExamResult] = useState<string>(DEFAULT_DEFENSE_EXAM_RESULT);
+  const [resubmitResult, setResubmitResult] = useState<string | null>(null);
 
   const sub = submissions.find((s) => s.id === submissionId);
 
@@ -177,7 +193,13 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     }),
   ];
 
-  const requiredForms = suggested?.forms ?? [];
+  // THESIS student-report step: the student picks the exam result; ดีมาก adds แบบประเมินวิทยานิพนธ์ดีมาก
+  const isReportStep = subType === "THESIS_DEFENSE" && currentStep?.stepOrder === THESIS_STEP.STUDENT_REPORT;
+  const stepForms: FormType[] = [
+    ...(suggested?.forms ?? []),
+    ...(isReportStep && examResult === VERY_GOOD_RESULT ? (["VERY_GOOD_EVAL"] as FormType[]) : []),
+  ];
+  const requiredForms = stepForms;
   // Upload slots: one per form, except per-member forms (the defense's บ.3, collected outside the
   // system from each committee member) get one slot per member on the submission's committee
   const roster = committeeRoster(sub);
@@ -204,22 +226,25 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     }
   }
 
-  const needsSignConfirm   = subType === "THESIS_DEFENSE" && isMyTurn &&
-    (currentStep?.stepOrder === THESIS_STEP.STUDENT_REPORT || currentStep?.stepOrder === THESIS_STEP.STUDENT_THESIS);
-  const needsProgramConfirm = subType === "THESIS_DEFENSE" && isMyTurn && currentStep?.stepOrder === THESIS_STEP.STUDENT_THESIS;
   const b1StepChecks = isMyTurn && currentStep
     ? (B1_STEP_CHECKS[subType]?.[currentStep.stepOrder] ?? null)
     : null;
   const needsB1Confirm = b1StepChecks !== null;
   const b1AllChecked = !b1StepChecks || allChecked(b1StepChecks, b1Checks);
-  const preSubmitAllChecked = (!needsSignConfirm || confirmSigns) && (!needsProgramConfirm || confirmProgram)
-    && (!needsB1Confirm || b1AllChecked);
+  const preSubmitAllChecked = !needsB1Confirm || b1AllChecked;
 
   // Student can submit as soon as their own files are ready — FINANCE_DOC is handled by admin in parallel
   const allRequiredUploaded = studentUploaded && preSubmitAllChecked;
 
+  // The advisor rejected at THESIS_STEP.ADVISOR_RESULT (usually over the result): the student may
+  // pick the result again on the resubmit screen, and ดีมาก then needs แบบประเมินวิทยานิพนธ์ดีมาก
+  const rejectedAtResult = subType === "THESIS_DEFENSE" && subStatus === "REJECTED"
+    && sub.workflowSteps.find((s) => s.status === "REJECTED")?.stepOrder === THESIS_STEP.ADVISOR_RESULT;
+  const storedResult = subType === "THESIS_DEFENSE" ? defenseExamResult(sub.workflowSteps) : null;
+  const pickedResubmitResult = resubmitResult ?? storedResult ?? DEFAULT_DEFENSE_EXAM_RESULT;
+  const resultChanged = rejectedAtResult && pickedResubmitResult !== storedResult;
   // Forms the student should re-upload to fix a rejection — based on their most recent approved upload step
-  const rejectedFixForms: FormType[] = (() => {
+  const rejectedFixFormsBase: FormType[] = (() => {
     if (subStatus !== "REJECTED") return [];
     const rejectedStep = sub.workflowSteps.find((s) => s.status === "REJECTED");
     const lastStudentStep = [...sub.workflowSteps]
@@ -229,6 +254,14 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
       ? (SUGGESTED_BY_STEP[subType]?.[lastStudentStep.stepOrder]?.forms ?? [])
       : (ALL_STUDENT_FORMS[subType] ?? []);
   })();
+  const rejectedFixForms: FormType[] = [
+    ...rejectedFixFormsBase,
+    ...(rejectedAtResult && pickedResubmitResult === VERY_GOOD_RESULT && !rejectedFixFormsBase.includes("VERY_GOOD_EVAL")
+      ? (["VERY_GOOD_EVAL"] as FormType[]) : []),
+  ];
+  // Switching to ดีมาก on resubmit needs the evaluation form — an earlier copy counts
+  const resubmitNeedsEval = rejectedAtResult && pickedResubmitResult === VERY_GOOD_RESULT
+    && !selectedFiles.VERY_GOOD_EVAL && !sub.uploads.some((u) => u.formType === "VERY_GOOD_EVAL");
 
   // Who is responsible for the current step (with name if available)
   function resolvePendingName(): string {
@@ -344,7 +377,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
           </div>
           {rejectedStepName && (
             <p className="text-xs text-red-500 bg-red-100 rounded-lg px-3 py-2">
-              แก้ไขเอกสารด้านขวา แล้วกด <span className="font-semibold">ยืนยันและยื่นใหม่</span> — ระบบจะส่งกลับให้ <span className="font-semibold">{rejectedStepName}</span> พิจารณาใหม่
+              แก้ไขเอกสารในกล่อง &ldquo;แก้ไขเอกสาร&rdquo; แล้วกด <span className="font-semibold">ยื่นใหม่อีกครั้ง</span> — ระบบจะส่งกลับให้ <span className="font-semibold">{rejectedStepName}</span> พิจารณาใหม่
             </p>
           )}
         </div>
@@ -358,9 +391,11 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
           <div>
             <p className="text-blue-800 font-bold text-lg">ถึงคิวของท่านแล้ว</p>
             <p className="text-blue-600 text-sm mt-1">
-              {suggested
-                ? `กรุณาอัปโหลด${suggested.label} แล้วกดส่ง`
-                : "กรุณาอัปโหลดเอกสารที่จำเป็น แล้วกดส่ง"}
+              {subType === "THESIS_DEFENSE" && currentStep?.stepOrder === THESIS_STEP.STUDENT_ITHESIS
+                ? "กรุณาส่งเอกสารที่จำเป็นทั้งหมดเข้าระบบ iThesis แล้วทำเครื่องหมายยืนยันด้านล่าง และกด ยืนยัน"
+                : suggested
+                ? `กรุณาอัปโหลด${suggested.label} แล้วกด ส่งต่อ`
+                : "กรุณาอัปโหลดเอกสารที่จำเป็น แล้วกด ส่งต่อ"}
             </p>
           </div>
         </div>
@@ -441,17 +476,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
 
         {/* Right: files + upload — first on mobile */}
         <div className="order-1 md:order-none space-y-4">
-          {/* Uploaded files — show only latest per type, no history */}
-          {sub.uploads.length > 0 && (
-            <FileList
-              uploads={sub.uploads}
-              submissionTitle={sub.title}
-              submissionType={subType}
-              compact
-              hideHistory
-            />
-          )}
-
           {/* Cancel — outside the IN_PROGRESS states (which already show their own cancel button
               below): lets a REJECTED PROPOSAL be started over (cancelling also cancels any defense
               created off it), and lets an abandoned DRAFT (of either type) be given up on entirely.
@@ -477,8 +501,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                 <p className="text-sm text-gray-500">เลือกไฟล์ที่แก้ไขแล้ว แล้วกด ยื่นใหม่อีกครั้ง</p>
               </div>
 
+              {rejectedAtResult && (
+                <ExamResultPicker n={1} value={pickedResubmitResult} onChange={(v) => { setResubmitResult(v); setActionError(null); }} />
+              )}
+
               <div>
-                <SectionLabel n={1} required>อัปโหลดเอกสารที่แก้ไขแล้ว</SectionLabel>
+                <SectionLabel n={rejectedAtResult ? 2 : 1} required={!rejectedAtResult}>อัปโหลดเอกสารที่แก้ไขแล้ว</SectionLabel>
                 <div className="space-y-4">
                   {rejectedFixForms.map((ft) => (
                     <div key={ft} className="space-y-2">
@@ -518,7 +546,8 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   try {
                     await uploadSelected();
                     setSelectedFiles({});
-                    await studentResubmit(sub.id);
+                    await studentResubmit(sub.id, rejectedAtResult ? pickedResubmitResult : undefined);
+                    setResubmitResult(null);
                     showToast("ยื่นใหม่แล้ว — ส่งกลับให้ผู้พิจารณาตรวจสอบอีกครั้ง ✓");
                   } catch (err) {
                     setActionError(toUserErrorMessage(err));
@@ -526,7 +555,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                     setSubmitting(false);
                   }
                 }}
-                disabled={submitting || Object.keys(selectedFiles).length === 0}
+                disabled={submitting || resubmitNeedsEval || (Object.keys(selectedFiles).length === 0 && !resultChanged)}
                 className={PRIMARY_BUTTON}
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
@@ -593,11 +622,15 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                 </div>
               )}
 
+              {isReportStep && (
+                <ExamResultPicker n={stepDownloads.length > 0 ? 2 : 1} value={examResult} onChange={(v) => { setExamResult(v); setActionError(null); }} />
+              )}
+
               {suggested && (
                 <div>
-                  <SectionLabel n={stepDownloads.length > 0 ? 2 : 1} required>อัปโหลดเอกสาร</SectionLabel>
+                  <SectionLabel n={1 + (stepDownloads.length > 0 ? 1 : 0) + (isReportStep ? 1 : 0)} required>อัปโหลดเอกสาร</SectionLabel>
                   <div className="space-y-4">
-                    {suggested.forms.map((ft, idx) => {
+                    {stepForms.map((ft, idx) => {
                       const existing = effectiveUploads
                         .filter((u) => u.formType === ft)
                         .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
@@ -655,49 +688,15 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                 </div>
               )}
 
-              {/* Pre-submit checklist for PROPOSAL steps 1 and 4 / DEFENSE step 1 — the system can't
-                  inspect the PDF, so the student confirms what they filled and who signed */}
+              {/* Pre-submit checklist — the system can't inspect the PDF, so the student confirms what
+                  they filled and who signed */}
               {b1StepChecks && (
                 <B1Checklist
-                  title={subType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง"}
+                  title={CHECKLIST_TITLE[subType]?.[currentStep?.stepOrder ?? 0] ?? "กรุณาตรวจสอบก่อนส่ง"}
                   checks={b1StepChecks}
                   value={b1Checks}
                   onChange={setB1Checks}
                 />
-              )}
-
-              {/* Pre-submit confirmation checkboxes for THESIS_DEFENSE signing steps */}
-              {needsSignConfirm && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    กรุณาตรวจสอบก่อนส่ง
-                  </p>
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={confirmSigns}
-                      onChange={(e) => setConfirmSigns(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0"
-                    />
-                    <span className="text-xs text-amber-800">
-                      ลงนามในเอกสารครบ <strong>3 จุด</strong> เรียบร้อยแล้ว
-                    </span>
-                  </label>
-                  {needsProgramConfirm && (
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={confirmProgram}
-                        onChange={(e) => setConfirmProgram(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 accent-amber-600 shrink-0"
-                      />
-                      <span className="text-xs text-amber-800">
-                        ตรวจสอบ<strong>ชื่อหลักสูตร</strong>ในเอกสารถูกต้องแล้ว
-                      </span>
-                    </label>
-                  )}
-                </div>
               )}
 
               <ActionError message={actionError} />
@@ -716,7 +715,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                       const res = await fetch(`/api/submissions/${sub.id}`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "approve" }),
+                        body: JSON.stringify({ action: "approve", ...(isReportStep ? { notes: examResultNote(examResult) } : {}) }),
                       });
                       const data = await res.json();
                       if (!res.ok) throw new Error(data.error ?? "เกิดข้อผิดพลาด");
@@ -736,17 +735,30 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                 </button>
               )}
 
-              {/* Cancel — only shown here when it's the student's turn; other states show it in the status banner */}
-              {isMyTurn && (
-                <button
-                  onClick={() => setShowCancelModal(true)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 transition"
-                >
-                  <XCircle className="w-4 h-4" />
-                  ขอยกเลิกคำร้องนี้
-                </button>
-              )}
             </div>
+          )}
+
+          {/* Cancel on the student's turn — below the action card, not inside it (the card ends with
+              its one primary button, same as every other role's card) */}
+          {!sub.cancelRequested && subStatus === "IN_PROGRESS" && isMyTurn && (
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 text-gray-500 text-sm font-medium rounded-xl hover:bg-gray-50 transition"
+            >
+              <XCircle className="w-4 h-4" />
+              ขอยกเลิกคำร้องนี้
+            </button>
+          )}
+
+          {/* Uploaded files — last, below every action card */}
+          {sub.uploads.length > 0 && (
+            <FileList
+              uploads={sub.uploads}
+              submissionTitle={sub.title}
+              submissionType={subType}
+              compact
+              hideHistory
+            />
           )}
         </div>
       </div>
