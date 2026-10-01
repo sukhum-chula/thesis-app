@@ -941,7 +941,7 @@ upload route lets the ADMIN upload it at either step only.
 | 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 3 items) and upload a **new cover page** (`COVER_PAGE`, newer than step 15 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated) (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
 | 17 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs **both** B4 and THESIS (download latest, upload both signed); 2-item own-signature checklist (`SIGN_CHECKS.THESIS_DEFENSE`) (`THESIS_STEP.DEPT_CHAIR_THESIS`) |
 | 18 | ADMIN | Confirm only: emailed B4 + thesis + cover page to the Faculty (`ADMIN_DEFENSE_THESIS_SEND_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_SEND`) |
-| 19 | ADMIN | Confirm only, when the Faculty replies: forwarded its feedback email to the student (`ADMIN_DEFENSE_THESIS_FORWARD_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_FORWARD`) |
+| 19 | ADMIN | Confirm only, when the Faculty replies: forwarded its documents — **signed by the Dean (คณบดี)** — to the student (`ADMIN_DEFENSE_THESIS_FORWARD_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_FORWARD`) |
 | 20 | STUDENT | Confirm only, nothing uploaded: every required document has been submitted to the iThesis system (`DEFENSE_ITHESIS_CHECKS`, button "ยืนยัน") — the defense's last step (`THESIS_STEP.STUDENT_ITHESIS`) |
 
 The committee signs the thesis **outside the system** (the five in-system cover-signing steps were

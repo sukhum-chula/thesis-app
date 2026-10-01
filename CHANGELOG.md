@@ -7,6 +7,10 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-01
 
+- **Defense step 16 wording: the Faculty's reply is the Dean-signed documents.** Step name, the
+  admin's checklist and to-do card, and the admin-dashboard task label now say the admin forwards
+  the documents from the Faculty that the Dean (คณบดี) has signed, not just a "feedback email".
+
 - **THESIS_DEFENSE ends with the student confirming iThesis — 20 steps (shown 1–17).** New last step
   (`THESIS_STEP.STUDENT_ITHESIS`, shown 17): after the admin forwards the Faculty's feedback, the
   student ticks "ส่งเอกสารที่จำเป็นทั้งหมดเข้าระบบ iThesis เรียบร้อยแล้ว" and presses ยืนยัน — nothing

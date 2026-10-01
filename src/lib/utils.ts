@@ -643,7 +643,7 @@ export const ADMIN_DEFENSE_THESIS_SEND_CHECKS: B1Check[] = [
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_FORWARD — the student confirms iThesis after this */
 export const ADMIN_DEFENSE_THESIS_FORWARD_CHECKS: B1Check[] = [
-  { key: "forwarded", group: "confirm", label: "ได้รับอีเมลผลการพิจารณาจากคณะ และส่งต่อให้นิสิตแล้ว" },
+  { key: "forwarded", group: "confirm", label: "ได้รับเอกสารจากคณะที่คณบดีลงนามแล้ว และส่งต่อให้นิสิตแล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.STUDENT_ITHESIS — the defense's last step; nothing is uploaded */
 export const DEFENSE_ITHESIS_CHECKS: B1Check[] = [
@@ -670,7 +670,7 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์ และอัปโหลดใบปะหน้า",
   17: "หัวหน้าภาควิชาลงนาม บ.4 + วิทยานิพนธ์",
   18: "เจ้าหน้าที่ส่งอีเมลเอกสารวิทยานิพนธ์ไปคณะ",
-  19: "เจ้าหน้าที่ส่งต่ออีเมลผลการพิจารณาจากคณะให้นิสิต",
+  19: "เจ้าหน้าที่ส่งต่อเอกสารจากคณะ (คณบดีลงนามแล้ว) ให้นิสิต",
   20: "นิสิตยืนยันการส่งเอกสารเข้าระบบ iThesis",
 };
 

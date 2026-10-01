@@ -1172,7 +1172,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 </ol>
               ) : isThesisDocForwardStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>เมื่อได้รับอีเมลผลการพิจารณาจากคณะวิศวกรรมศาสตร์ ให้ส่งต่ออีเมลนั้นให้นิสิต</li>
+                  <li>เมื่อได้รับเอกสารจากคณะวิศวกรรมศาสตร์ที่คณบดีลงนามแล้ว ให้ส่งต่อให้นิสิต</li>
                   <li>ทำเครื่องหมายยืนยัน และกดอนุมัติ — ระบบจะแจ้งนิสิตให้ยืนยันการส่งเอกสารเข้าระบบ iThesis</li>
                 </ol>
               ) : (
