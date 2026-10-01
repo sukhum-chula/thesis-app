@@ -7,6 +7,14 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-01
 
+- **Checklist wording made consistent across every step, plus the missing checklists.** One
+  style everywhere (rules in `AGENTS.md` → "Checklist wording"): "ท่าน" for one's own signature,
+  "นิสิต" on the student's lists, every item ends in แล้ว, signature counts as "(N ตำแหน่ง)",
+  คณะกรรมการสอบ / หัวข้อวิทยานิพนธ์ / คณะฯ / iThesis (e-thesis was wrong) / บาร์โค้ด, no
+  "อาจารย์ที่ปรึกษาหลัก", and one title pattern per role. New required checklists: defense step 3
+  (chair signs บ.2), 8.x and 10 (ใบรายงานผลการสอบ signers), step 4 (`ADMIN_DEFENSE_RELAY_CHECKS`:
+  cover page signed + sent to the Faculty), and a cover-page-signed item on steps 11 and 13.
+
 - **Defense step 16 wording: the Faculty's reply is the Dean-signed documents.** Step name, the
   admin's checklist and to-do card, and the admin-dashboard task label now say the admin forwards
   the documents from the Faculty that the Dean (คณบดี) has signed, not just a "feedback email".

@@ -136,7 +136,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const doneCount   = numbering.done;
   const totalSteps  = numbering.total;
   const currentDisplayOrder = currentStep ? numbering.label(currentStep.stepOrder) : "";
-  // Signing steps with an own-signature checklist (PROPOSAL 3, 5.x, 7; none for THESIS yet) — lib/utils SIGN_CHECKS
+  // Signing steps with an own-signature checklist (PROPOSAL 3, 5.x, 7; THESIS 3, 8.x, 10, 14) — lib/utils SIGN_CHECKS
   const signChecks = currentStep && isMyTurn
     ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;
@@ -145,9 +145,9 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const studentResult = isThesisAdvisorResultStep ? defenseExamResult(sub.workflowSteps) : null;
   const advisorResultChecks = isThesisAdvisorResultStep
     ? [
-        { key: "resultOk",     group: "confirm" as const, label: `ตรวจสอบแล้วว่าผลการสอบ "${studentResult ?? "-"}" ถูกต้องตรงกับใบรายงานผลการสอบ` },
-        { key: "signedReport", group: "mySign" as const, label: "ท่านลงนามในแบบรายงานการเสนอผลงานฯ แล้ว" },
-        { key: "signedResult", group: "mySign" as const, label: "ท่านลงนามในใบรายงานผลการสอบแล้ว" },
+        { key: "resultOk",     group: "confirm" as const, label: `ผลการสอบ "${studentResult ?? "-"}" ตรงกับใบรายงานผลการสอบแล้ว` },
+        { key: "signedReport", group: "mySign" as const, label: "ท่านลงนามในแบบรายงานการเสนอผลงานฯ แล้ว (1 ตำแหน่ง)" },
+        { key: "signedResult", group: "mySign" as const, label: "ท่านลงนามในใบรายงานผลการสอบแล้ว (1 ตำแหน่ง)" },
       ]
     : null;
 
@@ -296,7 +296,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               notePrefix={isThesisAdvisorResultStep && studentResult ? examResultNote(studentResult)
                 : isProposalHeadResultStep && thesisResult ? examResultNote(thesisResult) : undefined}
               requireNotePrefix={isThesisAdvisorResultStep || isProposalHeadResultStep}
-              checklist={advisorResultChecks ? { title: "ยืนยันผลการสอบและการลงนาม", checks: advisorResultChecks }
+              checklist={advisorResultChecks ? { title: signChecksTitle, checks: advisorResultChecks }
                 : signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
               intro={isThesisAdvisorResultStep ? (
                 // Exam result — picked by the student at THESIS_STEP.STUDENT_REPORT; the advisor double-checks it

@@ -401,7 +401,7 @@ exam committee → external) read as **8.1–8.x**, so the student's บ.4 + the
 (stepOrder 15) reads as **step 12** and the student's iThesis confirmation (stepOrder 20, the last
 step) as **step 17** — 17 top-level steps with or without a co-advisor (the co-advisor sits inside 8.x).
 
-Each 5.x signer ends with a one-box checklist, "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" — every committee
+Each 5.x signer ends with a one-box checklist, "ท่านลงนามใน บ.วศ.1ค แล้ว (1 ตำแหน่ง)" — every committee
 member signs exactly one place, on บ.วศ.1ค (`PROPOSAL_SIGN_CHECKS` in `src/lib/utils.ts`, which also
 holds step 3's chair check). `SignatureButton` and `CommitteeSignPanel` both take the `checklist`
 prop, so single- and multi-member steps behave the same.
@@ -897,7 +897,7 @@ numbering").
 |------|------|--------|
 | 1 | STUDENT | Upload **B2** (filled in and **signed by the student, the advisor and the head of committee** — all outside the system; the program chair's line stays blank) **and one signed B3 per committee member**. บ.3 is collected **outside the system**: the student fills in their info, the topic, the committee names and the date, and the student and advisor contact each member to evaluate and sign it. The upload screen shows one B3 box per member of the submission's committee (`committeeRoster()`, labelled name + role); each copy is stored with `FormUpload.memberId`, and the approve gate refuses step 1 until every member has one (naming who is missing). 9-item checklist `DEFENSE_STEP1_CHECKS` (incl. one box each for the student's, advisor's and head's บ.2 signature). Blank forms linked from the department download page. No finance file. |
 | 2 | ADMIN | **Generate FINANCE_ATTACH** (`templates/finance-attach-thesis.docx`, same generator/card/single-version/edit-and-re-upload flow as PROPOSAL step 2); checklist `ADMIN_DEFENSE_FINANCE_CHECKS` (บ.2 complete + signed by student/advisor/head, every member's บ.3 present with evaluation + signature, committee names); approve → **triggers the finance email** (`THESIS_STEP.ADMIN_CHECK`). |
-| 3 | PROGRAM_CHAIR | Sign บ.2 → admin bell notification (`THESIS_STEP.CHAIR_B2`). |
+| 3 | PROGRAM_CHAIR | Sign บ.2; one-box own-signature checklist (`SIGN_CHECKS`) → admin bell notification (`THESIS_STEP.CHAIR_B2`). |
 
 The advisor's and head's in-system บ.2 steps (old steps 2–3) were removed 2026-10-01 — they now sign
 the paper บ.2 before the student uploads it. บ.2 has no co-advisor signature.
@@ -905,7 +905,7 @@ the paper บ.2 before the student uploads it. บ.2 has no co-advisor signature
 #### Phase 4 (Steps 4–5): Faculty relay
 | Step | Role | Action |
 |------|------|--------|
-| 4 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), upload the **cover page** (`COVER_PAGE`, PDF, single version, ADMIN-only at this step, signed by the department chair — the card shows who) that goes to the Faculty with them, send to Faculty, approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`). Same upload box as PROPOSAL step 8: the picked file is uploaded on อนุมัติ, and approve is gated on it (server `REQUIRED_UPLOADS.THESIS_DEFENSE[ADMIN_RELAY]`). |
+| 4 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), upload the **cover page** (`COVER_PAGE`, PDF, single version, ADMIN-only at this step, signed by the department chair — the card shows who) that goes to the Faculty with them, send to Faculty, tick `ADMIN_DEFENSE_RELAY_CHECKS` (cover page signed by the department chair; บ.2 + บ.3 sent with it), approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`). Same upload box as PROPOSAL step 8: the picked file is uploaded on อนุมัติ, and approve is gated on it (server `REQUIRED_UPLOADS.THESIS_DEFENSE[ADMIN_RELAY]`). |
 | 5 | ADMIN | **Confirm only**: forward the Faculty's email (ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter) to the student, tick the one-box checklist `ADMIN_DEFENSE_FORWARD_CHECKS`, approve (`THESIS_STEP.ADMIN_FORWARD`). Nothing is uploaded and no email is sent by the system. |
 
 Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC) and approving it emailed the advisor + external members an invitation notice; both are gone — the Faculty's email reaches the student directly via the admin, and the student uploads what the committee signs at step 6.
@@ -920,15 +920,15 @@ Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM
 | 10 | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
 | 11 | INVITED_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 
-StepOrders 8–11 are shown as sub-steps 8.1–8.x. The program chair does **not** sign ใบรายงานผลการสอบ
+StepOrders 8–11 are shown as sub-steps 8.1–8.x; each signer ticks the one-box own-signature checklist `SIGN_RESULT_CHECKS` (also used at step 13). The program chair does **not** sign ใบรายงานผลการสอบ
 (its step was removed 2026-10-01); the student doesn't either (step 6 uploads it unsigned).
 
 #### Phase 5b (Steps 12–14, shown as 9–11): result to the Faculty
 | Step | Role | Action |
 |------|------|--------|
 | 12 | ADMIN | Check the committee-signed ใบรายงานผลการสอบ + แบบรายงานฯ; 3-item checklist `ADMIN_DEFENSE_RESULT_CHECKS` (`THESIS_STEP.ADMIN_RESULT_CHECK`) |
-| 13 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs ใบรายงานผลการสอบ (download latest, upload signed) (`THESIS_STEP.DEPT_CHAIR_RESULT`) |
-| 14 | ADMIN | Upload a **new cover page** (`COVER_PAGE`, must be newer than step 13 — `freshUploadCutoff`; same upload box as step 4, uploaded on อนุมัติ) and tick `ADMIN_DEFENSE_SEND_CHECKS` confirming the result + cover page were emailed to the Faculty; server-gated on the cover page (`THESIS_STEP.ADMIN_RESULT_SEND`) |
+| 13 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs ใบรายงานผลการสอบ (download latest, upload signed); one-box own-signature checklist (`THESIS_STEP.DEPT_CHAIR_RESULT`) |
+| 14 | ADMIN | Upload a **new cover page** (`COVER_PAGE`, must be newer than step 13 — `freshUploadCutoff`; same upload box as step 4, uploaded on อนุมัติ) and tick `ADMIN_DEFENSE_SEND_CHECKS` (cover page signed by the department chair; the result + cover page emailed to the Faculty); server-gated on the cover page (`THESIS_STEP.ADMIN_RESULT_SEND`) |
 
 A defense has **two cover pages** sharing the one `COVER_PAGE` slot — step 4's and step 14's — so
 for THESIS_DEFENSE the type is **not** single-version (the step-4 copy moves under ประวัติ); the
@@ -937,8 +937,8 @@ upload route lets the ADMIN upload it at either step only.
 #### Phase 6 (Steps 15–20, shown as 12–17): Thesis submission to the Faculty + iThesis
 | Step | Role | Action |
 |------|------|--------|
-| 15 | STUDENT | Upload B4 + THESIS (from e-thesis system, with barcode, **already signed by the whole committee outside the system**) (`THESIS_STEP.STUDENT_THESIS`); 6-item checklist `DEFENSE_STEP15_CHECKS` — บ.4 filled in + signed by the student, e-thesis file with barcode, committee signatures complete, program name + thesis title correct, confirmed with the main advisor |
-| 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 3 items) and upload a **new cover page** (`COVER_PAGE`, newer than step 15 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated) (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
+| 15 | STUDENT | Upload B4 + THESIS (from the iThesis system, with barcode, **already signed by the whole committee outside the system**) (`THESIS_STEP.STUDENT_THESIS`); 6-item checklist `DEFENSE_STEP15_CHECKS` — บ.4 filled in + signed by the student, iThesis file with barcode, committee signatures complete, program name + thesis title correct, confirmed with the advisor |
+| 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 4 items incl. the cover page signed by the department chair) and upload a **new cover page** (`COVER_PAGE`, newer than step 15 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated) (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
 | 17 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs **both** B4 and THESIS (download latest, upload both signed); 2-item own-signature checklist (`SIGN_CHECKS.THESIS_DEFENSE`) (`THESIS_STEP.DEPT_CHAIR_THESIS`) |
 | 18 | ADMIN | Confirm only: emailed B4 + thesis + cover page to the Faculty (`ADMIN_DEFENSE_THESIS_SEND_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_SEND`) |
 | 19 | ADMIN | Confirm only, when the Faculty replies: forwarded its documents — **signed by the Dean (คณบดี)** — to the student (`ADMIN_DEFENSE_THESIS_FORWARD_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_FORWARD`) |
@@ -1019,6 +1019,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **FileUploader** slots always render a `SlotHeader`: form-code badge (FORM_SHORT) + description + status chip (อัปโหลดแล้ว / เลือกไฟล์แล้ว / ยังไม่ได้เลือกไฟล์). The uploaded file's name opens a preview.
 - **One action-card design for every role** (2026-10-01). The card a user acts in when it is their turn — `StudentSubmissionActions`' upload card and rejected-fix card, `SignatureButton`, `CommitteeSignPanel`, `AdminSubmissionPanel`'s action card and finance card — is built only from the shared pieces exported by `src/components/FileUploader.tsx`: `ACTION_CARD` (frame), `SectionLabel` (numbered heading), `DownloadRow`/`NoDownloads`, `UploadSlot`/`FileUploader`, `B1Checklist`, `NotesField` (`reject` / `sendBack` variants), `ActionError`, `PRIMARY_BUTTON` (the one green ✓ button), `REJECT_BUTTON` / `SEND_BACK_BUTTON` beside it, `CONFIRM_REJECT_BUTTON` / `CONFIRM_SEND_BACK_BUTTON` / `CANCEL_BUTTON` for the reject/send-back form, and `postUpload()` (throws the server's Thai error). Fixed order: ① download → ② sign/fill → ③ upload (sections a step doesn't have are left out and the rest renumber; a picker such as `ExamResultPicker` is a numbered section too) → checklist → notes → primary button with ปฏิเสธ beside it (the admin card has ส่งกลับ there instead). The admin's ① download lists the step's documents to check (`ADMIN_STEP_FORMS` in `AdminSubmissionPanel`). Anything else a role must see while acting (e.g. the advisor's view of the student's exam result) goes inside the card (`SignatureButton`'s `intro`), not in a separate card beside it, and a student's ขอยกเลิกคำร้องนี้ sits below the card. Files picked in a card are uploaded when its primary button is pressed — the only immediate-upload card is the finance card (generate / edit / replace). Errors are shown inline on the card, not as a toast. The reject action is labelled ปฏิเสธ everywhere (never ไม่อนุมัติ). Don't hand-roll a new card; compose these.
 - **Professor dashboard** shows the generic "อาจารย์" label on card badges (a professor can hold several roles per submission); other views keep specific role labels.
+- **Checklist wording** (2026-10-01, `src/lib/utils.ts`): one style for every step. Own signature → "ท่านลงนามใน ‹เอกสาร› แล้ว (N ตำแหน่ง)" (group `mySign`); on the student's lists the student is "นิสิต"; another person's signature → "‹ผู้ลงนาม›ลงนามใน ‹เอกสาร› แล้ว (N ตำแหน่ง)"; every item ends in แล้ว; admin items state the result (no leading "ตรวจสอบ" — the group heading says it); "ลงนาม" not "มีลายมือชื่อ"; the whole committee is "คณะกรรมการสอบ", one member "กรรมการแต่ละท่าน"; "อาจารย์ที่ปรึกษา" (never "…หลัก"); "หัวข้อวิทยานิพนธ์"; "คณะฯ"; "iThesis" (never e-thesis); "บาร์โค้ด"; signature counts as "ตำแหน่ง" (never "จุด"). Titles: student "กรุณาตรวจสอบ ‹เอกสาร› ก่อนส่ง", signers "กรุณาตรวจสอบ … ก่อนส่งต่อ", admin "กรุณาตรวจสอบก่อนอนุมัติ". Every signing step has an own-signature checklist (`SIGN_CHECKS`, incl. THESIS 3, 8.x, 10, 14) and every ADMIN cover-page step ends with `COVER_SIGNED_LABEL`.
 - **Admin detail** committee panel lists every person (incl. per-submission program chair) with mailto links.
 - **Emails** use formal Thai business-letter register: เรียน …, จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการ, ขอแสดงความนับถือ + department signature block.
 

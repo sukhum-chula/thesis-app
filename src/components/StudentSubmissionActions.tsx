@@ -83,7 +83,12 @@ const B1_STEP_CHECKS: Record<string, Record<number, typeof B1_CHECKS>> = {
 // Checklist heading per student step (default: "กรุณาตรวจสอบก่อนส่ง")
 const CHECKLIST_TITLE: Record<string, Record<number, string>> = {
   PROPOSAL:       { 1: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง", 4: "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง" },
-  THESIS_DEFENSE: { [THESIS_STEP.STUDENT_B2_B3]: "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง" },
+  THESIS_DEFENSE: {
+    [THESIS_STEP.STUDENT_B2_B3]:   "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง",
+    [THESIS_STEP.STUDENT_REPORT]:  "กรุณาตรวจสอบแบบรายงานการเสนอผลงานฯ ก่อนส่ง",
+    [THESIS_STEP.STUDENT_THESIS]:  "กรุณาตรวจสอบ บ.4 และวิทยานิพนธ์ก่อนส่ง",
+    [THESIS_STEP.STUDENT_ITHESIS]: "กรุณาตรวจสอบก่อนยืนยัน",
+  },
 };
 
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection

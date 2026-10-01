@@ -445,8 +445,8 @@ export function isSingleVersionForm(submissionType: string | null | undefined, f
  *  before signing off step 3. Client-side attestation only — the system can't read the PDF. */
 export const B1_CHECK_GROUPS = [
   { key: "fill",      title: "กรอกข้อมูล" },
-  { key: "sign",      title: "ลงนามครบ 3 จุด (นิสิต 2 จุด, อาจารย์ที่ปรึกษา 1 จุด)" },
-  { key: "committee", title: "คณะกรรมการ" },
+  { key: "sign",      title: "ลงนามครบ 3 ตำแหน่ง (นิสิต 2 ตำแหน่ง, อาจารย์ที่ปรึกษา 1 ตำแหน่ง)" },
+  { key: "committee", title: "คณะกรรมการสอบ" },
   { key: "chair",     title: "การลงนามของประธานหลักสูตร" },
   { key: "b1c",       title: "บ.วศ.1ค" },
   { key: "b1d",       title: "บ.วศ.1ง" },
@@ -458,61 +458,64 @@ export const B1_CHECK_GROUPS = [
   { key: "b3",        title: "บ.3" },
   { key: "b4",        title: "บ.4" },
   { key: "thesis",    title: "วิทยานิพนธ์ฉบับสมบูรณ์" },
+  { key: "report",    title: "แบบรายงานการเสนอผลงานฯ" },
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
+/** Every ADMIN cover-page step (PROPOSAL 8, THESIS_DEFENSE 4/11/13) ends with this check */
+const COVER_SIGNED_LABEL = "หัวหน้าภาควิชาลงนามในใบปะหน้าแล้ว";
 export const B1_CHECKS: B1Check[] = [
   { key: "fillA",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ก ครบถ้วนแล้ว" },
   { key: "fillB",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ข ครบถ้วนแล้ว" },
-  { key: "stuSignA", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ก แล้ว" },
-  { key: "stuSignB", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ข แล้ว" },
-  { key: "advSignA", group: "sign", label: "อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว" },
+  { key: "stuSignA", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ก แล้ว (1 ตำแหน่ง)" },
+  { key: "stuSignB", group: "sign", label: "นิสิตลงนามใน บ.วศ.1ข แล้ว (1 ตำแหน่ง)" },
+  { key: "advSignA", group: "sign", label: "อาจารย์ที่ปรึกษาลงนามใน บ.วศ.1ก แล้ว (1 ตำแหน่ง)" },
 ];
 /** PROPOSAL step 4 — the student fills บ.วศ.1ค/1ง into the same combined file. Signature areas
  *  and every date stay blank (the committee signs and dates them from step 5 on), and the student
  *  confirms the program chair's step-3 signature on บ.วศ.1ก is actually in the file. */
 export const B1_STEP4_CHECKS: B1Check[] = [
-  { key: "chairSignA", group: "chair",   label: "ไฟล์ บ.วศ.1 มีลายมือชื่อประธานหลักสูตรใน บ.วศ.1ก แล้ว (หากยังไม่มี กรุณาติดต่อเจ้าหน้าที่ก่อนส่ง)" },
+  { key: "chairSignA", group: "chair",   label: "ประธานหลักสูตรลงนามใน บ.วศ.1ก ในไฟล์ล่าสุดแล้ว (หากยังไม่มี กรุณาติดต่อเจ้าหน้าที่ก่อนส่ง)" },
   { key: "fillC",      group: "b1c",     label: "กรอกข้อมูลใน บ.วศ.1ค ครบถ้วนแล้ว" },
-  { key: "namesC",     group: "b1c",     label: "กรอกรายชื่อคณะกรรมการใน บ.วศ.1ค แล้ว โดยเว้นช่องลงนามว่างไว้" },
+  { key: "namesC",     group: "b1c",     label: "กรอกรายชื่อคณะกรรมการสอบใน บ.วศ.1ค แล้ว โดยเว้นช่องลงนามว่างไว้" },
   { key: "datesC",     group: "b1c",     label: "เว้นวันที่ทั้งหมดใน บ.วศ.1ค ว่างไว้" },
   { key: "fillD",      group: "b1d",     label: "กรอกข้อมูลใน บ.วศ.1ง ครบถ้วนแล้ว" },
-  { key: "namesD",     group: "b1d",     label: "กรอกรายชื่อคณะกรรมการใน บ.วศ.1ง แล้ว" },
+  { key: "namesD",     group: "b1d",     label: "กรอกรายชื่อคณะกรรมการสอบใน บ.วศ.1ง แล้ว" },
   // The บ.วศ.1ง topic goes to the Faculty and is registered in Chula's official system as-is
-  { key: "topicD",     group: "b1d",     label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการแล้ว (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
+  { key: "topicD",     group: "b1d",     label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการสอบแล้ว (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
   { key: "datesD",     group: "b1d",     label: "เว้นวันที่ทั้งหมดใน บ.วศ.1ง ว่างไว้" },
-  { key: "advisorOk",  group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาหลักแล้ว และสอดคล้องกับผลการพิจารณาของคณะกรรมการในการสอบโครงร่างวิทยานิพนธ์" },
+  { key: "advisorOk",  group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาแล้ว และสอดคล้องกับผลการพิจารณาของคณะกรรมการสอบในการสอบโครงร่างวิทยานิพนธ์" },
 ];
 export const ADMIN_B1_EXTRA_CHECKS: B1Check[] = [
-  { key: "committee", group: "committee", label: "ตรวจสอบรายชื่อคณะกรรมการในคำร้องและเอกสารการเงินถูกต้องแล้ว" },
+  { key: "committee", group: "committee", label: "รายชื่อคณะกรรมการสอบในคำร้องและในเอกสารการเงินถูกต้องแล้ว" },
 ];
 /** PROPOSAL step 6 (stepOrder 10) — the ADMIN verifies the fully-signed B1 before the chair's
  *  final signature */
 export const ADMIN_STEP6_CHECKS: B1Check[] = [
-  { key: "committeeSigned", group: "verify", label: "ลายมือชื่อคณะกรรมการใน บ.วศ.1ค ครบทุกท่านแล้ว" },
+  { key: "committeeSigned", group: "verify", label: "คณะกรรมการสอบลงนามใน บ.วศ.1ค ครบทุกท่านแล้ว" },
   { key: "formsComplete",   group: "verify", label: "ข้อมูลใน บ.วศ.1ค และ บ.วศ.1ง ครบถ้วนถูกต้องแล้ว" },
-  { key: "topicOk",         group: "verify", label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการ (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
-  { key: "renameTopic",     group: "verify", label: "แก้ไขชื่อหัวข้อวิทยานิพนธ์ในระบบให้ตรงกับหัวข้อใน บ.วศ.1ง แล้ว (ปุ่ม \"แก้ไข\" ในหน้านี้)" },
+  { key: "topicOk",         group: "verify", label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการสอบแล้ว (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
+  { key: "renameTopic",     group: "verify", label: "แก้ไขหัวข้อวิทยานิพนธ์ในระบบให้ตรงกับ บ.วศ.1ง แล้ว (ปุ่ม \"แก้ไข\" ในหน้านี้)" },
 ];
 /** PROPOSAL step 8 (stepOrder 12) — the ADMIN's final recheck before the package goes to the
  *  Faculty, plus the cover page (COVER_PAGE, uploaded on the same card) signed by the
  *  department chair (SystemSetting "departmentChair") */
 export const ADMIN_STEP8_CHECKS: B1Check[] = [
-  { key: "allSigned",   group: "verify", label: "ตรวจสอบ บ.วศ.1ก–ง ครบถ้วน และมีลายมือชื่อครบทุกจุดแล้ว" },
-  { key: "titleSynced", group: "verify", label: "ชื่อหัวข้อวิทยานิพนธ์ในระบบตรงกับหัวข้อใน บ.วศ.1ง แล้ว" },
-  { key: "coverSigned", group: "cover",  label: "ใบปะหน้ามีลายมือชื่อหัวหน้าภาควิชาแล้ว" },
+  { key: "allSigned",   group: "verify", label: "บ.วศ.1ก–ง ครบถ้วน และลงนามครบทุกตำแหน่งแล้ว" },
+  { key: "titleSynced", group: "verify", label: "หัวข้อวิทยานิพนธ์ในระบบตรงกับ บ.วศ.1ง แล้ว" },
+  { key: "coverSigned", group: "cover",  label: COVER_SIGNED_LABEL },
 ];
 export const CHAIR_B1_CHECKS: B1Check[] = [
-  { key: "chairSignA", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ก แล้ว" },
+  { key: "chairSignA", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ก แล้ว (1 ตำแหน่ง)" },
 ];
 /** Committee signing steps 5.1–5.x (stepOrder 5–9): every committee member signs exactly one
  *  place, on บ.วศ.1ค in the combined B1, and confirms it here. */
 const SIGN_B1C_CHECKS: B1Check[] = [
-  { key: "mySignC", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" },
+  { key: "mySignC", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ค แล้ว (1 ตำแหน่ง)" },
 ];
 /** PROPOSAL step 7 (stepOrder 11) — the program chair's final signatures, on บ.วศ.1ค and 1ง */
 const CHAIR_FINAL_CHECKS: B1Check[] = [
-  { key: "chairSignC", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ค แล้ว" },
-  { key: "chairSignD", group: "chair", label: "ประธานหลักสูตรลงนามใน บ.วศ.1ง แล้ว" },
+  { key: "chairSignC", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ค แล้ว (1 ตำแหน่ง)" },
+  { key: "chairSignD", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ง แล้ว (1 ตำแหน่ง)" },
 ];
 /** THESIS_DEFENSE step 1 — the student prepares บ.2 (one page) and has it signed by the advisor and
  *  the head of committee OUTSIDE the system (the program chair's line stays blank — they sign at
@@ -521,35 +524,35 @@ const CHAIR_FINAL_CHECKS: B1Check[] = [
  *  committee names and date filled in by the student; judgement + signature by the member), then
  *  uploads one signed บ.3 per member */
 export const DEFENSE_STEP1_CHECKS: B1Check[] = [
-  { key: "fillB2",    group: "b2",      label: "กรอกข้อมูลใน บ.2 ครบถ้วน (ข้อมูลนิสิต ผลงานที่เผยแพร่ วัน เวลา และสถานที่สอบ)" },
+  { key: "fillB2",    group: "b2",      label: "กรอกข้อมูลใน บ.2 ครบถ้วนแล้ว (ข้อมูลนิสิต ผลงานที่เผยแพร่ วัน เวลา และสถานที่สอบ)" },
   { key: "namesB2",   group: "b2",      label: "กรอกรายชื่อคณะกรรมการสอบใน บ.2 แล้ว" },
-  { key: "signB2",    group: "b2",      label: "นิสิตลงนามใน บ.2 แล้ว (ช่องนิสิตผู้ขอสอบวิทยานิพนธ์)" },
-  { key: "advisorB2", group: "b2",      label: "อาจารย์ที่ปรึกษาลงนามใน บ.2 แล้ว" },
-  { key: "headB2",    group: "b2",      label: "ประธานกรรมการสอบลงนามใน บ.2 แล้ว (เว้นช่องลงนามของประธานหลักสูตรว่างไว้)" },
-  { key: "fillB3",    group: "b3",      label: "กรอกข้อมูลนิสิต หัวข้อวิทยานิพนธ์ รายชื่อคณะกรรมการ และวันที่ใน บ.3 แล้ว" },
+  { key: "signB2",    group: "b2",      label: "นิสิตลงนามใน บ.2 แล้ว (1 ตำแหน่ง: ช่องนิสิตผู้ขอสอบวิทยานิพนธ์)" },
+  { key: "advisorB2", group: "b2",      label: "อาจารย์ที่ปรึกษาลงนามใน บ.2 แล้ว (1 ตำแหน่ง)" },
+  { key: "headB2",    group: "b2",      label: "ประธานกรรมการสอบลงนามใน บ.2 แล้ว (1 ตำแหน่ง) โดยเว้นช่องลงนามของประธานหลักสูตรว่างไว้" },
+  { key: "fillB3",    group: "b3",      label: "กรอกข้อมูลนิสิต หัวข้อวิทยานิพนธ์ รายชื่อคณะกรรมการสอบ และวันที่ใน บ.3 แล้ว" },
   { key: "contactB3", group: "b3",      label: "ติดต่อกรรมการแต่ละท่าน (ร่วมกับอาจารย์ที่ปรึกษา) เพื่อประเมินและลงนามใน บ.3 นอกระบบแล้ว" },
-  { key: "signedB3",  group: "b3",      label: "อัปโหลด บ.3 ที่กรรมการลงนามแล้ว ครบทุกท่าน (หนึ่งไฟล์ต่อกรรมการหนึ่งท่าน)" },
-  { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาหลักแล้ว" },
+  { key: "signedB3",  group: "b3",      label: "อัปโหลด บ.3 ที่กรรมการแต่ละท่านลงนามแล้วครบทุกท่าน (หนึ่งไฟล์ต่อหนึ่งท่าน)" },
+  { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาแล้ว" },
 ];
 /** THESIS_DEFENSE step 6 (THESIS_STEP.STUDENT_REPORT) — the student signs แบบรายงานการเสนอผลงานฯ;
  *  ใบรายงานผลการสอบ is uploaded unsigned (the committee and the department chair sign it in the system) */
 export const DEFENSE_STEP6_CHECKS: B1Check[] = [
-  { key: "signReport", group: "mySign", label: "ลงนามในแบบรายงานการเสนอผลงานฯ แล้ว (ใบรายงานผลการสอบไม่ต้องลงนาม)" },
+  { key: "signReport", group: "report", label: "นิสิตลงนามในแบบรายงานการเสนอผลงานฯ แล้ว (1 ตำแหน่ง) โดยไม่ต้องลงนามในใบรายงานผลการสอบ" },
 ];
-/** THESIS_DEFENSE step 12 (stepOrder 15, THESIS_STEP.STUDENT_THESIS) — บ.4 + the e-thesis file */
+/** THESIS_DEFENSE step 12 (stepOrder 15, THESIS_STEP.STUDENT_THESIS) — บ.4 + the iThesis file */
 export const DEFENSE_STEP15_CHECKS: B1Check[] = [
   { key: "fillB4",    group: "b4",      label: "กรอกข้อมูลใน บ.4 ครบถ้วนแล้ว" },
-  { key: "signB4",    group: "b4",      label: "นิสิตลงนามใน บ.4 แล้ว" },
-  { key: "eThesis",   group: "thesis",  label: "เป็นไฟล์จากระบบ e-thesis ของจุฬาฯ และมี barcode แล้ว" },
+  { key: "signB4",    group: "b4",      label: "นิสิตลงนามใน บ.4 แล้ว (1 ตำแหน่ง)" },
+  { key: "eThesis",   group: "thesis",  label: "วิทยานิพนธ์เป็นไฟล์จากระบบ iThesis ของจุฬาฯ และมีบาร์โค้ดแล้ว" },
   { key: "committeeSigned", group: "thesis", label: "คณะกรรมการสอบลงนามในวิทยานิพนธ์ครบทุกท่านแล้ว" },
-  { key: "namesOk",   group: "thesis",  label: "ชื่อหลักสูตรและชื่อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
-  { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาหลักแล้ว" },
+  { key: "namesOk",   group: "thesis",  label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
+  { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาแล้ว" },
 ];
 /** THESIS_DEFENSE step 2 (financeStepOf) — the ADMIN checks the student's บ.2/บ.3 and the committee before
  *  generating the finance form (same approve gate as PROPOSAL step 2) */
 export const ADMIN_DEFENSE_FINANCE_CHECKS: B1Check[] = [
-  { key: "b2Ok", group: "verify", label: "ตรวจสอบ บ.2 ครบถ้วนถูกต้อง และมีลายมือชื่อนิสิต อาจารย์ที่ปรึกษา และประธานกรรมการสอบแล้ว" },
-  { key: "b3Ok", group: "verify", label: "ตรวจสอบ บ.3 ของกรรมการครบทุกท่าน และมีผลการประเมินพร้อมลายมือชื่อแล้ว" },
+  { key: "b2Ok", group: "verify", label: "บ.2 ครบถ้วนถูกต้อง และนิสิต อาจารย์ที่ปรึกษา และประธานกรรมการสอบลงนามแล้ว" },
+  { key: "b3Ok", group: "verify", label: "บ.3 ครบทุกท่าน และกรรมการแต่ละท่านประเมินและลงนามแล้ว" },
   ...ADMIN_B1_EXTRA_CHECKS,
 ];
 /** Pre-approve checklist for each PROPOSAL signing step, keyed by stepOrder */
@@ -562,14 +565,27 @@ export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
   9: SIGN_B1C_CHECKS,
   11: CHAIR_FINAL_CHECKS,
 };
+/** THESIS_DEFENSE ใบรายงานผลการสอบ signers — the committee (8.x) and the department chair */
+const SIGN_RESULT_CHECKS: B1Check[] = [
+  { key: "mySignResult", group: "mySign", label: "ท่านลงนามในใบรายงานผลการสอบแล้ว (1 ตำแหน่ง)" },
+];
 /** Pre-approve checklist for each faculty signing step, by submission type → stepOrder */
 export const SIGN_CHECKS: Record<string, Record<number, B1Check[]>> = {
   PROPOSAL: PROPOSAL_SIGN_CHECKS,
   THESIS_DEFENSE: {
+    [THESIS_STEP.CHAIR_B2]: [
+      { key: "mySignB2", group: "mySign", label: "ท่านลงนามใน บ.2 แล้ว (1 ตำแหน่ง)" },
+    ],
+    // shown as 8.1–8.x (co-advisors → head → exam committee → external), then step 10
+    8:  SIGN_RESULT_CHECKS,
+    9:  SIGN_RESULT_CHECKS,
+    10: SIGN_RESULT_CHECKS,
+    11: SIGN_RESULT_CHECKS,
+    [THESIS_STEP.DEPT_CHAIR_RESULT]: SIGN_RESULT_CHECKS,
     // shown as step 14 — the department chair signs both of the student's step-12 documents
     [THESIS_STEP.DEPT_CHAIR_THESIS]: [
-      { key: "headSignB4",     group: "mySign", label: "ท่านลงนามใน บ.4 แล้ว" },
-      { key: "headSignThesis", group: "mySign", label: "ท่านลงนามในวิทยานิพนธ์แล้ว" },
+      { key: "headSignB4",     group: "mySign", label: "ท่านลงนามใน บ.4 แล้ว (1 ตำแหน่ง)" },
+      { key: "headSignThesis", group: "mySign", label: "ท่านลงนามในวิทยานิพนธ์แล้ว (1 ตำแหน่ง)" },
     ],
   },
 };
@@ -590,10 +606,15 @@ export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   12: "เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ",
 };
 
+/** THESIS_DEFENSE step 4 (THESIS_STEP.ADMIN_RELAY) — the cover page, and บ.2 + บ.3 sent to the Faculty */
+export const ADMIN_DEFENSE_RELAY_CHECKS: B1Check[] = [
+  { key: "coverSigned", group: "cover",   label: COVER_SIGNED_LABEL },
+  { key: "emailSent",   group: "confirm", label: "นำส่ง บ.2 และ บ.3 พร้อมใบปะหน้าไปยังคณะฯ แล้ว" },
+];
 /** THESIS_DEFENSE step 5 (THESIS_STEP.ADMIN_FORWARD) — the ADMIN only confirms forwarding the
  *  Faculty's email to the student; nothing is uploaded (the student uploads the documents at step 6) */
 export const ADMIN_DEFENSE_FORWARD_CHECKS: B1Check[] = [
-  { key: "forwarded", group: "confirm", label: "ส่งต่ออีเมลจากคณะ (ใบรายงานผลการสอบ แบบรายงานการเสนอผลงานฯ หนังสือเชิญ) ให้นิสิตแล้ว" },
+  { key: "forwarded", group: "confirm", label: "ส่งต่ออีเมลจากคณะฯ (ใบรายงานผลการสอบ แบบรายงานการเสนอผลงานฯ หนังสือเชิญ) ให้นิสิตแล้ว" },
 ];
 
 /** A picked exam result (THESIS_DEFENSE: the student at THESIS_STEP.STUDENT_REPORT; PROPOSAL: the
@@ -621,33 +642,35 @@ export function defenseExamResult(steps: { stepOrder: number; notes?: string | n
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_CHECK — the ADMIN checks the committee-signed documents
  *  before the department chair signs */
 export const ADMIN_DEFENSE_RESULT_CHECKS: B1Check[] = [
-  { key: "resultSigned", group: "verify", label: "ใบรายงานผลการสอบลงนามครบทุกท่าน (อาจารย์ที่ปรึกษา และคณะกรรมการสอบทุกท่าน) โดยนิสิตไม่ต้องลงนาม" },
-  { key: "reportSigned", group: "verify", label: "แบบรายงานการเสนอผลงานฯ ลงนามโดยนิสิตและอาจารย์ที่ปรึกษาครบถ้วน" },
-  { key: "resultMatch",  group: "verify", label: "ผลการสอบในเอกสารตรงกับผลที่นิสิตเลือกและอาจารย์ที่ปรึกษายืนยันในระบบ" },
+  { key: "resultSigned", group: "verify", label: "อาจารย์ที่ปรึกษาและคณะกรรมการสอบลงนามในใบรายงานผลการสอบครบทุกท่านแล้ว (นิสิตไม่ต้องลงนาม)" },
+  { key: "reportSigned", group: "verify", label: "นิสิตและอาจารย์ที่ปรึกษาลงนามในแบบรายงานการเสนอผลงานฯ แล้ว" },
+  { key: "resultMatch",  group: "verify", label: "ผลการสอบในเอกสารตรงกับผลที่นิสิตเลือกและอาจารย์ที่ปรึกษายืนยันในระบบแล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_SEND — the ADMIN uploads the cover page and confirms the
  *  documents were emailed to the Faculty */
 export const ADMIN_DEFENSE_SEND_CHECKS: B1Check[] = [
-  { key: "emailSent", group: "confirm", label: "ส่งอีเมลใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์แล้ว" },
+  { key: "coverSigned", group: "cover", label: COVER_SIGNED_LABEL },
+  { key: "emailSent", group: "confirm", label: "ส่งอีเมลใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะฯ แล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_CHECK — the ADMIN checks the student's บ.4 + thesis
  *  (and uploads a new cover page) before the department chair signs them */
 export const ADMIN_DEFENSE_THESIS_CHECKS: B1Check[] = [
-  { key: "b4Ok",     group: "verify", label: "บ.4 กรอกข้อมูลครบถ้วนและนิสิตลงนามแล้ว" },
-  { key: "thesisOk", group: "verify", label: "วิทยานิพนธ์เป็นไฟล์จากระบบ e-thesis มี barcode และคณะกรรมการสอบลงนามครบทุกท่านแล้ว" },
-  { key: "namesOk",  group: "verify", label: "ชื่อหลักสูตรและชื่อวิทยานิพนธ์ในเอกสารถูกต้อง" },
+  { key: "b4Ok",     group: "verify", label: "บ.4 กรอกข้อมูลครบถ้วน และนิสิตลงนามแล้ว" },
+  { key: "thesisOk", group: "verify", label: "วิทยานิพนธ์เป็นไฟล์จากระบบ iThesis มีบาร์โค้ด และคณะกรรมการสอบลงนามครบทุกท่านแล้ว" },
+  { key: "namesOk",  group: "verify", label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
+  { key: "coverSigned", group: "cover", label: COVER_SIGNED_LABEL },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_SEND — the ADMIN confirms the documents were emailed */
 export const ADMIN_DEFENSE_THESIS_SEND_CHECKS: B1Check[] = [
-  { key: "emailSent", group: "confirm", label: "ส่งอีเมล บ.4 และวิทยานิพนธ์ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์แล้ว" },
+  { key: "emailSent", group: "confirm", label: "ส่งอีเมล บ.4 และวิทยานิพนธ์ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะฯ แล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_FORWARD — the student confirms iThesis after this */
 export const ADMIN_DEFENSE_THESIS_FORWARD_CHECKS: B1Check[] = [
-  { key: "forwarded", group: "confirm", label: "ได้รับเอกสารจากคณะที่คณบดีลงนามแล้ว และส่งต่อให้นิสิตแล้ว" },
+  { key: "forwarded", group: "confirm", label: "ส่งต่อเอกสารจากคณะฯ (คณบดีลงนามแล้ว) ให้นิสิตแล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.STUDENT_ITHESIS — the defense's last step; nothing is uploaded */
 export const DEFENSE_ITHESIS_CHECKS: B1Check[] = [
-  { key: "iThesisDone", group: "confirm", label: "ส่งเอกสารที่จำเป็นทั้งหมดเข้าระบบ iThesis เรียบร้อยแล้ว" },
+  { key: "iThesisDone", group: "confirm", label: "ส่งเอกสารที่จำเป็นทั้งหมดเข้าระบบ iThesis แล้ว" },
 ];
 
 // Step names for thesis defense submissions (20 steps — see THESIS_ROLES / THESIS_STEP)

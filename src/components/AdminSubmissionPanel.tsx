@@ -8,7 +8,7 @@ import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
-  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_RELAY_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
   ADMIN_DEFENSE_RESULT_CHECKS, ADMIN_DEFENSE_SEND_CHECKS, freshUploadCutoff,
   ADMIN_DEFENSE_THESIS_CHECKS, ADMIN_DEFENSE_THESIS_SEND_CHECKS, ADMIN_DEFENSE_THESIS_FORWARD_CHECKS,
 } from "@/lib/utils";
@@ -530,6 +530,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const adminChecks = isFinanceReviewStep ? (sub?.submissionType === "THESIS_DEFENSE" ? ADMIN_DEFENSE_FINANCE_CHECKS : ADMIN_STEP2_CHECKS)
     : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
     : isProposalCoverStep ? ADMIN_STEP8_CHECKS
+    : isThesisRelayStep ? ADMIN_DEFENSE_RELAY_CHECKS
     : isThesisForwardStep ? ADMIN_DEFENSE_FORWARD_CHECKS
     : isThesisResultCheckStep ? ADMIN_DEFENSE_RESULT_CHECKS
     : isThesisResultSendStep ? ADMIN_DEFENSE_SEND_CHECKS
@@ -1137,7 +1138,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 </ol>
               ) : isProposalCoverStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ตรวจสอบ บ.วศ.1ก–ง ฉบับสุดท้ายว่าครบถ้วนและลงนามครบทุกจุด</li>
+                  <li>ตรวจสอบ บ.วศ.1ก–ง ฉบับสุดท้ายว่าครบถ้วนและลงนามครบทุกตำแหน่ง</li>
                   <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — การสอบโครงร่างจะเสร็จสมบูรณ์</li>
                 </ol>
@@ -1146,7 +1147,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <li>พิมพ์ / รวบรวม บ.2 + บ.3 จากระบบ</li>
                   <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
                   <li>นำส่ง บ.2 + บ.3 พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
-                  <li>กดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : isThesisResultCheckStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
@@ -1242,7 +1243,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
                     {adminChecks && (
                       <B1Checklist
-                        title="ตรวจสอบก่อนอนุมัติ"
+                        title="กรุณาตรวจสอบก่อนอนุมัติ"
                         checks={adminChecks}
                         value={adminCheckState}
                         onChange={setAdminCheckState}
