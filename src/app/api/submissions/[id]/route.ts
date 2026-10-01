@@ -230,12 +230,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // THESIS faculty-docs step (ADMIN upload): all 4 document types uploaded AFTER the relay step
     if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS && step.role === "ADMIN") {
-      const step7 = sub.workflowSteps.find((s: any) => s.stepOrder === THESIS_STEP.ADMIN_RELAY);
-      const step7ActedAt = step7?.actedAt ? new Date(step7.actedAt).getTime() : 0;
+      const relayStep = sub.workflowSteps.find((s: any) => s.stepOrder === THESIS_STEP.ADMIN_RELAY);
+      const relayActedAt = relayStep?.actedAt ? new Date(relayStep.actedAt).getTime() : 0;
       const requiredTypes = ["SIGNED", "EXAM_RESULT", "INVITE_LETTER", "FINANCE_DOC"];
       const missing = requiredTypes.filter(
         (ft) => !sub.uploads.some(
-          (u: any) => u.formType === ft && new Date(u.uploadedAt).getTime() >= step7ActedAt
+          (u: any) => u.formType === ft && new Date(u.uploadedAt).getTime() >= relayActedAt
         )
       );
       if (missing.length > 0) {

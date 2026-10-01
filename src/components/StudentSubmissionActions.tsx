@@ -3,16 +3,18 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
-import { FileUploader } from "@/components/FileUploader";
+import {
+  FileUploader, SectionLabel, DownloadRow, ActionError, postUpload, ACTION_CARD, PRIMARY_BUTTON,
+} from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, downloadFile, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
+import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
 import { THESIS_STEP, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { FormType } from "@/types";
 import Link from "next/link";
 import {
-  Send, Upload, Download,
+  Loader2,
   AlertCircle, Clock, CheckCircle2, RefreshCw, StickyNote, XCircle, Trash2, TriangleAlert,
   ArrowLeft, ArrowRight, ExternalLink,
 } from "lucide-react";
@@ -68,7 +70,7 @@ const B1_STEP_CHECKS: Record<string, Record<number, typeof B1_CHECKS>> = {
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
   PROPOSAL:       ["B1"],
-  THESIS_DEFENSE: ["B2", "B3", "FINANCE_ATTACH", "B4", "THESIS"],
+  THESIS_DEFENSE: ["B2", "B3", "B4", "THESIS"],
 };
 
 // Blank forms are published on the department site, not served by this app — the uploader
@@ -111,6 +113,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const [confirmSigns, setConfirmSigns] = useState(false);
   const [b1Checks, setB1Checks] = useState<Record<string, boolean>>({});
   const [confirmProgram, setConfirmProgram] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const sub = submissions.find((s) => s.id === submissionId);
 
@@ -175,6 +178,14 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
     ? sub.uploads.filter((u) => u.formType === "SIGNED" && new Date(u.uploadedAt).getTime() <= step8ActedAt)
     : [];
 
+  const stepDownloads = [
+    ...adminStep8Files.map((u) => ({ upload: u, title: `${FORM_LABELS.SIGNED} (จากเจ้าหน้าที่ — กรอกข้อมูลและลงนามก่อนอัปโหลด)` })),
+    ...(suggested?.continueFromLatest ?? []).flatMap((ft) => {
+      const u = latestBeforeStep(ft);
+      return u ? [{ upload: u, title: `${FORM_SHORT[ft]} ฉบับล่าสุดในระบบ` }] : [];
+    }),
+  ];
+
   const requiredForms = suggested?.forms ?? [];
   // Upload slots: one per form, except per-member forms (the defense's บ.3, collected outside the
   // system from each committee member) get one slot per member on the submission's committee
@@ -198,16 +209,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   async function uploadSelected() {
     for (const [key, file] of Object.entries(selectedFiles)) {
       const [ft, mid] = key.split(":");
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("submissionId", sub!.id);
-      formData.append("formType", ft);
-      if (mid) formData.append("memberId", mid);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `upload failed: ${ft}`);
-      }
+      await postUpload(sub!.id, ft, file, mid);
     }
   }
 
@@ -471,65 +473,69 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
             </button>
           )}
 
-          {/* REJECTED: upload corrected docs then resubmit */}
+          {/* REJECTED: upload corrected docs then resubmit — the boxes start empty (the rejected copy
+              is not shown as "uploaded"), and ยื่นใหม่ needs at least one corrected file */}
           {!sub.cancelRequested && subStatus === "REJECTED" && (
-            <div className="bg-white rounded-2xl border border-orange-200 p-4 space-y-3">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
-                  <Upload className="w-4 h-4 text-orange-600" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-gray-800 text-sm">แก้ไขเอกสาร</h2>
-                  <p className="text-xs text-gray-400">อัปโหลดไฟล์ที่แก้ไขแล้ว แล้วกดยืนยัน</p>
+            <div className={ACTION_CARD}>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">แก้ไขเอกสาร</h3>
+                <p className="text-sm text-gray-500">เลือกไฟล์ที่แก้ไขแล้ว แล้วกด ยื่นใหม่อีกครั้ง</p>
+              </div>
+
+              <div>
+                <SectionLabel n={1} required>อัปโหลดเอกสารที่แก้ไขแล้ว</SectionLabel>
+                <div className="space-y-4">
+                  {rejectedFixForms.map((ft) => (
+                    <div key={ft} className="space-y-2">
+                      {FORM_UPLOAD_WARNINGS[ft] && (
+                        <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          {FORM_UPLOAD_WARNINGS[ft]}
+                        </p>
+                      )}
+                      {slotsFor([ft]).map((sl) => (
+                        <FileUploader
+                          key={sl.key}
+                          submissionId={sub.id}
+                          formType={ft}
+                          slotLabel={sl.label}
+                          selectedFile={selectedFiles[sl.key] ?? null}
+                          onFileSelect={(file) => {
+                            setActionError(null);
+                            setSelectedFiles((prev) => {
+                              if (!file) { const next = { ...prev }; delete next[sl.key]; return next; }
+                              return { ...prev, [sl.key]: file };
+                            });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {rejectedFixForms.map((ft) => (
-                  <div key={ft} className="space-y-1">
-                    {FORM_UPLOAD_WARNINGS[ft] && (
-                      <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        {FORM_UPLOAD_WARNINGS[ft]}
-                      </p>
-                    )}
-                    {slotsFor([ft]).map((sl) => (
-                      <FileUploader
-                        key={sl.key}
-                        submissionId={sub.id}
-                        formType={ft}
-                        slotLabel={sl.label}
-                        existingUpload={latestFor(sub.uploads, sl)}
-                        selectedFile={selectedFiles[sl.key] ?? null}
-                        onFileSelect={(file) =>
-                          setSelectedFiles((prev) => {
-                            if (!file) { const next = { ...prev }; delete next[sl.key]; return next; }
-                            return { ...prev, [sl.key]: file };
-                          })
-                        }
-                      />
-                    ))}
-                  </div>
-                ))}
+              <ActionError message={actionError} />
 
               <button
                 onClick={async () => {
                   setSubmitting(true);
+                  setActionError(null);
                   try {
                     await uploadSelected();
                     setSelectedFiles({});
                     await studentResubmit(sub.id);
-                    showToast("ยื่นคำร้องใหม่แล้ว — กรุณาแนบเอกสารที่แก้ไข", "info");
+                    showToast("ยื่นใหม่แล้ว — ส่งกลับให้ผู้พิจารณาตรวจสอบอีกครั้ง ✓");
                   } catch (err) {
-                    showToast(toUserErrorMessage(err), "error");
+                    setActionError(toUserErrorMessage(err));
                   } finally {
                     setSubmitting(false);
                   }
                 }}
-                disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 transition"
+                disabled={submitting || Object.keys(selectedFiles).length === 0}
+                className={PRIMARY_BUTTON}
               >
-                {submitting ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> : <RefreshCw className="w-5 h-5" />}
-                {submitting ? "กำลังส่ง..." : "ยืนยันและยื่นใหม่อีกครั้ง"}
+                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                {submitting ? "กำลังส่ง..." : "ยื่นใหม่อีกครั้ง"}
               </button>
             </div>
           )}
@@ -570,148 +576,92 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
             </div>
           )}
 
-          {/* Upload section — hide when student has already submitted and is waiting for admin */}
+          {/* Upload section — the student's action card: ① download (when the step continues from a
+              file already in the system) → ② upload → checklist → ส่งต่อ */}
           {!sub.cancelRequested && subStatus === "IN_PROGRESS" && isMyTurn && (
-            <div className="bg-white rounded-2xl border border-blue-100 p-4 space-y-3">
-              {/* Header */}
-              <div className="flex items-center gap-2 pb-1 border-b border-gray-100">
-                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                  <Upload className="w-4 h-4 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-gray-800 text-sm">
-                    {suggested?.label ?? getStepName(currentStep?.stepOrder ?? 0, subType) ?? "อัปโหลดเอกสาร"}
-                  </h2>
-                  <p className="text-xs text-gray-400">เลือกไฟล์ PDF แล้วกดปุ่มส่ง</p>
-                </div>
+            <div className={ACTION_CARD}>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ</h3>
+                <p className="text-sm text-gray-500">
+                  {suggested?.label ?? getStepName(currentStep?.stepOrder ?? 0, subType) ?? "อัปโหลดเอกสาร"}
+                </p>
               </div>
 
-              {/* Download section for THESIS step 9 — files admin uploaded at step 8 */}
-              {adminStep8Files.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
-                    <Download className="w-3.5 h-3.5 shrink-0" />
-                    ดาวน์โหลดเอกสารจากเจ้าหน้าที่ (กรอกข้อมูลและลงนามก่อนอัปโหลด)
-                  </p>
-                  {adminStep8Files.map((u) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => downloadFile(u.id, u.fileName, FORM_SHORT["SIGNED"] ?? FORM_LABELS["SIGNED"], sub.title, u.fileUrl)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 border border-blue-200 rounded-xl hover:bg-blue-50 transition text-left"
-                    >
-                      <Download className="w-4 h-4 text-blue-500 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-700 truncate">{FORM_LABELS["SIGNED"]}</p>
-                        <p className="text-xs text-gray-400 truncate">{u.fileName}</p>
-                      </div>
-                    </button>
-                  ))}
+              {stepDownloads.length > 0 && (
+                <div>
+                  <SectionLabel n={1}>ดาวน์โหลดเอกสารเพื่อกรอกข้อมูลต่อ</SectionLabel>
+                  <div className="space-y-2">
+                    {stepDownloads.map((d) => (
+                      <DownloadRow key={d.upload.id} upload={d.upload} submissionTitle={sub.title} title={d.title} />
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Required docs checklist — only when it's the student's turn and there are required forms */}
-              {isMyTurn && suggested && (
-                <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    เอกสารที่ต้องอัปโหลดก่อนส่ง
-                    {suggested.multiUpload && <span className="font-normal">(อัปโหลดได้หลายไฟล์)</span>}
-                  </p>
-                  {requiredSlots.map((sl) => {
-                    const ft = sl.formType;
-                    const alreadyUploaded = !!latestFor(effectiveUploads, sl);
-                    const fileSelected = !!selectedFiles[sl.key];
-                    const done = alreadyUploaded || fileSelected;
-                    return (
-                      <div key={sl.key} className="flex items-center gap-2">
-                        {done
-                          ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                          : <XCircle className="w-4 h-4 text-orange-400 shrink-0" />}
-                        <span className={`text-xs flex-1 ${done ? "text-green-700" : "text-gray-800 font-medium"}`}>
-                          {sl.label ? `${FORM_SHORT[ft]} — ${sl.label}` : FORM_LABELS[ft]}
-                        </span>
-                        <span className={`text-xs font-semibold shrink-0 ${done ? "text-green-500" : "text-orange-500"}`}>
-                          {alreadyUploaded ? "✓ อัปโหลดแล้ว" : fileSelected ? "✓ เลือกแล้ว" : "รอ"}
-                        </span>
-                      </div>
-                    );
-                  })}
+              {suggested && (
+                <div>
+                  <SectionLabel n={stepDownloads.length > 0 ? 2 : 1} required>อัปโหลดเอกสาร</SectionLabel>
+                  <div className="space-y-4">
+                    {suggested.forms.map((ft, idx) => {
+                      const existing = effectiveUploads
+                        .filter((u) => u.formType === ft)
+                        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+                      const warning = suggested.warnings?.[ft] ?? FORM_UPLOAD_WARNINGS[ft];
+                      return (
+                        <div key={`${ft}-${idx}`} className="space-y-2">
+                          {/* Where to get the blank form (not shown when the step continues from the system's copy) */}
+                          {FORM_DOWNLOAD_NAME[ft] && !suggested.continueFromLatest?.includes(ft) && (
+                            <p className="flex items-start gap-1.5 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2">
+                              <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                              <span>
+                                ดาวน์โหลด{FORM_DOWNLOAD_NAME[ft]}ได้ที่{" "}
+                                <a
+                                  href={FORM_DOWNLOAD_URL}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-semibold underline break-all hover:text-blue-600"
+                                >
+                                  {FORM_DOWNLOAD_URL}
+                                </a>
+                              </span>
+                            </p>
+                          )}
+                          {warning && (
+                            <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                              {warning}
+                            </p>
+                          )}
+                          {slotsFor([ft]).map((sl) => (
+                            <FileUploader
+                              key={sl.key}
+                              submissionId={sub.id}
+                              formType={ft}
+                              slotLabel={sl.label}
+                              existingUpload={sl.memberId ? latestFor(effectiveUploads, sl) : existing}
+                              selectedFile={selectedFiles[sl.key] ?? null}
+                              onFileSelect={(file) => {
+                                setActionError(null);
+                                setSelectedFiles((prev) => {
+                                  if (!file) {
+                                    const next = { ...prev };
+                                    delete next[sl.key];
+                                    return next;
+                                  }
+                                  return { ...prev, [sl.key]: file };
+                                });
+                              }}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* Uploaders for required forms — always show when it's the student's turn
-                  so they can re-upload after a rejection without being blocked */}
-              {suggested?.forms.map((ft, idx) => {
-                  const existing = effectiveUploads
-                    .filter((u) => u.formType === ft)
-                    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-                  const continueFrom = suggested.continueFromLatest?.includes(ft) ? latestBeforeStep(ft) : null;
-                  const warning = suggested.warnings?.[ft] ?? FORM_UPLOAD_WARNINGS[ft];
-                  return (
-                    <div key={`${ft}-${idx}`} className="space-y-1">
-                      {/* Continue from the system's latest copy (e.g. the chair-signed บ.วศ.1 at step 4) */}
-                      {continueFrom && (
-                        <button
-                          type="button"
-                          onClick={() => downloadFile(continueFrom.id, continueFrom.fileName, FORM_LABELS[ft], sub.title, continueFrom.fileUrl)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 border border-blue-200 rounded-xl hover:bg-blue-50 transition text-left"
-                        >
-                          <Download className="w-4 h-4 text-blue-500 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-700">ดาวน์โหลด {FORM_SHORT[ft]} ฉบับล่าสุดในระบบ เพื่อกรอกต่อ</p>
-                            <p className="text-xs text-gray-400 truncate">{continueFrom.fileName} · {formatDate(continueFrom.uploadedAt)}</p>
-                          </div>
-                        </button>
-                      )}
-                      {FORM_DOWNLOAD_NAME[ft] && !suggested.continueFromLatest?.includes(ft) && (
-                        <p className="flex items-start gap-1.5 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2">
-                          <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          <span>
-                            ดาวน์โหลด{FORM_DOWNLOAD_NAME[ft]}ได้ที่{" "}
-                            <a
-                              href={FORM_DOWNLOAD_URL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-semibold underline break-all hover:text-blue-600"
-                            >
-                              {FORM_DOWNLOAD_URL}
-                            </a>
-                          </span>
-                        </p>
-                      )}
-                      {warning && (
-                        <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          {warning}
-                        </p>
-                      )}
-                      {slotsFor([ft]).map((sl) => (
-                        <FileUploader
-                          key={sl.key}
-                          submissionId={sub.id}
-                          formType={ft}
-                          slotLabel={sl.label}
-                          existingUpload={sl.memberId ? latestFor(effectiveUploads, sl) : existing}
-                          selectedFile={selectedFiles[sl.key] ?? null}
-                          onFileSelect={(file) =>
-                            setSelectedFiles((prev) => {
-                              if (!file) {
-                                const next = { ...prev };
-                                delete next[sl.key];
-                                return next;
-                              }
-                              return { ...prev, [sl.key]: file };
-                            })
-                          }
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
-
-              {/* Pre-submit checklist for PROPOSAL steps 1 and 4 — the combined บ.วศ.1 file can't be
-                  inspected by the system, so the student confirms what they filled and who signed */}
+              {/* Pre-submit checklist for PROPOSAL steps 1 and 4 / DEFENSE step 1 — the system can't
+                  inspect the PDF, so the student confirms what they filled and who signed */}
               {b1StepChecks && (
                 <B1Checklist
                   title={subType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่ง"}
@@ -755,49 +705,40 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                 </div>
               )}
 
+              <ActionError message={actionError} />
+
               {/* Submit button */}
               {isMyTurn && currentStep && (
-                <>
-                  <div className="space-y-1.5">
-                    <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${studentUploaded ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
-                      {studentUploaded ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
-                      {studentUploaded ? "เลือกไฟล์ครบแล้ว พร้อมส่ง" : "ยังเลือกไฟล์ไม่ครบ"}
-                    </div>
-                  </div>
-                  <button
-                    disabled={!allRequiredUploaded || submitting}
-                    onClick={async () => {
-                      setSubmitting(true);
-                      try {
-                        await uploadSelected();
-                        setSelectedFiles({});
-                        setB1Checks({});
-                        const res = await fetch(`/api/submissions/${sub.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ action: "approve" }),
-                        });
-                        const data = await res.json();
-                        if (!res.ok) throw new Error(data.error ?? "เกิดข้อผิดพลาด");
-                        await refresh();
-                        const lbl = SUBMIT_LABEL[subType]?.[currentStep.stepOrder] ?? "ส่งเอกสารแล้ว";
-                        showToast(`${lbl} ✓`);
-                      } catch (err: any) {
-                        showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง", "error");
-                      } finally {
-                        setSubmitting(false);
-                      }
-                    }}
-                    className={`w-full flex items-center justify-center gap-2 py-3.5 text-white rounded-xl font-semibold transition ${
-                      allRequiredUploaded && !submitting
-                        ? "bg-blue-600 hover:bg-blue-700"
-                        : "bg-gray-300 cursor-not-allowed"
-                    }`}
-                  >
-                    {submitting ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /></> : <Send className="w-5 h-5" />}
-                    {submitting ? "กำลังส่ง..." : (SUBMIT_LABEL[subType]?.[currentStep.stepOrder] ?? "ยืนยันการส่งเอกสาร")}
-                  </button>
-                </>
+                <button
+                  disabled={!allRequiredUploaded || submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    setActionError(null);
+                    try {
+                      await uploadSelected();
+                      setSelectedFiles({});
+                      setB1Checks({});
+                      const res = await fetch(`/api/submissions/${sub.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "approve" }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error ?? "เกิดข้อผิดพลาด");
+                      await refresh();
+                      const lbl = SUBMIT_LABEL[subType]?.[currentStep.stepOrder] ?? "ส่งเอกสารแล้ว";
+                      showToast(`${lbl} ✓`);
+                    } catch (err) {
+                      setActionError(toUserErrorMessage(err, "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง"));
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                  className={PRIMARY_BUTTON}
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                  {submitting ? "กำลังส่ง..." : (SUBMIT_LABEL[subType]?.[currentStep.stepOrder] ?? "ส่งต่อ")}
+                </button>
               )}
 
               {/* Cancel — only shown here when it's the student's turn; other states show it in the status banner */}

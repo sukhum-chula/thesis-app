@@ -55,7 +55,10 @@ src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSign
                              StudentSubmissionActions, SubmissionForms, DefenseDraftReview,
                              AdminSubmissionPanel, AdminUsersPanel, AdminSettingsPanel,
                              B1Checklist (the บ.วศ.1 pre-submit/approve checklist) — the
-                             shared UI that every role dashboard is built from
+                             shared UI that every role dashboard is built from.
+                             FileUploader.tsx also exports the action-card building blocks
+                             (ACTION_CARD, SectionLabel, DownloadRow, NotesField, ActionError,
+                             PRIMARY_BUTTON, postUpload, …) every "your turn" card is made of
 src/context/AppContext.tsx  client state cache; polls the API, exposes actions
                              (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
                              getOrCreateDefenseDraft, saveDefenseDraft, requestCancelSubmission,

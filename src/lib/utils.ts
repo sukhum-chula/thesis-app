@@ -514,9 +514,9 @@ export const DEFENSE_STEP1_CHECKS: B1Check[] = [
   { key: "signedB3",  group: "b3",      label: "อัปโหลด บ.3 ที่กรรมการลงนามแล้ว ครบทุกท่าน (หนึ่งไฟล์ต่อกรรมการหนึ่งท่าน)" },
   { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาหลักแล้ว" },
 ];
-/** THESIS_DEFENSE step 2 — the ADMIN checks the student's บ.2/บ.3 and the committee before
+/** THESIS_DEFENSE step 4 (financeStepOf) — the ADMIN checks the student's บ.2/บ.3 and the committee before
  *  generating the finance form (same approve gate as PROPOSAL step 2) */
-export const ADMIN_DEFENSE_STEP2_CHECKS: B1Check[] = [
+export const ADMIN_DEFENSE_FINANCE_CHECKS: B1Check[] = [
   { key: "b2Ok", group: "verify", label: "ตรวจสอบ บ.2 ครบถ้วนถูกต้อง และมีลายมือชื่อนิสิตแล้ว" },
   { key: "b3Ok", group: "verify", label: "ตรวจสอบ บ.3 ของกรรมการครบทุกท่าน และมีผลการประเมินพร้อมลายมือชื่อแล้ว" },
   ...ADMIN_B1_EXTRA_CHECKS,

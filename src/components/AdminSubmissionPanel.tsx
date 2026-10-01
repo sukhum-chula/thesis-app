@@ -7,8 +7,8 @@ import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge";
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
-  toUserErrorMessage, formatUserName, downloadFile, FORM_SHORT, FORM_FILE_ACCEPT, checkFormFile,
-  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_STEP2_CHECKS,
+  toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS,
 } from "@/lib/utils";
 import { THESIS_STEP, financeStepOf } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
@@ -27,7 +27,10 @@ import {
   AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { FileList } from "@/components/FileList";
-import { UploadSlot } from "@/components/FileUploader";
+import {
+  FileUploader, SlotHeader, SectionLabel, DownloadRow, NotesField, ActionError, postUpload,
+  ACTION_CARD, PRIMARY_BUTTON,
+} from "@/components/FileUploader";
 
 // ─── Step control card ────────────────────────────────────────────────────────
 
@@ -265,7 +268,8 @@ function StepCard({
   );
 }
 
-// ─── Thesis step 8: faculty-return upload panel ───────────────────────────────
+// ─── THESIS_DEFENSE faculty-docs step (THESIS_STEP.ADMIN_FACULTY_DOCS): the 4 Faculty returns ──
+// Uploaded from the admin action card's upload section, on อนุมัติ (like every other step's files).
 
 const FACULTY_SLOTS = [
   { key: "SIGNED",        formType: "SIGNED",        label: "แบบรายงานการเสนอผลงานทางวิชาการของนิสิต" },
@@ -274,175 +278,7 @@ const FACULTY_SLOTS = [
   { key: "FINANCE_DOC",   formType: "FINANCE_DOC",   label: "เอกสารการเงิน" },
 ] as const;
 
-function ThesisFacultyUploadPanel({ submissionId }: { submissionId: string }) {
-  const { approveCurrentStep } = useApp();
-  const { showToast }          = useToast();
-
-  const [fileBySlot,    setFileBySlot]    = useState<Record<string, File | null>>({});
-  const [uploadedSlots, setUploadedSlots] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
-
-  const activeSlots = FACULTY_SLOTS;
-
-  const allReady = activeSlots.every((s) => uploadedSlots.has(s.key) || !!fileBySlot[s.key]);
-
-  async function handleSubmit() {
-    if (!allReady) { setError("กรุณาเลือกไฟล์ให้ครบทุกช่องก่อน"); return; }
-    setLoading(true);
-    setError(null);
-    try {
-      for (const slot of activeSlots) {
-        if (!uploadedSlots.has(slot.key) && fileBySlot[slot.key]) {
-          const fd = new FormData();
-          fd.append("file", fileBySlot[slot.key]!);
-          fd.append("submissionId", submissionId);
-          fd.append("formType", slot.formType);
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
-          if (!res.ok) throw new Error("upload failed");
-          setUploadedSlots((prev) => new Set([...prev, slot.key]));
-        }
-      }
-      await approveCurrentStep(submissionId, undefined);
-      showToast("อัปโหลดเอกสารและส่งต่อนิสิตเรียบร้อยแล้ว ✓");
-    } catch {
-      setError("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-5">
-      <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ — อัปโหลดเอกสารจากคณะ</h3>
-
-      {/* Required 4 slots — same UploadSlot design as every other role */}
-      <div className="space-y-3">
-        {FACULTY_SLOTS.map((slot) => (
-          <UploadSlot
-            key={slot.key}
-            formType={slot.formType}
-            slotLabel={slot.label}
-            selectedFile={fileBySlot[slot.key] ?? null}
-            onFileSelect={(f) => { setFileBySlot((prev) => ({ ...prev, [slot.key]: f })); setError(null); }}
-            done={uploadedSlots.has(slot.key)}
-            doneLabel="อัปโหลดสำเร็จ"
-            disabled={loading}
-          />
-        ))}
-      </div>
-
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !allReady}
-        className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 disabled:opacity-60 transition"
-      >
-        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-        {loading ? "กำลังบันทึก..." : "ส่งต่อนิสิต"}
-      </button>
-    </div>
-  );
-}
-
 const ADMIN_STEP2_CHECKS = [...B1_CHECKS, ...ADMIN_B1_EXTRA_CHECKS];
-
-// ─── Proposal step-8 cover page (ใบปะหน้า) for the Faculty ─────────────────────
-
-function ProposalCoverUploadPanel({ submissionId, submissionTitle, latest, deptChairName }: {
-  submissionId: string; submissionTitle: string; latest: MockUpload | null; deptChairName: string | null;
-}) {
-  const { refresh }   = useApp();
-  const { showToast } = useToast();
-  const [file,  setFile]  = useState<File | null>(null);
-  const [busy,  setBusy]  = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleUpload() {
-    if (!file) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("submissionId", submissionId);
-      fd.append("formType", "COVER_PAGE");
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง");
-      setFile(null);
-      await refresh();
-      showToast("อัปโหลดใบปะหน้าเรียบร้อยแล้ว ✓");
-    } catch (e) {
-      setError(toUserErrorMessage(e, "อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className={latest
-      ? "bg-green-50 border-2 border-green-300 rounded-2xl p-5 space-y-3"
-      : "bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5 space-y-3"}>
-      <div className="flex items-center gap-2">
-        {latest ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <Upload className="w-5 h-5 text-yellow-600" />}
-        <h2 className={latest ? "font-semibold text-green-800" : "font-semibold text-yellow-800"}>
-          ใบปะหน้าส่งคณะวิศวกรรมศาสตร์
-        </h2>
-      </div>
-      <p className="text-sm text-gray-600">
-        อัปโหลดใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว เพื่อนำส่งคณะฯ พร้อม บ.วศ.1
-      </p>
-      <p className="text-sm text-gray-700">
-        หัวหน้าภาควิชา:{" "}
-        <span className="font-semibold">{deptChairName ?? "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
-      </p>
-      {latest && (
-        <button
-          type="button"
-          onClick={() => downloadFile(latest.id, latest.fileName, FORM_LABELS.COVER_PAGE, submissionTitle, latest.fileUrl)}
-          className="w-full flex items-center gap-3 px-3 py-2.5 bg-white border border-green-200 rounded-xl hover:bg-green-100 transition text-left"
-        >
-          <Download className="w-4 h-4 text-green-600 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-gray-800 truncate">{latest.fileName}</p>
-            <p className="text-xs text-gray-500">{formatBytes(latest.fileSize)} · {formatDate(latest.uploadedAt)}</p>
-          </div>
-        </button>
-      )}
-      <UploadSlot
-        formType="COVER_PAGE"
-        slotLabel={latest ? "อัปโหลดไฟล์ใหม่ (แทนที่ไฟล์ปัจจุบัน)" : "ใบปะหน้าที่หัวหน้าภาควิชาลงนามแล้ว"}
-        selectedFile={file}
-        onFileSelect={(f) => { setFile(f); setError(null); }}
-        disabled={busy}
-      />
-      {file && (
-        <button
-          type="button"
-          onClick={handleUpload}
-          disabled={busy}
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          {busy ? "กำลังอัปโหลด..." : "อัปโหลดใบปะหน้า"}
-        </button>
-      )}
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── Proposal step-2 finance attachment: generate → (download, edit, re-upload) ─
 
@@ -529,18 +365,9 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
   }
 
   return (
-    <div className={latest
-      ? "bg-green-50 border-2 border-green-300 rounded-2xl p-5 space-y-3"
-      : "bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5 space-y-3"}>
-      <div className="flex items-center gap-2">
-        {latest
-          ? <CheckCircle2 className="w-5 h-5 text-green-600" />
-          : <FileText className="w-5 h-5 text-yellow-600" />}
-        <h2 className={latest ? "font-semibold text-green-800" : "font-semibold text-yellow-800"}>
-          เอกสารการเงินแนบกรรมการสอบ
-        </h2>
-      </div>
-      <p className="text-sm text-gray-600">
+    <div className={ACTION_CARD}>
+      <h3 className="text-lg font-semibold text-gray-800">เอกสารการเงินแนบกรรมการสอบ</h3>
+      <p className="text-sm text-gray-500">
         ระบบจะกรอกชื่อนิสิต รหัสนิสิต และรายชื่อคณะกรรมการให้ — วันที่ หน่วยกิต ลงนาม รวมเงิน และการจ่ายเช็คเว้นว่างไว้
       </p>
 
@@ -549,7 +376,7 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
           type="button"
           onClick={handleGenerate}
           disabled={busy !== null}
-          className="w-full flex items-center justify-center gap-2 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {busy === "generate" ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
           {busy === "generate" ? "กำลังสร้าง..." : "สร้างเอกสารการเงินแนบกรรมการสอบ"}
@@ -559,27 +386,12 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
           {/* Upload box — holds the one current version (generated, or the admin's edited copy) */}
           <div className={picked
             ? "border-2 border-blue-300 rounded-xl p-4 space-y-3 bg-white"
-            : "border-2 border-green-200 rounded-xl p-4 space-y-3 bg-white"}>
-            <div className="flex items-center gap-2">
-              <span className="shrink-0 text-xs font-bold text-blue-800 bg-blue-50 border border-blue-200 rounded-md px-2 py-0.5">
-                {FORM_SHORT.FINANCE_ATTACH}
-              </span>
-              <span className="text-xs text-gray-500 flex-1">ไฟล์ Word (.docx) — เก็บไว้เพียงไฟล์เดียว</span>
-            </div>
+            : "border-2 border-green-200 rounded-xl p-4 space-y-3 bg-green-50"}>
+            <SlotHeader formType="FINANCE_ATTACH" status={picked ? "picked" : "done"} desc="ไฟล์ Word (.docx) — เก็บไว้เพียงไฟล์เดียว" />
 
             {!picked ? (
               <>
-                <button
-                  type="button"
-                  onClick={() => downloadFile(latest.id, latest.fileName, FORM_LABELS.FINANCE_ATTACH, submissionTitle, latest.fileUrl)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 border border-green-200 rounded-xl hover:bg-green-50 transition text-left"
-                >
-                  <Download className="w-4 h-4 text-green-600 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-800 truncate">{latest.fileName}</p>
-                    <p className="text-xs text-gray-500">{formatBytes(latest.fileSize)} · {formatDate(latest.uploadedAt)}</p>
-                  </div>
-                </button>
+                <DownloadRow upload={latest} submissionTitle={submissionTitle} />
                 <p className="text-xs text-gray-500">
                   หากต้องการแก้ไข: ดาวน์โหลด แก้ไขในโปรแกรม Word แล้วกด &quot;เปลี่ยนไฟล์&quot; เพื่ออัปโหลดไฟล์ที่แก้ไขแล้ว
                 </p>
@@ -587,7 +399,7 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
                   type="button"
                   onClick={() => inputRef.current?.click()}
                   disabled={busy !== null}
-                  className="w-full py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition disabled:opacity-60"
+                  className="w-full py-1.5 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-white transition disabled:opacity-60"
                 >
                   เปลี่ยนไฟล์
                 </button>
@@ -663,12 +475,7 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
         </>
       )}
 
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
+      <ActionError message={error} />
     </div>
   );
 }
@@ -708,13 +515,28 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
   // PROPOSAL step 2 can't be approved until the finance attachment exists and the admin has ticked
   // the student's บ.วศ.1 checklist plus the committee check; step 6 needs its verification checks
-  const adminChecks = isFinanceReviewStep ? (sub?.submissionType === "THESIS_DEFENSE" ? ADMIN_DEFENSE_STEP2_CHECKS : ADMIN_STEP2_CHECKS)
+  const adminChecks = isFinanceReviewStep ? (sub?.submissionType === "THESIS_DEFENSE" ? ADMIN_DEFENSE_FINANCE_CHECKS : ADMIN_STEP2_CHECKS)
     : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
     : isProposalCoverStep ? ADMIN_STEP8_CHECKS
     : null;
   const [adminCheckState, setAdminCheckState] = useState<Record<string, boolean>>({});
   const adminAllChecked = !adminChecks || allChecked(adminChecks, adminCheckState);
-  const approveBlocked = (isFinanceReviewStep && !latestFinanceAttach) || (isProposalCoverStep && !latestCover) || !adminAllChecked;
+  // Files picked in the action card's upload section (cover page / Faculty returns) — uploaded on อนุมัติ
+  const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({});
+  const [actionError,  setActionError]  = useState<string | null>(null);
+  // The Faculty returns only count once uploaded after the relay step (same rule as the server gate)
+  const relayActedAt = (() => {
+    const t = sub?.workflowSteps.find((s) => s.stepOrder === THESIS_STEP.ADMIN_RELAY)?.actedAt;
+    return t ? new Date(t).getTime() : 0;
+  })();
+  const latestFacultyDoc = (formType: string) => (sub?.uploads ?? [])
+    .filter((u) => u.formType === formType && new Date(u.uploadedAt).getTime() >= relayActedAt)
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+  const facultyDocsReady = FACULTY_SLOTS.every((sl) => !!pendingFiles[sl.key] || !!latestFacultyDoc(sl.formType));
+  const approveBlocked = (isFinanceReviewStep && !latestFinanceAttach)
+    || (isProposalCoverStep && !latestCover && !pendingFiles.COVER_PAGE)
+    || (isThesisUploadStep && !facultyDocsReady)
+    || !adminAllChecked;
   const [approveNotes, setApproveNotes] = useState("");
   const [actionMode,   setActionMode]   = useState<"reject" | "return" | null>(null);
   const [actionNotes,  setActionNotes]  = useState("");
@@ -856,14 +678,31 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     }
   }
 
+  function pickPending(key: string, file: File | null) {
+    setActionError(null);
+    setPendingFiles((prev) => {
+      const next = { ...prev };
+      if (file) next[key] = file; else delete next[key];
+      return next;
+    });
+  }
+
   async function handleApproveStep() {
     if (!sub || actionBusy) return;
     setActionBusy(true);
+    setActionError(null);
     try {
+      // Upload the files picked in the card first (each one is removed from the list once stored,
+      // so a retry after a failed approve doesn't upload it twice), then approve
+      for (const [key, file] of Object.entries(pendingFiles)) {
+        await postUpload(sub.id, key, file);
+        setPendingFiles((prev) => { const next = { ...prev }; delete next[key]; return next; });
+      }
       await approveCurrentStep(sub.id, approveNotes || undefined);
       setApproveNotes("");
+      setAdminCheckState({});
     } catch (err) {
-      showToast(toUserErrorMessage(err, "อนุมัติไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+      setActionError(toUserErrorMessage(err, "อนุมัติไม่สำเร็จ กรุณาลองอีกครั้ง"));
     } finally {
       setActionBusy(false);
     }
@@ -876,8 +715,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       await rejectCurrentStep(sub.id, actionNotes.trim());
       setActionMode(null);
       setActionNotes("");
+      setActionError(null);
     } catch (err) {
-      showToast(toUserErrorMessage(err, "ปฏิเสธไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+      setActionError(toUserErrorMessage(err, "ปฏิเสธไม่สำเร็จ กรุณาลองอีกครั้ง"));
     } finally {
       setActionBusy(false);
     }
@@ -1271,7 +1111,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>รับเอกสารจากคณะวิศวกรรมศาสตร์</li>
                   <li>อัปโหลดเอกสารด้านล่าง</li>
-                  <li>กดส่งต่อ — ระบบจะแจ้งนิสิตโดยอัตโนมัติ</li>
+                  <li>กดอนุมัติ — ระบบจะแจ้งนิสิตโดยอัตโนมัติ</li>
                 </ol>
               )}
             </div>
@@ -1282,36 +1122,57 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
             <ProposalFinanceGeneratePanel submissionId={sub.id} submissionTitle={sub.title} latest={latestFinanceAttach} />
           )}
 
-          {/* PROPOSAL step 8: the Faculty cover page, signed by the department chair */}
-          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && isProposalCoverStep && (
-            <ProposalCoverUploadPanel
-              submissionId={sub.id}
-              submissionTitle={sub.title}
-              latest={latestCover}
-              deptChairName={deptChair ? formatUserName(deptChair) : null}
-            />
-          )}
-
-          {/* Admin's action panel — SignatureButton for upload steps, simple approve for others */}
+          {/* Admin's action card — same parts and order as every other role's card:
+              upload (when the step has files) → checklist → notes → อนุมัติ, then ปฏิเสธ / ส่งกลับ */}
           {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (
-            isThesisUploadStep ? (
-              <ThesisFacultyUploadPanel submissionId={sub.id} />
-            ) : (
-              <div className="bg-white border-2 border-blue-400 rounded-2xl p-5 space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ</h3>
-                {!isThesisRelayStep && (
-                  <p className="text-sm text-gray-500">ตรวจสอบเอกสาร แล้วเลือกการดำเนินการ</p>
+              <div className={ACTION_CARD}>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ</h3>
+                  {!isThesisRelayStep && !isThesisUploadStep && (
+                    <p className="text-sm text-gray-500">ตรวจสอบเอกสาร แล้วเลือกการดำเนินการ</p>
+                  )}
+                </div>
+
+                {/* Upload section — the step's own files, uploaded on อนุมัติ */}
+                {actionMode === null && isThesisUploadStep && (
+                  <div>
+                    <SectionLabel n={1} required>อัปโหลดเอกสารจากคณะ</SectionLabel>
+                    <div className="space-y-3">
+                      {FACULTY_SLOTS.map((sl) => (
+                        <FileUploader
+                          key={sl.key}
+                          submissionId={sub.id}
+                          formType={sl.formType}
+                          slotLabel={sl.label}
+                          existingUpload={latestFacultyDoc(sl.formType)}
+                          selectedFile={pendingFiles[sl.key] ?? null}
+                          onFileSelect={(f) => pickPending(sl.key, f)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {actionMode === null && isProposalCoverStep && (
+                  <div>
+                    <SectionLabel n={1} required>อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์</SectionLabel>
+                    <p className="text-sm text-gray-600 mb-2">
+                      ใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
+                      <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
+                    </p>
+                    <FileUploader
+                      submissionId={sub.id}
+                      formType="COVER_PAGE"
+                      slotLabel={latestCover ? "ไฟล์ใหม่จะแทนที่ไฟล์ปัจจุบัน" : undefined}
+                      existingUpload={latestCover}
+                      selectedFile={pendingFiles.COVER_PAGE ?? null}
+                      onFileSelect={(f) => pickPending("COVER_PAGE", f)}
+                    />
+                  </div>
                 )}
 
                 {/* Approve — always visible at top */}
                 {actionMode !== "reject" && actionMode !== "return" && (
-                  <div className="space-y-3">
-                    <textarea
-                      value={approveNotes}
-                      onChange={(e) => setApproveNotes(e.target.value)}
-                      placeholder="หมายเหตุ (ไม่บังคับ)..."
-                      className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
+                  <div className="space-y-4">
                     {adminChecks && (
                       <B1Checklist
                         title="ตรวจสอบก่อนอนุมัติ"
@@ -1320,6 +1181,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         onChange={setAdminCheckState}
                       />
                     )}
+                    <NotesField value={approveNotes} onChange={setApproveNotes} />
                     {isFinanceReviewStep && (
                       <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                         เมื่อกดอนุมัติ ระบบจะส่งเอกสารการเงินแนบกรรมการสอบไปยังเจ้าหน้าที่การเงินทางอีเมลโดยอัตโนมัติ
@@ -1335,15 +1197,18 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         <Info className="w-3.5 h-3.5 shrink-0" />
                         {isFinanceReviewStep && !latestFinanceAttach
                           ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
-                          : isProposalCoverStep && !latestCover
-                          ? "ต้องอัปโหลดใบปะหน้าก่อนจึงจะอนุมัติได้"
+                          : isProposalCoverStep && !latestCover && !pendingFiles.COVER_PAGE
+                          ? "ต้องเลือกไฟล์ใบปะหน้าก่อนจึงจะอนุมัติได้"
+                          : isThesisUploadStep && !facultyDocsReady
+                          ? "ต้องเลือกเอกสารจากคณะให้ครบทั้ง 4 รายการก่อนจึงจะอนุมัติได้"
                           : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
                       </p>
                     )}
+                    <ActionError message={actionError} />
                     <button
                       onClick={handleApproveStep}
                       disabled={actionBusy || approveBlocked}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
+                      className={PRIMARY_BUTTON}
                     >
                       {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
                       {actionBusy ? "กำลังดำเนินการ..." : "อนุมัติ"}
@@ -1353,27 +1218,23 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
                 {/* Reject form */}
                 {actionMode === "reject" && (
-                  <div className="space-y-3 border border-red-200 rounded-xl p-3 bg-red-50">
+                  <div className="space-y-4">
                     <p className="text-sm font-semibold text-red-700">ปฏิเสธ — นิสิตต้องแก้ไขและยื่นใหม่</p>
-                    <textarea
-                      value={actionNotes}
-                      onChange={(e) => setActionNotes(e.target.value)}
-                      placeholder="เหตุผลการปฏิเสธ..."
-                      autoFocus
-                      className="w-full border border-red-300 rounded-xl p-3 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-red-400"
-                    />
-                    <div className="flex gap-2">
+                    <NotesField value={actionNotes} onChange={setActionNotes} reject />
+                    <ActionError message={actionError} />
+                    <div className="flex gap-3">
                       <button
                         disabled={!actionNotes.trim() || actionBusy}
                         onClick={handleRejectStep}
-                        className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+                        className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {actionBusy ? "กำลังดำเนินการ..." : "ยืนยันปฏิเสธ"}
+                        {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                        {actionBusy ? "กำลังบันทึก..." : "ยืนยันการปฏิเสธ"}
                       </button>
                       <button
                         disabled={actionBusy}
-                        onClick={() => { setActionMode(null); setActionNotes(""); }}
-                        className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                        onClick={() => { setActionMode(null); setActionNotes(""); setActionError(null); }}
+                        className="px-5 py-3.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition disabled:opacity-60"
                       >
                         ยกเลิก
                       </button>
@@ -1415,14 +1276,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 {!actionMode && (
                   <div className="flex gap-2 pt-1 border-t border-gray-100">
                     <button
-                      onClick={() => setActionMode("reject")}
+                      onClick={() => { setActionMode("reject"); setActionError(null); }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition text-sm"
                     >
                       <XCircle className="w-4 h-4" />
                       ปฏิเสธ
                     </button>
                     <button
-                      onClick={() => setActionMode("return")}
+                      onClick={() => { setActionMode("return"); setActionError(null); }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border-2 border-orange-200 text-orange-600 font-semibold rounded-xl hover:bg-orange-50 transition text-sm"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -1431,7 +1292,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   </div>
                 )}
               </div>
-            )
           )}
 
           {/* Waiting-for-resubmit — blocked until student fixes and resubmits */}

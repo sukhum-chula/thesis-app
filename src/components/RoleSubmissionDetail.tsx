@@ -109,8 +109,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       2:  ["B2"],            // ADVISOR signs B2
       3:  ["B2"],            // HEAD_EXAM_COMMITTEE signs B2
       5:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 4)
-      // Step 7 (ADMIN relay) omitted — admin physically delivers, no signing, uses own page
-      // Step 8 (ADMIN upload) omitted — admin uploads new docs from Faculty, handled via admin page
+      // Steps 4 (ADMIN check), 6 (ADMIN relay) omitted — no signing, handled via the admin page
+      // Step 7 (ADMIN upload) omitted — admin uploads new docs from Faculty, handled via admin page
       9:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
       10: ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
       11: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
@@ -133,7 +133,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const doneCount   = numbering.done;
   const totalSteps  = numbering.total;
   const currentDisplayOrder = currentStep ? numbering.label(currentStep.stepOrder) : "";
-  // Signing steps with an own-signature checklist (PROPOSAL 3, 5.x, 7; THESIS 3.x) — lib/utils SIGN_CHECKS
+  // Signing steps with an own-signature checklist (PROPOSAL 3, 5.x, 7; none for THESIS yet) — lib/utils SIGN_CHECKS
   const signChecks = currentStep && isMyTurn
     ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;

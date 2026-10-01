@@ -5,6 +5,31 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-10-01
+
+- **One design for every "your turn" upload/action card.** Student upload card, `SignatureButton`,
+  `CommitteeSignPanel`, the admin action card and the finance card are now built from shared pieces
+  in `FileUploader.tsx` (`ACTION_CARD`, `PRIMARY_BUTTON`, `REJECT_BUTTON`, `SectionLabel`,
+  `DownloadRow`, `NoDownloads`, `NotesField`, `ActionError`, `postUpload`, exported `SlotHeader`),
+  in one order: numbered download → sign → upload sections, then checklist, notes, one green ✓
+  button, then ปฏิเสธ. Behaviour changes that came with it:
+  - THESIS_DEFENSE step 7 (Faculty docs) is no longer a separate panel — its 4 upload boxes sit in
+    the normal admin action card, so ปฏิเสธ/ส่งกลับ are available there like every other admin step;
+    an earlier upload newer than step 6 still counts.
+  - PROPOSAL step 8's cover page is uploaded on อนุมัติ (pick file → approve), not with its own
+    upload button; `ProposalCoverUploadPanel`/`ThesisFacultyUploadPanel` are gone.
+  - The student's rejected-fix card starts with empty upload boxes (it used to show the rejected
+    file as "✓ อัปโหลดแล้ว") and ยื่นใหม่อีกครั้ง needs at least one corrected file.
+  - The committee panel says ปฏิเสธ (was ไม่อนุมัติ) and "ลงนามแล้ว" in the roster; a signer with
+    nothing to download sees "ยังไม่มีเอกสารในระบบสำหรับขั้นตอนนี้ — กรุณาติดต่อเจ้าหน้าที่"
+    instead of blaming the student.
+  - Upload/approve errors show the server's message inline on the card (student card included —
+    no longer a toast); a retry after a failed sign/approve doesn't upload the same file twice.
+  - The uploaded-file box's file name now opens a preview. The student's duplicate orange
+    "เอกสารที่ต้องอัปโหลดก่อนส่ง" list was removed (each box's chip already shows it).
+  `tsc` + `npm run build` clean, lint counts unchanged; **not browser-verified** (would need a
+  login on the production DB).
+
 ## 2026-09-30
 
 - **Defense บ.3 collected outside the system; the parallel committee step is gone (22 steps).** The
