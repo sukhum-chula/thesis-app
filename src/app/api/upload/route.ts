@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { uploadFile } from "@/lib/supabase";
 import { FORM_SHORT, formFileKind, isSingleVersionForm, formatUserName } from "@/lib/utils";
+import { getDepartmentChairUserId } from "@/lib/systemSettings";
 import type { FormType } from "@/types";
 import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
 import { allCommitteeIds, isPerMemberForm, THESIS_STEP } from "@/lib/workflowSteps";
@@ -74,7 +75,8 @@ export async function POST(req: NextRequest) {
       (subCheck.committeeIds as string[]).includes(uid) ||
       subCheck.headCommitteeId === uid ||
       (subCheck.invitedCommitteeIds as string[]).includes(uid) ||
-      (subCheck as any).programChairId === uid;
+      (subCheck as any).programChairId === uid ||
+      (subCheck.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === uid);
     if (!involved) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -83,15 +85,16 @@ export async function POST(req: NextRequest) {
   // page at stepOrder 12 (shown as step 8).
   // THESIS_DEFENSE: the finance attachment is the ADMIN's check-step file too (THESIS_STEP.ADMIN_CHECK,
   // step 2), and the cover page that goes to the Faculty with บ.2 + บ.3 is the relay step's
-  // (THESIS_STEP.ADMIN_RELAY, step 4).
-  const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { step: number; label: string }>> = {
+  // (THESIS_STEP.ADMIN_RELAY, step 4) and the result-send step's (THESIS_STEP.ADMIN_RESULT_SEND,
+  // shown as step 11 — the 8.x sub-step group absorbs a co-advisor, so that label never shifts).
+  const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { steps: number[]; label: string }>> = {
     PROPOSAL: {
-      FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
-      COVER_PAGE:     { step: 12, label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+      FINANCE_ATTACH: { steps: [2],  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
+      COVER_PAGE:     { steps: [12], label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
     },
     THESIS_DEFENSE: {
-      FINANCE_ATTACH: { step: THESIS_STEP.ADMIN_CHECK, label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
-      COVER_PAGE:     { step: THESIS_STEP.ADMIN_RELAY, label: `ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_RELAY} เท่านั้น` },
+      FINANCE_ATTACH: { steps: [THESIS_STEP.ADMIN_CHECK], label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
+      COVER_PAGE:     { steps: [THESIS_STEP.ADMIN_RELAY, THESIS_STEP.ADMIN_RESULT_SEND], label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 4 และ 11 เท่านั้น" },
     },
   };
   const adminOnly = ADMIN_ONLY_AT_STEP[subCheck.submissionType ?? "PROPOSAL"]?.[formType];
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
     const current = await prisma.workflowStep.findFirst({
       where: { submissionId, status: "PENDING" }, orderBy: { stepOrder: "asc" }, select: { stepOrder: true },
     });
-    if (!sessionRoles.includes("ADMIN") || subCheck.status !== "IN_PROGRESS" || current?.stepOrder !== adminOnly.step)
+    if (!sessionRoles.includes("ADMIN") || subCheck.status !== "IN_PROGRESS" || !adminOnly.steps.includes(current?.stepOrder ?? -1))
       return NextResponse.json({ error: adminOnly.label }, { status: 400 });
   }
 

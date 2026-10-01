@@ -43,7 +43,13 @@ const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
   },
   THESIS_DEFENSE: {
     [THESIS_STEP.STUDENT_B2_B3]:  { forms: ["B2", "B3"], label: "บ.2 + บ.3 ของกรรมการทุกท่าน" },
-    [THESIS_STEP.STUDENT_REPORT]: { forms: ["SIGNED", "EXAM_RESULT"], label: "แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต) + ใบรายงานผลการสอบ — จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้" },
+    [THESIS_STEP.STUDENT_REPORT]: {
+      forms: ["SIGNED", "EXAM_RESULT"], label: "แบบรายงานการเสนอผลงานฯ + ใบรายงานผลการสอบ (จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้)",
+      warnings: {
+        SIGNED:      "แบบรายงานการเสนอผลงานทางวิชาการของนิสิต (ไฟล์ PDF) — ใช้แบบฟอร์มจากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้ กรอกข้อมูลให้ครบถ้วนและลงนามโดยนิสิตก่อนอัปโหลด เว้นช่องลงนามของอาจารย์ที่ปรึกษาว่างไว้ (อาจารย์ที่ปรึกษาจะลงนามในขั้นตอนถัดไป)",
+        EXAM_RESULT: "ใบรายงานผลการสอบวิทยานิพนธ์ (ไฟล์ PDF) — ไฟล์จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้ อัปโหลดตามที่ได้รับโดยไม่ต้องลงนาม คณะกรรมการและประธานหลักสูตรจะลงนามผ่านระบบในขั้นตอนถัดไป",
+      },
+    },
     [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)" },
   },
 };
@@ -233,6 +239,10 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
       case "PROGRAM_CHAIR": {
         const u = allUsers.find((u) => u.id === (sub as any).programChairId)
           ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
+        return u ? formatUserName(u) : ROLE_LABELS[currentStep.role];
+      }
+      case "DEPARTMENT_CHAIR": {
+        const u = allUsers.find((u) => u.isDepartmentChair);
         return u ? formatUserName(u) : ROLE_LABELS[currentStep.role];
       }
       case "EXAM_COMMITTEE": {

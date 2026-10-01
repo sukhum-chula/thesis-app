@@ -49,6 +49,10 @@ function resolveAssignees(
         : undefined;
       return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
+    case "DEPARTMENT_CHAIR": {
+      const u = users.find((u) => u.isDepartmentChair);
+      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
+    }
     case "ADMIN": {
       const u = users.find((u) => u.roles.includes("ADMIN"));
       return u ? [{ id: u.id, name: formatUserName(u) }] : [];

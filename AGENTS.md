@@ -46,13 +46,13 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 ## Key facts
 
 - **All API logic is in `src/app/api/`**. State is server-fetched; client state lives in `AppContext` which polls the API.
-- Two submission types: **PROPOSAL** (12 steps, shown as 1–4, 5.1–5.x, 6–8) and **THESIS_DEFENSE** (19 steps). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/lib/workflowSteps.ts`. The two proposals created before step 12 existed were backfilled with a PENDING step-12 row on 2026-09-30 (insert-only); a PROPOSAL that somehow lacks it would still just finish after the chair's signature, since every rule treats "no PENDING step left" as completion.
+- Two submission types: **PROPOSAL** (12 steps, shown as 1–4, 5.1–5.x, 6–8) and **THESIS_DEFENSE** (22 steps, shown as 1–7, 8.1–8.x, 9–17 or 9–18). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/lib/workflowSteps.ts`. The two proposals created before step 12 existed were backfilled with a PENDING step-12 row on 2026-09-30 (insert-only); a PROPOSAL that somehow lacks it would still just finish after the chair's signature, since every rule treats "no PENDING step left" as completion.
 - **Step names**: `PROPOSAL_STEP_NAMES` / `THESIS_STEP_NAMES` in `src/lib/utils.ts`. Always call `getStepName(stepOrder, submissionType)` — never access the maps directly.
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
   PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)],  step 12 (ADMIN) → [COVER_PAGE]
-  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [COVER_PAGE],  step 6 → [SIGNED, EXAM_RESULT],   step 13 → [B4, THESIS]
+  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [COVER_PAGE],  step 6 → [SIGNED, EXAM_RESULT],   step 15 (ADMIN) → [COVER_PAGE, a new copy after step 14],   step 16 → [B4, THESIS]
   ```
   PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE's Faculty-returned FINANCE_DOC is unrelated and unchanged.)
 - **Tailwind class names in lookup maps must be whole static strings** (no interpolation).
@@ -204,9 +204,12 @@ per-program, so there is no `:<program>` suffix). Read/written only through
 `getDepartmentChairUserId`/`getDepartmentChairUser`/`setDepartmentChair` in
 `src/lib/systemSettings.ts`, cleared by the same `clearUserFromSystemSettings` on account delete,
 and surfaced to the client as a computed `isDepartmentChair: boolean` by `attachSystemSettings`
-(alongside `programChairFor`/`isFinanceContact`). It is **currently a record only** — nothing in
-the workflow, step routing, authorization or email resolution reads it yet, unlike the program-chair
-and finance-contact keys.
+(alongside `programChairFor`/`isFinanceContact`). Since 2026-10-01 it is a **workflow
+actor**: THESIS_DEFENSE stepOrder 14 has role `DEPARTMENT_CHAIR` (signs ใบรายงานผลการสอบ), routed to
+this user for notifications, email, approve authorization and every client "whose turn" check; the
+holder is also treated as involved in **every** THESIS_DEFENSE (list scoping in `GET
+/api/submissions`, submission GET/reject, uploads, signed URLs). With nobody assigned, that step
+has no one who can approve it.
 
 ADMIN manages all three from one **"ตั้งค่าระบบ"** tab on `/admin-dashboard` (third tab, alongside
 "จัดการคำร้อง"/"จัดการผู้ใช้งาน") and standalone below `AdminUsersPanel` at
@@ -392,8 +395,10 @@ progress counts and bars count top-level steps (a sub-step group counts once, wh
 approved). Used by `WorkflowTimeline`, `AdminSubmissionPanel` (step cards, status, progress),
 `RoleSubmissionDetail`, `StudentSubmissionActions`, `/admin-dashboard`, `/student-dashboard`,
 `UserDetailPanel`, and the admin-override notification text. Never compute a displayed step
-number from a step's index — call `stepNumbering(...).label(stepOrder)`. THESIS_DEFENSE has no
-groups, so it numbers 1..n (SKIPPED co-advisor steps hidden).
+number from a step's index — call `stepNumbering(...).label(stepOrder)`. THESIS_DEFENSE has one
+group: the committee's ใบรายงานผลการสอบ signatures after the advisor (stepOrder 8–12: co-advisors → head →
+exam committee → external → program chair) read as **8.1–8.x**, so the student's บ.4 + thesis upload
+(stepOrder 16) reads as **step 12** — 17 top-level steps without a co-advisor, 18 with one.
 
 Each 5.x signer ends with a one-box checklist, "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" — every committee
 member signs exactly one place, on บ.วศ.1ค (`PROPOSAL_SIGN_CHECKS` in `src/lib/utils.ts`, which also
@@ -452,7 +457,8 @@ PROPOSAL:       3→[B1]  5→[B1]  6→[B1]  7→[B1]  8→[B1]  9→[B1]  11�
 THESIS_DEFENSE: 3→[B2]   (บ.2 and บ.3 are signed outside the system, uploaded at step 1)
                 (steps 2, 4, 5 are ADMIN steps — no signing, not in this map)
                 7→[SIGNED,EXAM_RESULT]  8→[EXAM_RESULT]  9→[EXAM_RESULT]  10→[EXAM_RESULT]  11→[EXAM_RESULT]  12→[EXAM_RESULT]
-                14→[B4]  15→[THESIS]  16→[THESIS]  17→[THESIS]  18→[THESIS]  19→[THESIS]
+                14→[EXAM_RESULT] (DEPARTMENT_CHAIR)   (steps 13, 15 are ADMIN steps — no signing)
+                17→[B4]  18→[THESIS]  19→[THESIS]  20→[THESIS]  21→[THESIS]  22→[THESIS]
 ```
 
 ### Admin dashboard (`src/app/admin-dashboard/page.tsx`) — ADMIN's landing page
@@ -587,6 +593,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students — always an internal `PROFESSOR` account, both degrees |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE); may be an internal `PROFESSOR` or an `EXTERNAL` account, both degrees |
+| Department Head | หัวหน้าภาควิชา | Signs the defense's ใบรายงานผลการสอบ after the committee and the ADMIN's check (THESIS_DEFENSE stepOrder 14, role `DEPARTMENT_CHAIR`) — the one PROFESSOR an ADMIN designates in "ตั้งค่าระบบ" (`SystemSetting` key `departmentChair`); sees every defense |
 | Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`SystemSetting` key `programChair:<program>` — a professor may chair more than one program, see "Program Chair & finance-contact assignment" below) |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student. **Account type is degree-dependent**: `PROFESSOR` or `EXTERNAL` for a master's submission, `EXTERNAL` only for a doctoral one (see "Committee composition by degree" below) |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student; internal `PROFESSOR` accounts only, both degrees (an external examiner belongs in กรรมการภายนอก or อาจารย์ที่ปรึกษาร่วม instead) |
@@ -871,11 +878,13 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 
 ---
 
-### THESIS_DEFENSE (19 steps — restructured 2026-09-30, again 2026-10-01)
+### THESIS_DEFENSE (22 steps — restructured 2026-09-30, again 2026-10-01)
 
 Named stepOrders live in `THESIS_STEP` (`src/lib/workflowSteps.ts`) — code must branch on those, never
-on bare numbers. The ADMIN finance step is `financeStepOf(type)` (step 2 for both types). Display
-numbers are 1..n with SKIPPED co-advisor steps hidden.
+on bare numbers. The ADMIN finance step is `financeStepOf(type)` (step 2 for both types). The **Step**
+column below is the internal stepOrder; what users see comes from `stepNumbering()` — SKIPPED
+co-advisor steps hidden, and stepOrders 8–12 shown as sub-steps 8.1–8.x (see "Step display
+numbering").
 
 #### Phase 3 (Steps 1–3): บ.2 + บ.3
 | Step | Role | Action |
@@ -899,23 +908,36 @@ Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM
 | Step | Role | Action |
 |------|------|--------|
 | 6  | STUDENT | From the forwarded Faculty email: fill info and sign แบบรายงานการเสนอผลงานฯ and upload it (formType: SIGNED), plus upload ใบรายงานผลการสอบ (EXAM_RESULT) for steps 7–12 to sign (`THESIS_STEP.STUDENT_REPORT`; server `REQUIRED_UPLOADS`) |
-| 7  | ADVISOR | Sign แบบรายงานฯ + ใบรายงานผลการสอบ; picks the exam result (`THESIS_STEP.ADVISOR_RESULT`) |
+| 7  | ADVISOR | Sign แบบรายงานฯ + ใบรายงานผลการสอบ; picks the exam result (ดีมาก/ดี/ผ่าน/ไม่ผ่าน, ผ่าน preselected by design), sent as the approval note's first line `ผลการสอบ: …` (`examResultNote`/`examResultFromNotes`, `src/lib/utils.ts`). **ดีมาก also requires แบบประเมินวิทยานิพนธ์ดีมาก** (`VERY_GOOD_EVAL`, an extra upload box on the advisor's card), enforced client- and server-side (uploaded after step 6's approval) (`THESIS_STEP.ADVISOR_RESULT`) |
 | 8  | CO_ADVISOR | Sign ใบรายงานผลการสอบ — **auto-SKIPPED if no co-advisors assigned** |
 | 9  | HEAD_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 | 10 | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
 | 11 | INVITED_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 | 12 | PROGRAM_CHAIR | Sign ใบรายงานผลการสอบ |
 
-#### Phase 6 (Steps 13–19): Thesis submission + cover signing
+StepOrders 8–12 are shown as sub-steps 8.1–8.x.
+
+#### Phase 5b (Steps 13–15, shown as 9–11): result to the Faculty
 | Step | Role | Action |
 |------|------|--------|
-| 13 | STUDENT | Upload B4 + THESIS (from e-thesis system, with barcode) (`THESIS_STEP.STUDENT_THESIS`) |
-| 14 | PROGRAM_CHAIR | Sign บ.4 |
-| 15 | ADVISOR | Sign thesis cover (3 points) |
-| 16 | CO_ADVISOR | Sign thesis cover — **auto-SKIPPED if no co-advisors assigned** |
-| 17 | HEAD_EXAM_COMMITTEE | Sign thesis cover |
-| 18 | EXAM_COMMITTEE | All members sign thesis cover (sequential) |
-| 19 | INVITED_EXAM_COMMITTEE | Sign thesis cover |
+| 13 | ADMIN | Check the committee-signed ใบรายงานผลการสอบ + แบบรายงานฯ; 3-item checklist `ADMIN_DEFENSE_RESULT_CHECKS` (`THESIS_STEP.ADMIN_RESULT_CHECK`) |
+| 14 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs ใบรายงานผลการสอบ (download latest, upload signed) (`THESIS_STEP.DEPT_CHAIR_RESULT`) |
+| 15 | ADMIN | Upload a **new cover page** (`COVER_PAGE`, must be newer than step 14 — `freshUploadCutoff`; same upload box as step 4, uploaded on อนุมัติ) and tick `ADMIN_DEFENSE_SEND_CHECKS` confirming the result + cover page were emailed to the Faculty; server-gated on the cover page (`THESIS_STEP.ADMIN_RESULT_SEND`) |
+
+A defense has **two cover pages** sharing the one `COVER_PAGE` slot — step 4's and step 15's — so
+for THESIS_DEFENSE the type is **not** single-version (the step-4 copy moves under ประวัติ); the
+upload route lets the ADMIN upload it at either step only.
+
+#### Phase 6 (Steps 16–22, shown as 12–17/18): Thesis submission + cover signing
+| Step | Role | Action |
+|------|------|--------|
+| 16 | STUDENT | Upload B4 + THESIS (from e-thesis system, with barcode) (`THESIS_STEP.STUDENT_THESIS`) |
+| 17 | PROGRAM_CHAIR | Sign บ.4 |
+| 18 | ADVISOR | Sign thesis cover (3 points) |
+| 19 | CO_ADVISOR | Sign thesis cover — **auto-SKIPPED if no co-advisors assigned** |
+| 20 | HEAD_EXAM_COMMITTEE | Sign thesis cover |
+| 21 | EXAM_COMMITTEE | All members sign thesis cover (sequential) |
+| 22 | INVITED_EXAM_COMMITTEE | Sign thesis cover |
 
 **Per-member uploads** (`PER_MEMBER_FORMS` / `isPerMemberForm()` in `workflowSteps.ts` — only the
 defense's B3 so far): `POST /api/upload` requires a `memberId` that is on the submission's committee
@@ -1126,7 +1148,7 @@ through to a detail page" step):
    — same allowed-incomplete rule as the proposal draft above — stays `DRAFT`, safe to navigate away
    and come back to) and **"ยืนยัน — ขอสอบวิทยานิพนธ์"** (`confirm: true` — re-validated/re-resolved
    through the full `validatePeople`/`resolvePeople` pipeline, same as any other creation; flips to
-   `IN_PROGRESS`, builds the 19 workflow steps, notifies admins). After confirming, the same
+   `IN_PROGRESS`, builds the 22 workflow steps, notifies admins). After confirming, the same
    `StudentSubmissionActions` view takes over. If there's no eligible completed proposal at all yet,
    a locked gray card explains that, followed by the "No defense" preview timeline (unchanged from
    before).

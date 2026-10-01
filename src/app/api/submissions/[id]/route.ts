@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCutoff, isHiddenFromStudent, FORM_SHORT } from "@/lib/utils";
+import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCutoff, isHiddenFromStudent, FORM_SHORT, examResultFromNotes, VERY_GOOD_RESULT } from "@/lib/utils";
 import type { FormType } from "@/types";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps, planCommitteeStepSync, currentTurn, THESIS_STEP, committeeRoster, previousActiveStep } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, validateResolvedCommitteeCounts, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
-import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
+import { getProgramChairUserId, getProgramChairsOfUser, getDepartmentChairUserId } from "@/lib/systemSettings";
 
 function mapSub(s: any, viewerId: string) {
   return {
@@ -75,6 +75,8 @@ async function notifyRole(role: string, sub: any, message: string, type: string)
       });
     }
     return;
+  } else if (role === "DEPARTMENT_CHAIR") {
+    recipientId = await getDepartmentChairUserId();
   } else if (role === "PROGRAM_CHAIR") {
     // Per-submission chair (assigned by the student) with per-program admin-designated fallback
     if ((sub as any).programChairId) {
@@ -110,7 +112,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     (sub.committeeIds as string[]).includes(userId) ||
     sub.headCommitteeId === userId ||
     (sub.invitedCommitteeIds as string[]).includes(userId) ||
-    (sub as any).programChairId === userId;
+    (sub as any).programChairId === userId ||
+    (sub.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === userId);
   if (!isPrivileged && !isInvolved)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -141,6 +144,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const sub = await getSub(id);
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // The department chair is involved in every defense (they sign its ใบรายงานผลการสอบ)
+  const isDeptChair = sub.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === userId;
   if ((sub as any).cancelRequested && !["accept_cancel", "decline_cancel"].includes(action))
     return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ ไม่สามารถดำเนินการอื่นได้ในขณะนี้" }, { status: 400 });
 
@@ -172,6 +177,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return (sub as any).programChairId
           ? (sub as any).programChairId === userId
           : !!sub.program && userChairedPrograms.includes(sub.program);
+      if (step.role === "DEPARTMENT_CHAIR")      return isDeptChair;
       return userRoles.includes(step.role); // ADMIN, EXAM_COMMITTEE
     })();
     if (!canApprove) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -187,6 +193,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           [THESIS_STEP.ADMIN_CHECK]:    ["FINANCE_ATTACH"],
           [THESIS_STEP.ADMIN_RELAY]:    ["COVER_PAGE"], // cover page sent to the Faculty with บ.2 + บ.3
           [THESIS_STEP.STUDENT_REPORT]: ["SIGNED", "EXAM_RESULT"], // from the Faculty email the admin forwarded
+          [THESIS_STEP.ADMIN_RESULT_SEND]: ["COVER_PAGE"], // a new one (freshUploadCutoff) — sent with the result
           [THESIS_STEP.STUDENT_THESIS]: ["B4", "THESIS"],
         },
       };
@@ -227,6 +234,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           { status: 400 }
         );
       }
+    }
+
+    // THESIS advisor-result step: a ดีมาก result also needs แบบประเมินวิทยานิพนธ์ดีมาก, uploaded since
+    // the student's report step (the advisor's card uploads it just before approving)
+    if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === THESIS_STEP.ADVISOR_RESULT
+        && examResultFromNotes(body.notes) === VERY_GOOD_RESULT) {
+      const reportStep = sub.workflowSteps.find((s) => s.stepOrder === THESIS_STEP.STUDENT_REPORT);
+      const since = reportStep?.actedAt ? new Date(reportStep.actedAt).getTime() : 0;
+      if (!sub.uploads.some((u) => u.formType === "VERY_GOOD_EVAL" && new Date(u.uploadedAt).getTime() > since))
+        return NextResponse.json({ error: "ผลการสอบ ดีมาก — กรุณาอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากก่อน" }, { status: 400 });
     }
 
     await prisma.workflowStep.update({
@@ -431,7 +448,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         (sub.committeeIds as string[]).includes(userId) ||
         sub.headCommitteeId === userId ||
         (sub.invitedCommitteeIds as string[]).includes(userId) ||
-        (sub as any).programChairId === userId;
+        (sub as any).programChairId === userId ||
+        isDeptChair;
       if (!isInvolved) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

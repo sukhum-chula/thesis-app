@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendExamReminderEmail } from "@/lib/email";
-import { getProgramChairUserId } from "@/lib/systemSettings";
+import { getProgramChairUserId, getDepartmentChairUserId } from "@/lib/systemSettings";
 import { formatUserName } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -107,6 +107,10 @@ export async function GET(req: NextRequest) {
           if (role === "INVITED_EXAM_COMMITTEE"&& sub.invitedCommitteeIds?.[0]) recipIds.add(sub.invitedCommitteeIds[0]);
           if (role === "EXAM_COMMITTEE"        && sub.committeeIds?.[0])   recipIds.add(sub.committeeIds[0]);
           if (role === "CO_ADVISOR"            && sub.coAdvisorIds?.[0])   recipIds.add(sub.coAdvisorIds[0]);
+          if (role === "DEPARTMENT_CHAIR") {
+            const deptChairId = await getDepartmentChairUserId();
+            if (deptChairId) recipIds.add(deptChairId);
+          }
           if (role === "PROGRAM_CHAIR") {
             if ((sub as any).programChairId) {
               recipIds.add((sub as any).programChairId);

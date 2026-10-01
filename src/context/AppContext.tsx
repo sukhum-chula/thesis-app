@@ -328,6 +328,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
       case "PROGRAM_CHAIR":
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
+      case "DEPARTMENT_CHAIR":
+        return users.some((u) => u.id === user.id && u.isDepartmentChair);
       case "CO_ADVISOR":
       case "EXAM_COMMITTEE":
       case "INVITED_EXAM_COMMITTEE": {
@@ -357,6 +359,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         case "HEAD_EXAM_COMMITTEE":   return (sub as any).headCommitteeId === user.id;
         case "PROGRAM_CHAIR":
           return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
+        case "DEPARTMENT_CHAIR":
+          return users.some((u) => u.id === user.id && u.isDepartmentChair);
         case "CO_ADVISOR":
         case "EXAM_COMMITTEE":
         case "INVITED_EXAM_COMMITTEE": {

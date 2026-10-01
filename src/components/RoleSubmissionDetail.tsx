@@ -8,7 +8,7 @@ import { SignatureButton } from "./SignatureButton";
 import { CommitteeSignPanel } from "./CommitteeSignPanel";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
-import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS, examResultNote, VERY_GOOD_RESULT } from "@/lib/utils";
 import { THESIS_STEP } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { ArrowLeft, Clock, AlertCircle, StickyNote, CalendarDays } from "lucide-react";
@@ -74,6 +74,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       case "INVITED_EXAM_COMMITTEE":return ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id);
       case "PROGRAM_CHAIR":
         return (sub as any).programChairId ? (sub as any).programChairId === user.id : (!!sub.program && (user.programChairFor ?? []).includes(sub.program));
+      case "DEPARTMENT_CHAIR":      return allUsers.some((u) => u.id === user.id && u.isDepartmentChair);
       default:                      return user.roles.includes(currentStep.role as any);
     }
   })();
@@ -115,12 +116,14 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       10: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
       11: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
       12: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
-      14: ["B4"],            // PROGRAM_CHAIR signs B4
-      15: ["THESIS"],        // ADVISOR signs thesis cover
-      16: ["THESIS"],        // CO_ADVISOR signs thesis cover
-      17: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
-      18: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
-      19: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
+      // Steps 13 (ADMIN check) and 15 (ADMIN cover page + email to the Faculty) — admin page
+      14: ["EXAM_RESULT"],           // DEPARTMENT_CHAIR signs ใบรายงานผล
+      17: ["B4"],            // PROGRAM_CHAIR signs B4
+      18: ["THESIS"],        // ADVISOR signs thesis cover
+      19: ["THESIS"],        // CO_ADVISOR signs thesis cover
+      20: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
+      21: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
+      22: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
     },
   };
   const formsToShow = currentStep
@@ -304,7 +307,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
                   );
                 })}
               </div>
-              {thesisResult === "ดีมาก" && (
+              {thesisResult === VERY_GOOD_RESULT && (
                 <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2.5">
                   <p className="text-xs font-semibold text-purple-700">📋 ผล ดีมาก — ต้องอัปโหลดเพิ่มเติม</p>
                   <p className="text-xs text-purple-600 mt-0.5">กรุณาอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากด้วย (ในขั้นตอนอัปโหลดด้านล่าง)</p>
@@ -360,11 +363,11 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               submissionId={sub.id}
               formsToShow={formsToShow}
               onSuccess={() => router.push(backPath)}
-              notePrefix={(isThesisAdvisorResultStep || isProposalHeadResultStep) && thesisResult ? `ผลการสอบ: ${thesisResult}` : undefined}
+              notePrefix={(isThesisAdvisorResultStep || isProposalHeadResultStep) && thesisResult ? examResultNote(thesisResult) : undefined}
               requireNotePrefix={isThesisAdvisorResultStep || isProposalHeadResultStep}
               checklist={signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
               extraSlots={
-                isThesisAdvisorResultStep && thesisResult === "ดีมาก"
+                isThesisAdvisorResultStep && thesisResult === VERY_GOOD_RESULT
                   ? [{ slotKey: "VERY_GOOD_EVAL", label: "แบบประเมินวิทยานิพนธ์ดีมาก", formType: "VERY_GOOD_EVAL" }]
                   : undefined
               }

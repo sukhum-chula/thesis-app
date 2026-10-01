@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { prisma } from "./prisma";
 import { ROLE_LABELS, formatUserName } from "./utils";
 import { getSignedUrl } from "./supabase";
-import { getProgramChairUser, getFinanceContactUser } from "./systemSettings";
+import { getProgramChairUser, getFinanceContactUser, getDepartmentChairUser } from "./systemSettings";
 
 function escapeHtml(s: string | undefined | null): string {
   if (!s) return "";
@@ -140,6 +140,9 @@ export async function sendStepEmail(options: StepEmailOptions): Promise<void> {
           if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
         }
       }
+    } else if (role === "DEPARTMENT_CHAIR") {
+      const u = await getDepartmentChairUser();
+      if (u) recipients = [{ id: u.id, name: formatUserName(u), email: u.email }];
     } else if (role === "PROGRAM_CHAIR") {
       // Per-submission chair (assigned by the student) with per-program admin-designated fallback
       const u = sub.programChairId

@@ -51,8 +51,8 @@ export async function setProgramChair(program: string, userId: string | null): P
 }
 
 // หัวหน้าภาควิชา — one PROFESSOR for the whole department (unlike programChair:<program>,
-// which is per-program). Purely an admin-designated record at this point: nothing in the
-// workflow reads it yet, so assigning it changes no step routing or email recipient.
+// which is per-program). The THESIS_DEFENSE step DEPARTMENT_CHAIR (THESIS_STEP.DEPT_CHAIR_RESULT) is routed to this user, who
+// is also treated as involved in every defense (list scoping, uploads, signed URLs).
 export async function getDepartmentChairUserId(): Promise<string | null> {
   const row = await prisma.systemSetting.findUnique({ where: { key: DEPARTMENT_CHAIR_KEY } });
   return row?.userId ?? null;

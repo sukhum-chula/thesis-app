@@ -10,7 +10,7 @@ import { ChevronRight, Clock, CheckCircle2, FileText } from "lucide-react";
 
 const PROFESSOR_STEP_ROLES = [
   "ADVISOR", "CO_ADVISOR", "HEAD_EXAM_COMMITTEE",
-  "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE", "PROGRAM_CHAIR",
+  "EXAM_COMMITTEE", "INVITED_EXAM_COMMITTEE", "PROGRAM_CHAIR", "DEPARTMENT_CHAIR",
 ];
 
 const STATUS_TABS: { label: string; value: SubmissionStatus | "ALL" }[] = [
@@ -23,7 +23,7 @@ const STATUS_TABS: { label: string; value: SubmissionStatus | "ALL" }[] = [
 ];
 
 export default function ProfessorDashboard() {
-  const { submissions, user } = useApp();
+  const { submissions, user, users } = useApp();
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "ALL">("ALL");
 
   // `submissions` from context is already server-scoped to submissions this professor is a
@@ -38,6 +38,8 @@ export default function ProfessorDashboard() {
     if (step.role === "HEAD_EXAM_COMMITTEE")    return (sub as any).headCommitteeId === user?.id;
     if (step.role === "PROGRAM_CHAIR")
       return (sub as any).programChairId ? (sub as any).programChairId === user?.id : true;
+    if (step.role === "DEPARTMENT_CHAIR")
+      return users.some((u) => u.id === user?.id && u.isDepartmentChair);
     // EXAM_COMMITTEE, CO_ADVISOR, or INVITED_EXAM_COMMITTEE — sequential committee signing
     const members = step.committeeMembers ?? [];
     const idx = members.indexOf(user?.id ?? "");

@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { FormType, MockSubmission, NameTitle, Role, StepStatus, SubmissionStatus } from "@/types";
+import { THESIS_STEP } from "@/lib/workflowSteps";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -175,6 +176,7 @@ export const ROLE_LABELS: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:   "ประธานกรรมการสอบ",
   EXAM_COMMITTEE:        "กรรมการสอบ",
   INVITED_EXAM_COMMITTEE:"กรรมการภายนอก",
+  DEPARTMENT_CHAIR:      "หัวหน้าภาควิชา",
   DEPT_STAFF:            "เจ้าหน้าที่ภาควิชา",
   FACULTY_DEAN:          "คณบดี",
   GRADUATE_SCHOOL:       "บัณฑิตวิทยาลัย",
@@ -192,6 +194,7 @@ export const ROLE_EMOJI: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:    "📋",
   EXAM_COMMITTEE:         "📋",
   INVITED_EXAM_COMMITTEE: "🎓",
+  DEPARTMENT_CHAIR:       "🏛️",
   DEPT_STAFF:             "🛡️",
   FACULTY_DEAN:           "🏫",
   GRADUATE_SCHOOL:        "🎓",
@@ -209,6 +212,7 @@ export const ROLE_GRADIENT: Record<string, string> = {
   HEAD_EXAM_COMMITTEE:    "from-orange-500 to-amber-600",
   EXAM_COMMITTEE:         "from-teal-500 to-cyan-600",
   INVITED_EXAM_COMMITTEE: "from-sky-500 to-blue-600",
+  DEPARTMENT_CHAIR:       "from-indigo-600 to-blue-700",
   DEPT_STAFF:             "from-slate-700 to-gray-900",
   FACULTY_DEAN:           "from-rose-500 to-red-700",
   GRADUATE_SCHOOL:        "from-emerald-500 to-green-700",
@@ -389,6 +393,8 @@ export function checkFormFile(formType: string, file: File): string | null {
  *  auto-advance in POST /api/upload, and the student's upload checklist. */
 const FRESH_UPLOAD_AFTER_STEP: Record<string, Record<number, number>> = {
   PROPOSAL: { 4: 3 },
+  // the result-send step's cover page must be a new one — the relay step's cover page already exists
+  THESIS_DEFENSE: { [THESIS_STEP.ADMIN_RESULT_SEND]: THESIS_STEP.DEPT_CHAIR_RESULT },
 };
 /** Upload time (ms) a step's required files must be newer than, or null when any copy counts. */
 export function freshUploadCutoff(
@@ -422,7 +428,9 @@ export function isHiddenFromStudent(submissionType: string | null | undefined, f
  *  whichever copy is newest — generated, or the admin's edited upload — is the one kept. */
 const SINGLE_VERSION_FORMS: Record<string, string[]> = {
   PROPOSAL: ["FINANCE_ATTACH", "COVER_PAGE"],
-  THESIS_DEFENSE: ["FINANCE_ATTACH", "COVER_PAGE"],
+  // COVER_PAGE keeps every version for a defense: there are two (the relay step's and the
+  // result-send step's), shown as one slot with the older under ประวัติ
+  THESIS_DEFENSE: ["FINANCE_ATTACH"],
 };
 export function isSingleVersionForm(submissionType: string | null | undefined, formType: string): boolean {
   return (SINGLE_VERSION_FORMS[submissionType ?? "PROPOSAL"] ?? []).includes(formType);
@@ -563,7 +571,34 @@ export const ADMIN_DEFENSE_FORWARD_CHECKS: B1Check[] = [
   { key: "forwarded", group: "confirm", label: "ส่งต่ออีเมลจากคณะ (ใบรายงานผลการสอบ แบบรายงานการเสนอผลงานฯ หนังสือเชิญ) ให้นิสิตแล้ว" },
 ];
 
-// Step names for thesis defense submissions (19 steps — see THESIS_ROLES / THESIS_STEP)
+/** The exam result a signer picks (THESIS_DEFENSE advisor at THESIS_STEP.ADVISOR_RESULT, PROPOSAL
+ *  head of committee) travels as the first line of the approval note: `ผลการสอบ: <result>`. */
+export const EXAM_RESULT_NOTE_PREFIX = "ผลการสอบ: ";
+/** The defense result that also needs แบบประเมินวิทยานิพนธ์ดีมาก (VERY_GOOD_EVAL) uploaded */
+export const VERY_GOOD_RESULT = "ดีมาก";
+export function examResultNote(result: string): string {
+  return `${EXAM_RESULT_NOTE_PREFIX}${result}`;
+}
+/** The result picked at a result step, read back from its approval note — null when absent */
+export function examResultFromNotes(notes: string | null | undefined): string | null {
+  const first = (notes ?? "").split("\n")[0];
+  return first.startsWith(EXAM_RESULT_NOTE_PREFIX) ? first.slice(EXAM_RESULT_NOTE_PREFIX.length).trim() || null : null;
+}
+
+/** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_CHECK — the ADMIN checks the committee-signed documents
+ *  before the department chair signs */
+export const ADMIN_DEFENSE_RESULT_CHECKS: B1Check[] = [
+  { key: "resultSigned", group: "verify", label: "ใบรายงานผลการสอบลงนามครบทุกท่าน (อาจารย์ที่ปรึกษา คณะกรรมการสอบ และประธานหลักสูตร)" },
+  { key: "reportSigned", group: "verify", label: "แบบรายงานการเสนอผลงานฯ ลงนามโดยนิสิตและอาจารย์ที่ปรึกษาครบถ้วน" },
+  { key: "resultMatch",  group: "verify", label: "ผลการสอบในเอกสารตรงกับผลที่อาจารย์ที่ปรึกษาเลือกในระบบ" },
+];
+/** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_SEND — the ADMIN uploads the cover page and confirms the
+ *  documents were emailed to the Faculty */
+export const ADMIN_DEFENSE_SEND_CHECKS: B1Check[] = [
+  { key: "emailSent", group: "confirm", label: "ส่งอีเมลใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์แล้ว" },
+];
+
+// Step names for thesis defense submissions (22 steps — see THESIS_ROLES / THESIS_STEP)
 export const THESIS_STEP_NAMES: Record<number, string> = {
   1:  "นิสิตอัปโหลด บ.2 + บ.3 ของกรรมการทุกท่าน",
   2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
@@ -577,13 +612,16 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   10: "กรรมการสอบลงนาม ใบรายงานผล",
   11: "กรรมการภายนอกลงนาม ใบรายงานผล",
   12: "ประธานหลักสูตรลงนาม ใบรายงานผล",
-  13: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์",
-  14: "ประธานหลักสูตรลงนาม บ.4",
-  15: "อาจารย์ที่ปรึกษาลงนามปกวิทยานิพนธ์",
-  16: "อาจารย์ที่ปรึกษาร่วมลงนามปกวิทยานิพนธ์",
-  17: "ประธานกรรมการสอบลงนามปกวิทยานิพนธ์",
-  18: "กรรมการสอบลงนามปกวิทยานิพนธ์",
-  19: "กรรมการภายนอกลงนามปกวิทยานิพนธ์",
+  13: "เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ",
+  14: "หัวหน้าภาควิชาลงนาม ใบรายงานผล",
+  15: "เจ้าหน้าที่อัปโหลดใบปะหน้า และส่งอีเมลเอกสารไปคณะ",
+  16: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์",
+  17: "ประธานหลักสูตรลงนาม บ.4",
+  18: "อาจารย์ที่ปรึกษาลงนามปกวิทยานิพนธ์",
+  19: "อาจารย์ที่ปรึกษาร่วมลงนามปกวิทยานิพนธ์",
+  20: "ประธานกรรมการสอบลงนามปกวิทยานิพนธ์",
+  21: "กรรมการสอบลงนามปกวิทยานิพนธ์",
+  22: "กรรมการภายนอกลงนามปกวิทยานิพนธ์",
 };
 
 export function getStepName(stepOrder: number, submissionType?: string | null): string {

@@ -62,6 +62,7 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
       return u ? formatUserName(u) : null;
     }
     case "ADMIN":               return "เจ้าหน้าที่";
+    case "DEPARTMENT_CHAIR":    { const u = users.find((u: any) => u.isDepartmentChair); return u ? formatUserName(u) : null; }
     case "EXAM_COMMITTEE": {
       const memberIds: string[] = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);
       const done = (step.committeeActions ?? []).filter((a: any) => a.decision === "APPROVED").length;

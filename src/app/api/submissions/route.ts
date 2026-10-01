@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isValidEmail, isValidStudentId, isValidThaiPhone, isHiddenFromStudent } from "@/lib/utils";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
 import { validatePeople, validateCommitteeAccountRoles, resolvePeople, type PersonInput } from "@/lib/committee";
-import { getProgramChairsOfUser } from "@/lib/systemSettings";
+import { getProgramChairsOfUser, getDepartmentChairUserId } from "@/lib/systemSettings";
 
 function mapSub(s: any, viewerId: string) {
   return {
@@ -53,6 +53,8 @@ export async function GET() {
       { programChairId: userId },
     ];
     if (chairedPrograms.length) or.push({ program: { in: chairedPrograms } });
+    // The department chair signs every defense's ใบรายงานผลการสอบ (THESIS_STEP.DEPT_CHAIR_RESULT)
+    if ((await getDepartmentChairUserId()) === userId) or.push({ submissionType: "THESIS_DEFENSE" });
     where = { OR: or };
   }
   // ADMIN sees all (no where filter)

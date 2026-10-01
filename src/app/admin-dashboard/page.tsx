@@ -35,7 +35,7 @@ function getStuckDays(sub: MockSubmission): number {
 function resolvePendingName(
   sub: MockSubmission,
   step: MockWorkflowStep,
-  users: { id: string; title?: string | null; name: string; role: string; roles: string[] }[],
+  users: { id: string; title?: string | null; name: string; role: string; roles: string[]; isDepartmentChair?: boolean }[],
 ): string {
   switch (step.role) {
     case "ADVISOR":             { const u = users.find((u) => u.id === sub.advisorId); return u ? formatUserName(u) : ROLE_LABELS[step.role]; }
@@ -43,6 +43,10 @@ function resolvePendingName(
     case "PROGRAM_CHAIR": {
       const u = users.find((u) => u.id === (sub as any).programChairId)
         ?? (sub.program ? users.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
+      return u ? formatUserName(u) : ROLE_LABELS[step.role];
+    }
+    case "DEPARTMENT_CHAIR": {
+      const u = users.find((u) => u.isDepartmentChair);
       return u ? formatUserName(u) : ROLE_LABELS[step.role];
     }
     case "EXAM_COMMITTEE": {
@@ -198,6 +202,9 @@ export default function AdminDashboard() {
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_FORWARD) {
                 taskLabel = "ส่งต่ออีเมลจากคณะให้นิสิต แล้วกดยืนยัน";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RESULT_SEND) {
+                taskLabel = "อัปโหลดใบปะหน้า แล้วส่งอีเมลใบรายงานผลการสอบไปคณะ";
+                taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "PROPOSAL" && step?.stepOrder === 12) {
                 taskLabel = "ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;

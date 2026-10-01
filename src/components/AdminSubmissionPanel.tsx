@@ -9,6 +9,7 @@ import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
   B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
+  ADMIN_DEFENSE_RESULT_CHECKS, ADMIN_DEFENSE_SEND_CHECKS, freshUploadCutoff,
 } from "@/lib/utils";
 import { THESIS_STEP, financeStepOf, previousActiveStep } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
@@ -478,6 +479,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const sendBackToStudent = isMyTurn && !!sub && previousActiveStep(sub.workflowSteps, pendingStep$!)?.role === "STUDENT";
   const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RELAY;
   const isThesisForwardStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_FORWARD;
+  // After the committee's ใบรายงานผล signatures: check the documents, then (after the department
+  // chair signs) upload the cover page and confirm the email to the Faculty
+  const isThesisResultCheckStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RESULT_CHECK;
+  const isThesisResultSendStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RESULT_SEND;
   // The ADMIN check that generates the finance form (PROPOSAL 2, THESIS_DEFENSE 4); approving sends the email
   const isFinanceReviewStep = (sub?.submissionType === "PROPOSAL" || sub?.submissionType === "THESIS_DEFENSE")
     && pendingStep$?.stepOrder === financeStepOf(sub?.submissionType) && pendingStep$?.role === "ADMIN";
@@ -486,10 +491,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
   const isProposalCoverStep   = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 12;
   // Steps whose approve is gated on the department-chair-signed cover page (COVER_PAGE): PROPOSAL
-  // step 8 and THESIS_DEFENSE step 4 (the cover page that goes to the Faculty with บ.2 + บ.3)
-  const isCoverStep = isProposalCoverStep || isThesisRelayStep;
+  // step 8, THESIS_DEFENSE step 4 (sent with บ.2 + บ.3) and step 11 (sent with the exam result).
+  // Step 11's must be a new copy — the step-4 one already exists (freshUploadCutoff, same as the server)
+  const isCoverStep = isProposalCoverStep || isThesisRelayStep || isThesisResultSendStep;
+  const coverCutoff = sub && pendingStep$ ? freshUploadCutoff(sub.workflowSteps, sub.submissionType, pendingStep$.stepOrder) : null;
   const latestCover = (sub?.uploads ?? [])
-    .filter((u) => u.formType === "COVER_PAGE")
+    .filter((u) => u.formType === "COVER_PAGE" && (coverCutoff === null || new Date(u.uploadedAt).getTime() > coverCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
   const deptChair = users.find((u) => u.isDepartmentChair) ?? null;
   const latestFinanceAttach = (sub?.uploads ?? [])
@@ -501,6 +508,8 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
     : isProposalCoverStep ? ADMIN_STEP8_CHECKS
     : isThesisForwardStep ? ADMIN_DEFENSE_FORWARD_CHECKS
+    : isThesisResultCheckStep ? ADMIN_DEFENSE_RESULT_CHECKS
+    : isThesisResultSendStep ? ADMIN_DEFENSE_SEND_CHECKS
     : null;
   const [adminCheckState, setAdminCheckState] = useState<Record<string, boolean>>({});
   const adminAllChecked = !adminChecks || allChecked(adminChecks, adminCheckState);
@@ -1005,6 +1014,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.headCommitteeId); assignedName = u ? formatUserName(u) : null; }
                 else if (step.role === "INVITED_EXAM_COMMITTEE") assignedName = (sub.invitedCommitteeIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
+                else if (step.role === "DEPARTMENT_CHAIR") { const u = allUsers.find((u) => u.isDepartmentChair); assignedName = u ? formatUserName(u) : null; }
                 else if (step.role === "PROGRAM_CHAIR") {
                   const u = allUsers.find((u) => u.id === (sub as any).programChairId)
                     ?? (sub.program ? allUsers.find((u) => (u as any).programChairFor?.includes(sub.program)) : undefined);
@@ -1054,12 +1064,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
         <div className="space-y-4">
 
           {/* Task description card — numbered instructions for special admin steps */}
-          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisForwardStep) && (
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisForwardStep || isThesisResultCheckStep || isThesisResultSendStep) && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-500" />
                 <h2 className="font-semibold text-blue-800">
-                  {isThesisRelayStep ? "สิ่งที่ต้องดำเนินการ" : "สิ่งที่ต้องดำเนินการ"}
+                  สิ่งที่ต้องดำเนินการ
                 </h2>
               </div>
               {isThesisRelayStep ? (
@@ -1068,6 +1078,17 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
                   <li>นำส่ง บ.2 + บ.3 พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>กดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
+                </ol>
+              ) : isThesisResultCheckStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>ตรวจสอบใบรายงานผลการสอบและแบบรายงานการเสนอผลงานฯ ฉบับล่าสุดในระบบ</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบด้านล่าง แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
+                </ol>
+              ) : isThesisResultSendStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>เตรียมใบปะหน้า แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>ส่งอีเมลใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
                 </ol>
               ) : (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
@@ -1098,7 +1119,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 {actionMode === null && isCoverStep && (
                   <div>
                     <SectionLabel n={1} required>
-                      {isThesisRelayStep ? "อัปโหลดใบปะหน้าส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์" : "อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์"}
+                      {isThesisRelayStep ? "อัปโหลดใบปะหน้าส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์"
+                        : isThesisResultSendStep ? "อัปโหลดใบปะหน้าส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
+                        : "อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์"}
                     </SectionLabel>
                     <p className="text-sm text-gray-600 mb-2">
                       ใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}

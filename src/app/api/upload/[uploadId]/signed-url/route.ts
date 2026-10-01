@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSignedUrl } from "@/lib/supabase";
-import { getProgramChairsOfUser } from "@/lib/systemSettings";
+import { getProgramChairsOfUser, getDepartmentChairUserId } from "@/lib/systemSettings";
 import { isHiddenFromStudent } from "@/lib/utils";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ uploadId: string }> }) {
@@ -23,7 +23,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ upl
     (sub.committeeIds as string[]).includes(userId) ||
     sub.headCommitteeId === userId ||
     (sub.invitedCommitteeIds as string[]).includes(userId) ||
-    (sub as any).programChairId === userId;
+    (sub as any).programChairId === userId ||
+    (sub.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === userId);
   if (!isPrivileged && !isInvolved)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   // The proposal's finance paperwork is never served to the submission's own student

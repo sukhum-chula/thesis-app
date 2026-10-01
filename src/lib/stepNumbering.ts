@@ -8,6 +8,9 @@
  * exam committee) read as 5.1, 5.2, …, so the admin check reads as step 6, the program chair's
  * final signature as step 7 and the admin's cover-page step as step 8. SKIPPED steps are hidden
  * and never numbered, so the sub-numbers stay dense (5.1–5.4 when there is no co-advisor).
+ * For a THESIS_DEFENSE, the committee's ใบรายงานผลการสอบ signatures after the advisor's (co-advisors →
+ * head of committee → exam committee → external → program chair, stepOrders 8–12) read as 8.1–8.x,
+ * so the student's บ.4 + thesis upload reads as step 9.
  *
  * Pure (no Prisma/React), so both client components and API routes use it.
  */
@@ -15,6 +18,7 @@
 /** stepOrder runs shown as one numbered step with sub-steps, per submission type */
 const SUB_STEP_GROUPS: Record<string, number[][]> = {
   PROPOSAL: [[5, 6, 7, 8, 9]],
+  THESIS_DEFENSE: [[8, 9, 10, 11, 12]],
 };
 
 type StepLike = { stepOrder: number; status: string };

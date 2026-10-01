@@ -7,6 +7,29 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-01
 
+- **THESIS_DEFENSE: 3 steps after the committee's ใบรายงานผล signatures — 22 steps.** New
+  stepOrders 13–15 (shown as 9–11): ADMIN checks the signed documents (`ADMIN_DEFENSE_RESULT_CHECKS`),
+  the department chair signs ใบรายงานผลการสอบ, then the ADMIN uploads a new cover page and confirms
+  emailing the Faculty (`ADMIN_DEFENSE_SEND_CHECKS`; server-gated on a cover page newer than the
+  chair's signature). The student's B4 + thesis is now stepOrder 16 (shown as 12). The department
+  chair (`SystemSetting` `departmentChair`) becomes a workflow actor — new step role
+  `DEPARTMENT_CHAIR`, wired into notifications, email, approve authorization, the exam-reminder
+  cron, every client turn/assignee resolver, and access to every defense. A defense's COVER_PAGE is
+  no longer single-version (it has two). `THESIS_STEP` gains `ADMIN_RESULT_CHECK`/
+  `DEPT_CHAIR_RESULT`/`ADMIN_RESULT_SEND`.
+
+- **THESIS_DEFENSE ใบรายงานผลการสอบ signatures shown as 8.1–8.x.** The committee's signatures after
+  the advisor's (stepOrders 8–12: co-advisors → head → exam committee → external → program chair)
+  are one displayed step with sub-steps (`SUB_STEP_GROUPS`, `src/lib/stepNumbering.ts`), so the
+  student's บ.4 + thesis upload reads as step 9. Internal stepOrders are unchanged.
+
+- **A ดีมาก defense result now requires แบบประเมินวิทยานิพนธ์ดีมาก server-side.** At the advisor's
+  result step (`THESIS_STEP.ADVISOR_RESULT`), approving with `ผลการสอบ: ดีมาก` is refused unless a
+  `VERY_GOOD_EVAL` was uploaded after the student's report step — previously only the advisor's
+  card enforced it. The note prefix and parser are shared (`EXAM_RESULT_NOTE_PREFIX`,
+  `examResultNote`, `examResultFromNotes`, `VERY_GOOD_RESULT` in `src/lib/utils.ts`). Also: the
+  student's step-6 upload boxes now describe each of the two files.
+
 - **THESIS_DEFENSE step 5 is confirm-only: the admin forwards the Faculty's email to the student.**
   The 4 Faculty-return uploads (and their server gate) are gone from step 5, replaced by a one-box
   checklist (`ADMIN_DEFENSE_FORWARD_CHECKS`); `THESIS_STEP.ADMIN_FACULTY_DOCS` is renamed
