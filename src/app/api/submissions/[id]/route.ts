@@ -5,7 +5,7 @@ import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCu
 import type { FormType } from "@/types";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
-import { buildWorkflowSteps, planCommitteeStepSync, currentTurn, THESIS_STEP, committeeRoster } from "@/lib/workflowSteps";
+import { buildWorkflowSteps, planCommitteeStepSync, currentTurn, THESIS_STEP, committeeRoster, previousActiveStep } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, validateResolvedCommitteeCounts, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
 import { getProgramChairUserId, getProgramChairsOfUser } from "@/lib/systemSettings";
@@ -185,7 +185,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         THESIS_DEFENSE: {
           [THESIS_STEP.STUDENT_B2_B3]:  ["B2", "B3"],
           [THESIS_STEP.ADMIN_CHECK]:    ["FINANCE_ATTACH"],
-          [THESIS_STEP.STUDENT_REPORT]: ["SIGNED"],
+          [THESIS_STEP.ADMIN_RELAY]:    ["COVER_PAGE"], // cover page sent to the Faculty with บ.2 + บ.3
+          [THESIS_STEP.STUDENT_REPORT]: ["SIGNED", "EXAM_RESULT"], // from the Faculty email the admin forwarded
           [THESIS_STEP.STUDENT_THESIS]: ["B4", "THESIS"],
         },
       };
@@ -223,41 +224,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const names = missingIds.map((mid) => { const p = people.find((x) => x.id === mid); return p ? formatUserName(p) : mid; });
         return NextResponse.json(
           { error: `กรุณาอัปโหลด บ.3 ที่ลงนามแล้วให้ครบทุกท่าน — ยังขาด: ${names.join(", ")}` },
-          { status: 400 }
-        );
-      }
-    }
-
-    // THESIS faculty-docs step (ADMIN upload): all 4 document types uploaded AFTER the relay step
-    if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS && step.role === "ADMIN") {
-      const relayStep = sub.workflowSteps.find((s: any) => s.stepOrder === THESIS_STEP.ADMIN_RELAY);
-      const relayActedAt = relayStep?.actedAt ? new Date(relayStep.actedAt).getTime() : 0;
-      const requiredTypes = ["SIGNED", "EXAM_RESULT", "INVITE_LETTER", "FINANCE_DOC"];
-      const missing = requiredTypes.filter(
-        (ft) => !sub.uploads.some(
-          (u: any) => u.formType === ft && new Date(u.uploadedAt).getTime() >= relayActedAt
-        )
-      );
-      if (missing.length > 0) {
-        return NextResponse.json(
-          { error: "กรุณาอัปโหลดเอกสารให้ครบทั้ง 4 ประเภทก่อนอนุมัติ" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // THESIS student-report step (แบบรายงานฯ): require a SIGNED uploaded AFTER the faculty-docs step.
-    // Admin uploads SIGNED at that step — without this gate the general check above would pass
-    // on the admin's upload, letting the student skip their own signed document entirely.
-    if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === THESIS_STEP.STUDENT_REPORT && step.role === "STUDENT") {
-      const step8 = sub.workflowSteps.find((s: any) => s.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS);
-      const step8ActedAt = step8?.actedAt ? new Date(step8.actedAt).getTime() : 0;
-      const hasStudentSigned = sub.uploads.some(
-        (u: any) => u.formType === "SIGNED" && new Date(u.uploadedAt).getTime() > step8ActedAt
-      );
-      if (!hasStudentSigned) {
-        return NextResponse.json(
-          { error: "กรุณาอัปโหลดแบบรายงานการเสนอผลงานฯ ที่ลงนามโดยนิสิตก่อน" },
           { status: 400 }
         );
       }
@@ -317,18 +283,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               data: adminUsers.map((a) => ({ recipientId: a.id, message: "บ.2 + บ.3 ลงนามครบแล้ว — กรุณานำส่งไปยังคณะ", detail: sub.title, submissionId: id, type: "info" })),
             });
           }
-        } catch (e) { console.error("[email/thesis/step5]", e); }
-      }
-      // After the THESIS faculty-docs step (ADMIN upload), send invitation letter email to Advisor + External
-      if (step.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS && step.role === "ADMIN" && sub.submissionType === "THESIS_DEFENSE") {
-        try {
-          if (sub.advisorId) {
-            await sendStepEmail({ role: "ADVISOR", sub, stepName: "หนังสือเชิญเข้าร่วมสอบวิทยานิพนธ์" });
-          }
-          if ((sub.invitedCommitteeIds as string[])?.length) {
-            await sendStepEmail({ role: "INVITED_EXAM_COMMITTEE", sub, stepName: "หนังสือเชิญเข้าร่วมสอบวิทยานิพนธ์", allMembers: true });
-          }
-        } catch (e) { console.error("[email/invitation]", e); }
+        } catch (e) { console.error("[email/thesis/chair-b2]", e); }
       }
     }
 
@@ -459,6 +414,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const isPrivileged = userRoles.includes("ADMIN");
 
+    // ADMIN steps offer อนุมัติ + ส่งกลับ only — ส่งกลับ (`return_to_prev`) replaces ปฏิเสธ there
+    if (step.role === "ADMIN")
+      return NextResponse.json({ error: "ขั้นตอนนี้ใช้การส่งกลับแทนการปฏิเสธ" }, { status: 400 });
+
     // Admin/super-admin must provide a reason when rejecting
     if (isPrivileged && !body.notes?.trim())
       return NextResponse.json({ error: "กรุณาระบุเหตุผลในการปฏิเสธ" }, { status: 400 });
@@ -505,9 +464,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const step = sub.workflowSteps.find((s: any) => s.status === "PENDING");
     if (!step) return NextResponse.json({ error: "No pending step" }, { status: 400 });
 
-    const prevStep = [...sub.workflowSteps]
-      .filter((s: any) => s.stepOrder < step.stepOrder && s.status !== "SKIPPED")
-      .sort((a: any, b: any) => b.stepOrder - a.stepOrder)[0];
+    const prevStep = previousActiveStep(sub.workflowSteps, step);
 
     if (!prevStep) return NextResponse.json({ error: "ไม่สามารถส่งกลับได้ — นี่คือขั้นตอนแรก" }, { status: 400 });
 
@@ -534,9 +491,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const prevStepName = getStepName(prevStep.stepOrder, sub.submissionType) || ROLE_LABELS[prevStep.role as keyof typeof ROLE_LABELS];
       await sendStepEmail({ role: prevStep.role, sub, stepName: prevStepName });
     } catch (e) { console.error("[email/return_to_prev]", e); }
-    await prisma.notification.create({
-      data: { recipientId: sub.studentId, message: notifyNote, detail: sub.title, submissionId: id, type: "rejected" },
-    });
+    // The student always hears about a send-back — unless notifyRole above already told them
+    if (prevStep.role !== "STUDENT") {
+      await prisma.notification.create({
+        data: { recipientId: sub.studentId, message: notifyNote, detail: sub.title, submissionId: id, type: "rejected" },
+      });
+    }
   }
 
   else if (action === "request_cancel") {

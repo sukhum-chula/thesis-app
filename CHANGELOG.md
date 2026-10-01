@@ -7,6 +7,40 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-01
 
+- **THESIS_DEFENSE step 5 is confirm-only: the admin forwards the Faculty's email to the student.**
+  The 4 Faculty-return uploads (and their server gate) are gone from step 5, replaced by a one-box
+  checklist (`ADMIN_DEFENSE_FORWARD_CHECKS`); `THESIS_STEP.ADMIN_FACULTY_DOCS` is renamed
+  `ADMIN_FORWARD`. Approving step 5 no longer emails the advisor/external members an invitation
+  notice. Step 6's student now uploads ใบรายงานผลการสอบ (EXAM_RESULT) alongside the signed
+  แบบรายงานฯ — both required server-side — so steps 7–12 still have it to download and sign; the
+  step-6 "download the admin's แบบรายงานฯ" card and its special SIGNED-freshness gate are gone.
+
+- **Admin steps: อนุมัติ + ส่งกลับ only, no ปฏิเสธ.** At PROPOSAL step 2 the two buttons did the
+  same thing (the previous step is the student's), so ปฏิเสธ was removed there, then from every
+  ADMIN step's action card and from the per-step override card (now อนุมัติ + ส่งกลับ on every
+  step: "ส่งกลับมาขั้นนี้" on an approved step, `return_to_prev` on the current one). The API
+  refuses `reject` on an ADMIN-role step. Shared `previousActiveStep()` in `workflowSteps.ts`.
+  Also: a send-back to the student no longer creates a duplicate bell notification, and a
+  send-back error now shows on the card instead of as a toast. Build-checked only, no browser
+  pass yet.
+
+- **THESIS_DEFENSE step 4: the admin uploads the cover page sent to the Faculty with บ.2 + บ.3.**
+  Same `COVER_PAGE` form and upload box as PROPOSAL step 8 (PDF, signed by the department chair,
+  single version, ADMIN-only at that step, uploaded on อนุมัติ); approving step 4 is gated on it
+  server-side. The step name, its instructions card, the admin-dashboard task label and the
+  defense file list ("เอกสารส่งคณะฯ") mention it.
+
+- **THESIS_DEFENSE: advisor + head sign บ.2 before upload — 19 steps.** The in-system
+  advisor and head-of-committee บ.2 steps (old 2–3) are gone: they sign the paper บ.2 outside the
+  system and the student uploads it at step 1, ticking one checkbox each for the student's,
+  advisor's and head's signature (`DEFENSE_STEP1_CHECKS`, now 9 items). The ADMIN check + finance
+  form is now step 2 (`financeStepOf` = 2 for both types), chair บ.2 = 3, relay = 4, Faculty docs =
+  5, student report = 6, advisor result = 7, B4 + thesis = 13. `THESIS_STEP` loses
+  `ADVISOR_B2`/`HEAD_B2`; `THESIS_STEP_NAMES` and `STEP_SIGN_FORMS` renumbered; the admin's บ.2
+  check now asks for all three signatures. The one live defense still carries a pre-2026-09-30
+  27-row step layout (its step 2 is assigned to ADMIN) and needs its steps 2+ rebuilt to the new
+  19-step layout — not done yet (a one-off DB write).
+
 - **One design for every "your turn" upload/action card.** Student upload card, `SignatureButton`,
   `CommitteeSignPanel`, the admin action card and the finance card are now built from shared pieces
   in `FileUploader.tsx` (`ACTION_CARD`, `PRIMARY_BUTTON`, `REJECT_BUTTON`, `SectionLabel`,

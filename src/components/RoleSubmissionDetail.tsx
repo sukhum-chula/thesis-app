@@ -105,24 +105,22 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       11: ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ค + 1ง
     },
     THESIS_DEFENSE: {
-      // บ.3 is collected outside the system and uploaded by the student at step 1 (one per member)
-      2:  ["B2"],            // ADVISOR signs B2
-      3:  ["B2"],            // HEAD_EXAM_COMMITTEE signs B2
-      5:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 4)
-      // Steps 4 (ADMIN check), 6 (ADMIN relay) omitted — no signing, handled via the admin page
-      // Step 7 (ADMIN upload) omitted — admin uploads new docs from Faculty, handled via admin page
-      9:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
-      10: ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
-      11: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
-      12: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
-      13: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
-      14: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
-      16: ["B4"],            // PROGRAM_CHAIR signs B4
-      17: ["THESIS"],        // ADVISOR signs thesis cover
-      18: ["THESIS"],        // CO_ADVISOR signs thesis cover
-      19: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
-      20: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
-      21: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
+      // บ.2 (student + advisor + head signed) and บ.3 are collected outside the system and
+      // uploaded by the student at step 1. Steps 2 (ADMIN check), 4 (ADMIN relay) and 5 (ADMIN
+      // upload of the Faculty docs) are omitted — no signing, handled via the admin page
+      3:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 2)
+      7:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล
+      8:  ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
+      9:  ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
+      10: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
+      11: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
+      12: ["EXAM_RESULT"],           // PROGRAM_CHAIR signs ใบรายงานผล
+      14: ["B4"],            // PROGRAM_CHAIR signs B4
+      15: ["THESIS"],        // ADVISOR signs thesis cover
+      16: ["THESIS"],        // CO_ADVISOR signs thesis cover
+      17: ["THESIS"],        // HEAD_EXAM_COMMITTEE signs thesis cover
+      18: ["THESIS"],        // EXAM_COMMITTEE signs thesis cover
+      19: ["THESIS"],        // INVITED_EXAM_COMMITTEE signs thesis cover
     },
   };
   const formsToShow = currentStep
@@ -275,7 +273,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
             ) : null;
           })()}
 
-          {/* Thesis result selector — ADVISOR at THESIS_DEFENSE step 10 */}
+          {/* Thesis result selector — ADVISOR at THESIS_STEP.ADVISOR_RESULT */}
           {isThesisAdvisorResultStep && (
             <div className="bg-white border border-purple-200 rounded-2xl p-5 space-y-3">
               <p className="font-semibold text-gray-800">ผลการสอบวิทยานิพนธ์ <span className="text-red-500">*</span></p>

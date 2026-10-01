@@ -81,7 +81,9 @@ export async function POST(req: NextRequest) {
   // PROPOSAL files that only the ADMIN uploads, and only at their own step: the finance
   // attachment at stepOrder 2 (generated, optionally edited and re-uploaded) and the Faculty cover
   // page at stepOrder 12 (shown as step 8).
-  // THESIS_DEFENSE: the finance attachment is the ADMIN's step-2 file too (since 2026-09-30).
+  // THESIS_DEFENSE: the finance attachment is the ADMIN's check-step file too (THESIS_STEP.ADMIN_CHECK,
+  // step 2), and the cover page that goes to the Faculty with บ.2 + บ.3 is the relay step's
+  // (THESIS_STEP.ADMIN_RELAY, step 4).
   const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { step: number; label: string }>> = {
     PROPOSAL: {
       FINANCE_ATTACH: { step: 2,  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
@@ -89,6 +91,7 @@ export async function POST(req: NextRequest) {
     },
     THESIS_DEFENSE: {
       FINANCE_ATTACH: { step: THESIS_STEP.ADMIN_CHECK, label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
+      COVER_PAGE:     { step: THESIS_STEP.ADMIN_RELAY, label: `ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_RELAY} เท่านั้น` },
     },
   };
   const adminOnly = ADMIN_ONLY_AT_STEP[subCheck.submissionType ?? "PROPOSAL"]?.[formType];

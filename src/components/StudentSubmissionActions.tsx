@@ -7,7 +7,7 @@ import {
   FileUploader, SectionLabel, DownloadRow, ActionError, postUpload, ACTION_CARD, PRIMARY_BUTTON,
 } from "@/components/FileUploader";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
-import { ROLE_LABELS, FORM_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
+import { ROLE_LABELS, FORM_SHORT, getStepName, formatDate, toUserErrorMessage, formatUserName, B1_CHECKS, B1_STEP4_CHECKS, DEFENSE_STEP1_CHECKS, freshUploadCutoff } from "@/lib/utils";
 import { THESIS_STEP, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import { stepNumbering } from "@/lib/stepNumbering";
@@ -43,7 +43,7 @@ const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
   },
   THESIS_DEFENSE: {
     [THESIS_STEP.STUDENT_B2_B3]:  { forms: ["B2", "B3"], label: "บ.2 + บ.3 ของกรรมการทุกท่าน" },
-    [THESIS_STEP.STUDENT_REPORT]: { forms: ["SIGNED"],       label: "แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต)" },
+    [THESIS_STEP.STUDENT_REPORT]: { forms: ["SIGNED", "EXAM_RESULT"], label: "แบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนามโดยนิสิต) + ใบรายงานผลการสอบ — จากอีเมลของคณะที่เจ้าหน้าที่ส่งต่อให้" },
     [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์ (จาก e-thesis พร้อม barcode)" },
   },
 };
@@ -147,14 +147,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const linkedProposal = sub.sourceProposalId ? submissions.find((s) => s.id === sub.sourceProposalId) ?? null : null;
   const linkedDefense = subType === "PROPOSAL" ? submissions.find((s) => s.sourceProposalId === sub.id) ?? null : null;
 
-  // At the THESIS student-report step (แบบรายงานฯ), admin already uploaded SIGNED at the faculty-docs
-  // step. Filter those out so the checklist and uploader don't count the admin's file as the student's own.
-  const step8ActedAt = (subType === "THESIS_DEFENSE" && currentStep?.stepOrder === THESIS_STEP.STUDENT_REPORT)
-    ? (() => {
-        const s8 = sub.workflowSteps.find((s) => s.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS);
-        return s8?.actedAt ? new Date(s8.actedAt).getTime() : 0;
-      })()
-    : null;
   const suggested = currentStep
     ? (SUGGESTED_BY_STEP[subType]?.[currentStep.stepOrder] ?? null)
     : null;
@@ -163,7 +155,6 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
   const freshCutoff = currentStep ? freshUploadCutoff(sub.workflowSteps, subType, currentStep.stepOrder) : null;
   const effectiveUploads = sub.uploads.filter((u) => {
     const t = new Date(u.uploadedAt).getTime();
-    if (step8ActedAt !== null && u.formType === "SIGNED" && t <= step8ActedAt) return false;
     if (freshCutoff !== null && suggested?.forms.includes(u.formType) && t <= freshCutoff) return false;
     return true;
   });
@@ -173,13 +164,7 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
       .filter((u) => u.formType === ft && (freshCutoff === null || new Date(u.uploadedAt).getTime() <= freshCutoff))
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
 
-  // Files admin uploaded at step 8 that the student needs to download, fill, and sign at step 9
-  const adminStep8Files = (step8ActedAt !== null && step8ActedAt > 0)
-    ? sub.uploads.filter((u) => u.formType === "SIGNED" && new Date(u.uploadedAt).getTime() <= step8ActedAt)
-    : [];
-
   const stepDownloads = [
-    ...adminStep8Files.map((u) => ({ upload: u, title: `${FORM_LABELS.SIGNED} (จากเจ้าหน้าที่ — กรอกข้อมูลและลงนามก่อนอัปโหลด)` })),
     ...(suggested?.continueFromLatest ?? []).flatMap((ft) => {
       const u = latestBeforeStep(ft);
       return u ? [{ upload: u, title: `${FORM_SHORT[ft]} ฉบับล่าสุดในระบบ` }] : [];

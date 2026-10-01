@@ -46,15 +46,15 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 ## Key facts
 
 - **All API logic is in `src/app/api/`**. State is server-fetched; client state lives in `AppContext` which polls the API.
-- Two submission types: **PROPOSAL** (12 steps, shown as 1–4, 5.1–5.x, 6–8) and **THESIS_DEFENSE** (21 steps). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/lib/workflowSteps.ts`. The two proposals created before step 12 existed were backfilled with a PENDING step-12 row on 2026-09-30 (insert-only); a PROPOSAL that somehow lacks it would still just finish after the chair's signature, since every rule treats "no PENDING step left" as completion.
+- Two submission types: **PROPOSAL** (12 steps, shown as 1–4, 5.1–5.x, 6–8) and **THESIS_DEFENSE** (19 steps). Step arrays: `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/lib/workflowSteps.ts`. The two proposals created before step 12 existed were backfilled with a PENDING step-12 row on 2026-09-30 (insert-only); a PROPOSAL that somehow lacks it would still just finish after the chair's signature, since every rule treats "no PENDING step left" as completion.
 - **Step names**: `PROPOSAL_STEP_NAMES` / `THESIS_STEP_NAMES` in `src/lib/utils.ts`. Always call `getStepName(stepOrder, submissionType)` — never access the maps directly.
 - **EXAM_COMMITTEE, CO_ADVISOR, and INVITED_EXAM_COMMITTEE steps** track per-member decisions in `committeeActions` (JSON on `WorkflowStep`). All assigned members must approve, signing sequentially in list order, before the step advances. CO_ADVISOR steps are auto-SKIPPED at creation when `coAdvisorIds` is empty.
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
   PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)],  step 12 (ADMIN) → [COVER_PAGE]
-  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 4 (ADMIN) → [FINANCE_ATTACH, generated],  step 8 → [SIGNED],   step 15 → [B4, THESIS]
+  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [COVER_PAGE],  step 6 → [SIGNED, EXAM_RESULT],   step 13 → [B4, THESIS]
   ```
-  PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE step 8's FINANCE_DOC is unrelated and unchanged.)
+  PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE's Faculty-returned FINANCE_DOC is unrelated and unchanged.)
 - **Tailwind class names in lookup maps must be whole static strings** (no interpolation).
 - UI text is Thai; use Sarabun font (already global). Keep UI large and calm — target users include older faculty.
 
@@ -393,7 +393,7 @@ approved). Used by `WorkflowTimeline`, `AdminSubmissionPanel` (step cards, statu
 `RoleSubmissionDetail`, `StudentSubmissionActions`, `/admin-dashboard`, `/student-dashboard`,
 `UserDetailPanel`, and the admin-override notification text. Never compute a displayed step
 number from a step's index — call `stepNumbering(...).label(stepOrder)`. THESIS_DEFENSE has no
-groups yet, so it numbers 1..n exactly as before.
+groups, so it numbers 1..n (SKIPPED co-advisor steps hidden).
 
 Each 5.x signer ends with a one-box checklist, "ท่านลงนามใน บ.วศ.1ค แล้ว (1 จุด)" — every committee
 member signs exactly one place, on บ.วศ.1ค (`PROPOSAL_SIGN_CHECKS` in `src/lib/utils.ts`, which also
@@ -404,18 +404,41 @@ prop, so single- and multi-member steps behave the same.
 When a submission is created, **step 1 starts as PENDING**. The student must upload the required documents and click submit. Step 2's email notification fires automatically when the student's submit action (approve) completes.
 
 ### Rejection stays on the step — student must resubmit
-`PATCH action "reject"` and `POST /sign decision "REJECTED"`: the current PENDING step is marked `REJECTED` and the submission status becomes `REJECTED`. The workflow does NOT move. While `REJECTED`, both `approve` and a second `reject` return 400 ("รอนักศึกษายืนยันการแก้ไขก่อน"). The student fixes documents and calls `action "resubmit"` (student-only) — this resets **only the rejected step** to PENDING (clears actedAt/notes/committeeActions), sets status `IN_PROGRESS`, and the same reviewer re-reviews from the same step. Any involved role can reject; admin rejections require a notes comment (enforced UI + API).
+`PATCH action "reject"` and `POST /sign decision "REJECTED"`: the current PENDING step is marked `REJECTED` and the submission status becomes `REJECTED`. The workflow does NOT move. While `REJECTED`, both `approve` and a second `reject` return 400 ("รอนักศึกษายืนยันการแก้ไขก่อน"). The student fixes documents and calls `action "resubmit"` (student-only) — this resets **only the rejected step** to PENDING (clears actedAt/notes/committeeActions), sets status `IN_PROGRESS`, and the same reviewer re-reviews from the same step. Any involved role can reject **except on an ADMIN step** — those offer only อนุมัติ + ส่งกลับ (see "Admin steps: approve or send back, never reject" below); an ADMIN rejecting any other step must give a notes comment (API).
 
 ### Send-back (ส่งกลับ) goes back ONE step — admin only
-`PATCH action "return_to_prev"` (ADMIN only — SUPER_ADMIN has no submission access): resets **both the current PENDING step and the nearest preceding non-SKIPPED step** to `PENDING` (clear actedAt/notes/committeeActions), status stays `IN_PROGRESS`, and the previous role is notified to act again. Returns 400 on the first step.
+`PATCH action "return_to_prev"` (ADMIN only — SUPER_ADMIN has no submission access): resets **both the current PENDING step and the nearest preceding non-SKIPPED step** to `PENDING` (clear actedAt/notes/committeeActions), status stays `IN_PROGRESS`, and the previous role is notified to act again (when that role is the STUDENT, they get exactly one bell notification — the extra "student always hears about it" notification is skipped there so it isn't doubled). The reason is optional and reaches the bell notifications only, not the email. Returns 400 on the first step. The previous step is `previousActiveStep()` (`src/lib/workflowSteps.ts`) — the one rule shared by the API and the admin UI.
+
+### Admin steps: approve or send back, never reject (2026-10-01)
+Every ADMIN step's action card in `AdminSubmissionPanel` has exactly two actions — **อนุมัติ** and
+**ส่งกลับ** — and `PATCH action "reject"` on a step whose role is `ADMIN` returns 400
+("ขั้นตอนนี้ใช้การส่งกลับแทนการปฏิเสธ"). Reason: where the previous step is the student's own
+(PROPOSAL step 2, THESIS_DEFENSE step 2), ปฏิเสธ and ส่งกลับ both just handed it back to the
+student, and at the other admin steps ส่งกลับ is the one the admin needs. Consequence: at an
+admin step whose previous step is a signer (e.g. PROPOSAL step 6 → the last 5.x signer), the
+admin can't hand a problem straight to the student — it goes back one step at a time, or the
+admin reopens an earlier step with the override card's "ส่งกลับมาขั้นนี้". When the previous step
+is the student's, the send-back form reads "ส่งกลับ — นิสิตต้องแก้ไขและส่งต่อใหม่".
+
+The per-step **override card** ("จัดการ" on each step in "จัดการแต่ละขั้นตอน") follows the same
+rule — อนุมัติ + ส่งกลับ, no ปฏิเสธ, on every step, whoever owns it:
+
+| Step state | อนุมัติ | ส่งกลับ |
+|---|---|---|
+| APPROVED | — | "ส่งกลับมาขั้นนี้": `admin_override_step` `REJECTED` — resets this step and everything after it to PENDING |
+| Current PENDING | `admin_override_step` `APPROVED` (this step and every earlier one) | `return_to_prev` — back one step; hidden on the first step |
+| Future PENDING | same as above | — |
+| REJECTED (awaiting resubmit) | same as above | — (it waits on the student) |
+
+Non-admin reviewers (professors/committee) keep ปฏิเสธ on their own signing steps.
 
 **Critical**: the sent-back current step must be reset to `PENDING`, never `REJECTED` — the approve flow only advances through PENDING steps, so a step left `REJECTED` here gets skipped forever once the previous role re-approves (bug found and fixed 2026-07-14 via E2E test).
 
 ### Reject button (ปฏิเสธ)
-The reject button is embedded directly inside `SignatureButton` and `CommitteeSignPanel` — **no separate send-back panel exists**. Clicking ปฏิเสธ calls `action: "reject"`, which marks the current step `REJECTED` — it stays on that same step, it does NOT move backward (see "Rejection stays on the step" above; that is what ส่งกลับ/`return_to_prev` does, and it's admin-only). There is no standalone "ส่งกลับขั้นตอนก่อนหน้า" panel (it was removed as redundant) — ส่งกลับ is reached via the admin-only `return_to_prev` action instead.
+The reject button is embedded directly inside `SignatureButton` and `CommitteeSignPanel` — **no separate send-back panel exists**. Clicking ปฏิเสธ calls `action: "reject"`, which marks the current step `REJECTED` — it stays on that same step, it does NOT move backward (see "Rejection stays on the step" above; that is what ส่งกลับ/`return_to_prev` does, and it's admin-only). The ADMIN's own action card has no ปฏิเสธ at all — see "Admin steps: approve or send back, never reject" above. There is no standalone "ส่งกลับขั้นตอนก่อนหน้า" panel (it was removed as redundant) — ส่งกลับ is reached via the admin-only `return_to_prev` action instead.
 
 ### Document versioning — one slot per formType (ALL types)
-**Every** form type — including SIGNED — has a single display slot in `FileList`: latest upload is the current version, older uploads collapse under "ประวัติ". No formType is shown as individual files anymore. **`SIGNED` always means แบบรายงานการเสนอผลงานฯ** (the student report chain: admin step 8 → student step 9 → advisor step 10); the other faculty-return docs have their own types (EXAM_RESULT, INVITE_LETTER, VERY_GOOD_EVAL, FINANCE_DOC — see `FACULTY_SLOTS` in admin detail page). **Non-student roles upload with the correct `formType`** so their signed copy replaces the slot's latest version.
+**Every** form type — including SIGNED — has a single display slot in `FileList`: latest upload is the current version, older uploads collapse under "ประวัติ". No formType is shown as individual files anymore. **`SIGNED` always means แบบรายงานการเสนอผลงานฯ** (the student report chain of THESIS_DEFENSE: the student uploads it at step 6, the advisor signs it at step 7); the other faculty-return docs have their own types (EXAM_RESULT, INVITE_LETTER, VERY_GOOD_EVAL, FINANCE_DOC). **Non-student roles upload with the correct `formType`** so their signed copy replaces the slot's latest version.
 
 ### Upload formType for signing roles
 `SignatureButton` and `CommitteeSignPanel` both accept `formsToShow?: string[]`. When `formsToShow` contains non-SIGNED form types, the upload is saved with that formType (versioning the correct slot). Falls back to `"SIGNED"` only when `formsToShow` is empty or contains only `"SIGNED"`.
@@ -426,10 +449,10 @@ The reject button is embedded directly inside `SignatureButton` and `CommitteeSi
 ```
 PROPOSAL:       3→[B1]  5→[B1]  6→[B1]  7→[B1]  8→[B1]  9→[B1]  11→[B1]   (all sign parts of the one combined file)
                 (steps 2, 10 are ADMIN approve-only — no signing, not in this map)
-THESIS_DEFENSE: 2→[B2]  3→[B2]  5→[B2]   (บ.3 is signed outside the system, uploaded at step 1)
-                (steps 4, 6, 7 are ADMIN steps — no signing, not in this map)
-                9→[SIGNED,EXAM_RESULT]  10→[EXAM_RESULT]  11→[EXAM_RESULT]  12→[EXAM_RESULT]  13→[EXAM_RESULT]  14→[EXAM_RESULT]
-                16→[B4]  17→[THESIS]  18→[THESIS]  19→[THESIS]  20→[THESIS]  21→[THESIS]
+THESIS_DEFENSE: 3→[B2]   (บ.2 and บ.3 are signed outside the system, uploaded at step 1)
+                (steps 2, 4, 5 are ADMIN steps — no signing, not in this map)
+                7→[SIGNED,EXAM_RESULT]  8→[EXAM_RESULT]  9→[EXAM_RESULT]  10→[EXAM_RESULT]  11→[EXAM_RESULT]  12→[EXAM_RESULT]
+                14→[B4]  15→[THESIS]  16→[THESIS]  17→[THESIS]  18→[THESIS]  19→[THESIS]
 ```
 
 ### Admin dashboard (`src/app/admin-dashboard/page.tsx`) — ADMIN's landing page
@@ -573,7 +596,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Role | How they interact |
 |---|---|
 | Faculty Dean | Signs บ.4 physically offline |
-| Finance | Receives email when the ADMIN approves the finance step — PROPOSAL step 2, THESIS_DEFENSE step 4 (`financeStepOf`) — with FINANCE_ATTACH attached |
+| Finance | Receives email when the ADMIN approves the finance step — step 2 of both types (`financeStepOf`) — with FINANCE_ATTACH attached |
 | Graduate School | Receives final document package outside the system |
 
 ---
@@ -798,9 +821,8 @@ sign-in-list-order — previously hard-capped at exactly 1. This makes it struct
   `coAdvisorIds`/`committeeIds`.
 - **Email**: `sendStepEmail`'s recipient resolution folds `INVITED_EXAM_COMMITTEE` into the same
   branch as `EXAM_COMMITTEE`/`CO_ADVISOR` (a `specificMemberId` for the sequential in-turn email, or
-  first-member fallback); a new `allMembers` option broadcasts to every member at once, used for the
-  THESIS_DEFENSE step-8 invitation-letter email (every invited examiner gets it, not just whoever
-  signs first). `sendFinanceEmail`'s `FinanceEmailData.invitedProfs` is now an array of
+  first-member fallback); an `allMembers` option broadcasts to every member at once (its only caller, the defense's
+  invitation-letter email, was removed 2026-10-01 — the Faculty's own email covers it). `sendFinanceEmail`'s `FinanceEmailData.invitedProfs` is now an array of
   `{name, affiliation?, email?, phone?}`, one row per member, rendered the same way `committeeNames`
   already renders one row per EXAM_COMMITTEE member.
 
@@ -849,52 +871,51 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 
 ---
 
-### THESIS_DEFENSE (21 steps — restructured 2026-09-30)
+### THESIS_DEFENSE (19 steps — restructured 2026-09-30, again 2026-10-01)
 
 Named stepOrders live in `THESIS_STEP` (`src/lib/workflowSteps.ts`) — code must branch on those, never
-on bare numbers. The ADMIN finance step is `financeStepOf(type)` (PROPOSAL 2, THESIS_DEFENSE 4) —
-never assume "step 2". Display numbers are 1..n with SKIPPED co-advisor steps hidden.
+on bare numbers. The ADMIN finance step is `financeStepOf(type)` (step 2 for both types). Display
+numbers are 1..n with SKIPPED co-advisor steps hidden.
 
-#### Phase 3 (Steps 1–5): บ.2 + บ.3
+#### Phase 3 (Steps 1–3): บ.2 + บ.3
 | Step | Role | Action |
 |------|------|--------|
-| 1 | STUDENT | Upload **B2** (filled in and **signed by the student**, other signature lines blank) **and one signed B3 per committee member**. บ.3 is collected **outside the system**: the student fills in their info, the topic, the committee names and the date, and the student and advisor contact each member to evaluate and sign it. The upload screen shows one B3 box per member of the submission's committee (`committeeRoster()`, labelled name + role); each copy is stored with `FormUpload.memberId`, and the approve gate refuses step 1 until every member has one (naming who is missing). 7-item checklist `DEFENSE_STEP1_CHECKS`. Blank forms linked from the department download page. No finance file. |
-| 2 | ADVISOR | Sign บ.2 (`THESIS_STEP.ADVISOR_B2`) |
-| 3 | HEAD_EXAM_COMMITTEE | Sign บ.2 (`THESIS_STEP.HEAD_B2`) |
-| 4 | ADMIN | **Generate FINANCE_ATTACH** (`templates/finance-attach-thesis.docx`, same generator/card/single-version/edit-and-re-upload flow as PROPOSAL step 2); checklist `ADMIN_DEFENSE_STEP2_CHECKS` (บ.2 complete + student-signed, every member's บ.3 present with evaluation + signature, committee names); approve → **triggers the finance email** (`THESIS_STEP.ADMIN_CHECK`). |
-| 5 | PROGRAM_CHAIR | Sign บ.2 → admin bell notification (`THESIS_STEP.CHAIR_B2`). |
+| 1 | STUDENT | Upload **B2** (filled in and **signed by the student, the advisor and the head of committee** — all outside the system; the program chair's line stays blank) **and one signed B3 per committee member**. บ.3 is collected **outside the system**: the student fills in their info, the topic, the committee names and the date, and the student and advisor contact each member to evaluate and sign it. The upload screen shows one B3 box per member of the submission's committee (`committeeRoster()`, labelled name + role); each copy is stored with `FormUpload.memberId`, and the approve gate refuses step 1 until every member has one (naming who is missing). 9-item checklist `DEFENSE_STEP1_CHECKS` (incl. one box each for the student's, advisor's and head's บ.2 signature). Blank forms linked from the department download page. No finance file. |
+| 2 | ADMIN | **Generate FINANCE_ATTACH** (`templates/finance-attach-thesis.docx`, same generator/card/single-version/edit-and-re-upload flow as PROPOSAL step 2); checklist `ADMIN_DEFENSE_FINANCE_CHECKS` (บ.2 complete + signed by student/advisor/head, every member's บ.3 present with evaluation + signature, committee names); approve → **triggers the finance email** (`THESIS_STEP.ADMIN_CHECK`). |
+| 3 | PROGRAM_CHAIR | Sign บ.2 → admin bell notification (`THESIS_STEP.CHAIR_B2`). |
 
-บ.2 has no co-advisor signature, so there is no co-advisor บ.2 step (it was removed 2026-09-30).
+The advisor's and head's in-system บ.2 steps (old steps 2–3) were removed 2026-10-01 — they now sign
+the paper บ.2 before the student uploads it. บ.2 has no co-advisor signature.
 
-#### Phase 4 (Steps 6–7): Faculty relay
+#### Phase 4 (Steps 4–5): Faculty relay
 | Step | Role | Action |
 |------|------|--------|
-| 6 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), send to Faculty, approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`) |
-| 7 | ADMIN | Receive docs back from Faculty, upload, forward to Student, then approve → triggers invitation emails (`THESIS_STEP.ADMIN_FACULTY_DOCS`) |
+| 4 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), upload the **cover page** (`COVER_PAGE`, PDF, single version, ADMIN-only at this step, signed by the department chair — the card shows who) that goes to the Faculty with them, send to Faculty, approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`). Same upload box as PROPOSAL step 8: the picked file is uploaded on อนุมัติ, and approve is gated on it (server `REQUIRED_UPLOADS.THESIS_DEFENSE[ADMIN_RELAY]`). |
+| 5 | ADMIN | **Confirm only**: forward the Faculty's email (ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter) to the student, tick the one-box checklist `ADMIN_DEFENSE_FORWARD_CHECKS`, approve (`THESIS_STEP.ADMIN_FORWARD`). Nothing is uploaded and no email is sent by the system. |
 
-Faculty returns: ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter, แบบประเมิน "วิทยานิพนธ์ดีมาก" (Very Good only). Step 7 requires **all 4** document types uploaded after step 6's approval — SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC (see `FACULTY_SLOTS` in the admin detail page) — before admin can approve (server-gated). The 4 upload boxes are part of the normal admin action card (uploaded on อนุมัติ; a copy already uploaded after step 6 counts), so ปฏิเสธ/ส่งกลับ are available at this step like at every other admin step.
+Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC) and approving it emailed the advisor + external members an invitation notice; both are gone — the Faculty's email reaches the student directly via the admin, and the student uploads what the committee signs at step 6.
 
-#### Phase 5 (Steps 8–14): Post-defense signing
+#### Phase 5 (Steps 6–12): Post-defense signing
 | Step | Role | Action |
 |------|------|--------|
-| 8  | STUDENT | Fill info and sign แบบรายงานการเสนอผลงานฯ then upload (formType: SIGNED) — must be newer than step 7 (`THESIS_STEP.STUDENT_REPORT`) |
-| 9  | ADVISOR | Sign แบบรายงานฯ + ใบรายงานผลการสอบ; picks the exam result (`THESIS_STEP.ADVISOR_RESULT`) |
-| 10 | CO_ADVISOR | Sign ใบรายงานผลการสอบ — **auto-SKIPPED if no co-advisors assigned** |
-| 11 | HEAD_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
-| 12 | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
-| 13 | INVITED_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
-| 14 | PROGRAM_CHAIR | Sign ใบรายงานผลการสอบ |
+| 6  | STUDENT | From the forwarded Faculty email: fill info and sign แบบรายงานการเสนอผลงานฯ and upload it (formType: SIGNED), plus upload ใบรายงานผลการสอบ (EXAM_RESULT) for steps 7–12 to sign (`THESIS_STEP.STUDENT_REPORT`; server `REQUIRED_UPLOADS`) |
+| 7  | ADVISOR | Sign แบบรายงานฯ + ใบรายงานผลการสอบ; picks the exam result (`THESIS_STEP.ADVISOR_RESULT`) |
+| 8  | CO_ADVISOR | Sign ใบรายงานผลการสอบ — **auto-SKIPPED if no co-advisors assigned** |
+| 9  | HEAD_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
+| 10 | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
+| 11 | INVITED_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
+| 12 | PROGRAM_CHAIR | Sign ใบรายงานผลการสอบ |
 
-#### Phase 6 (Steps 15–21): Thesis submission + cover signing
+#### Phase 6 (Steps 13–19): Thesis submission + cover signing
 | Step | Role | Action |
 |------|------|--------|
-| 15 | STUDENT | Upload B4 + THESIS (from e-thesis system, with barcode) (`THESIS_STEP.STUDENT_THESIS`) |
-| 16 | PROGRAM_CHAIR | Sign บ.4 |
-| 17 | ADVISOR | Sign thesis cover (3 points) |
-| 18 | CO_ADVISOR | Sign thesis cover — **auto-SKIPPED if no co-advisors assigned** |
-| 19 | HEAD_EXAM_COMMITTEE | Sign thesis cover |
-| 20 | EXAM_COMMITTEE | All members sign thesis cover (sequential) |
-| 21 | INVITED_EXAM_COMMITTEE | Sign thesis cover |
+| 13 | STUDENT | Upload B4 + THESIS (from e-thesis system, with barcode) (`THESIS_STEP.STUDENT_THESIS`) |
+| 14 | PROGRAM_CHAIR | Sign บ.4 |
+| 15 | ADVISOR | Sign thesis cover (3 points) |
+| 16 | CO_ADVISOR | Sign thesis cover — **auto-SKIPPED if no co-advisors assigned** |
+| 17 | HEAD_EXAM_COMMITTEE | Sign thesis cover |
+| 18 | EXAM_COMMITTEE | All members sign thesis cover (sequential) |
+| 19 | INVITED_EXAM_COMMITTEE | Sign thesis cover |
 
 **Per-member uploads** (`PER_MEMBER_FORMS` / `isPerMemberForm()` in `workflowSteps.ts` — only the
 defense's B3 so far): `POST /api/upload` requires a `memberId` that is on the submission's committee
@@ -913,8 +934,8 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 - **An admin committee edit re-syncs the open steps** (2026-09-29). Each multi-member step snapshots its member list into `WorkflowStep.committeeMembers` when the steps are built, and signing (`sign/route.ts`) reads only that snapshot — so `admin_update` now runs `planCommitteeStepSync()` (`src/lib/workflowSteps.ts`, pure) and applies the result in the same transaction as the edit: every still-open step (PENDING, or the REJECTED one awaiting resubmit) gets the new list; sign-offs by members still on it are kept, removed members' are dropped; a current step whose remaining members have all approved is approved on the spot; removing every co-advisor SKIPS the open CO_ADVISOR steps and adding one re-opens the SKIPPED ones still ahead. APPROVED steps and SKIPPED steps behind the current one are history and never touched; CANCELLED/COMPLETED submissions are left alone. The submission status is then re-derived from the steps, and if the edit changed whose turn it is (`currentTurn()`), that person is notified + emailed. `admin_reset` also re-snapshots every multi-member step's list from the submission's committee.
 - **Signing is recorded on the step row, not in a separate table** (2026-09-15). Who signed and when lives on `WorkflowStep` — `actedById`/`actedByName`/`actedAt` for single-approver steps, and the `committeeActions` JSON array (`{userId, name, decision, notes, actedAt}[]`) for the three sequential multi-member roles. There is **no `Signature` model**: one existed in the schema (`signatures` table, with an unused `ipAddress` column) but nothing ever wrote to it — the only reference in the whole codebase was a `count()` in the user-delete blocker — so the model and the table were removed 2026-09-15. Don't reintroduce a separate signature table without first deciding what it would record that `WorkflowStep` doesn't.
 - **PROGRAM_CHAIR resolution**: always prefer `sub.programChairId` (per-submission, set from the student's people list) and fall back to whichever PROFESSOR's `programChairFor` array includes `sub.program` (see "Program Chair & finance-contact assignment" above — no holder means no fallback recipient; since a professor may now chair more than one program, this is an `.includes()` check, not `===`). Applied in `email.ts`, notifyRole + approve auth in `PATCH /api/submissions/[id]`, `GET /api/submissions` (list-scoping), the sign route, exam-reminder cron, both upload routes, `AppContext`, `RoleSubmissionDetail`, `WorkflowTimeline`, professor dashboard, and display-name lookups.
-- **Finance email** fires at PROPOSAL step 2 (the ADMIN's approval, once the finance form is generated) and THESIS_DEFENSE step 4 (also the ADMIN's approval, since 2026-09-30 — `financeStepOf`), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
-- **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (enforced UI + API); other roles may reject without one.
+- **Finance email** fires at PROPOSAL step 2 (the ADMIN's approval, once the finance form is generated) and THESIS_DEFENSE step 2 (also the ADMIN's approval — `financeStepOf`), called directly via `sendFinanceEmail()` with the latest FINANCE_ATTACH file attached; recipient = the ADMIN designated as finance contact (`SystemSetting` key `financeContact`, set via "ตั้งค่าระบบ" → `AdminSettingsPanel`), falling back to the `FINANCE_EMAIL` env var if none is set (skips entirely if neither exists).
+- **Rejection emails** use a red formal template (`buildRejectedHtml`) showing step + reason. `step.notes` stores only the raw reason text (or null) — role context lives in notification messages only. **Admin reject requires a comment** (API) — though admin steps no longer offer ปฏิเสธ at all; other roles may reject without one.
 - **SUPER_ADMIN has zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission (no detail-page views either — `src/app/dashboard/admin/[id]` stays ADMIN-only). That responsibility belongs exclusively to ADMIN. It does have read-only oversight: a full user directory (incl. STUDENT/PROFESSOR) via `GET /api/super-admin/users`, and a full submission list via `GET /api/super-admin/submissions` (both SUPER_ADMIN-only, view-only; the older counts-only `GET /api/super-admin/stats` was removed once these shipped) — but account *management* of STUDENT/PROFESSOR/ADMIN stays exclusively ADMIN's (SUPER_ADMIN can only create/edit/delete SUPER_ADMIN/ADMIN accounts, per `src/lib/accountScope.ts`).
 - **Account-management tiers** (`src/lib/accountScope.ts`, shared by `PATCH`/`DELETE /api/users/[id]` and `POST /api/users`): a SUPER_ADMIN-tier account (has `SUPER_ADMIN` role) is manageable only by SUPER_ADMIN; an ADMIN-tier account is manageable by SUPER_ADMIN or ADMIN; a STUDENT/PROFESSOR account is manageable by ADMIN only. `GET /api/users` scopes the returned list the same way per caller, so SUPER_ADMIN's `users` never contains STUDENT/PROFESSOR rows and ADMIN's never contains SUPER_ADMIN rows.
 - **A user with any submission history cannot be deleted** — `DELETE /api/users/[id]` is a hard
@@ -953,18 +974,18 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
   a rejected one — permanently undeletable** while still showing `0 0 0`. (`createdUserId` is
   optional and so already defaulted to `SetNull`; the EXTERNAL account an approved request created
   was never blocked by it.)
-- **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 6–7 (`THESIS_STEP.ADMIN_RELAY`/`ADMIN_FACULTY_DOCS`) — step 6: send B2+B3 to Faculty; step 7: receive back docs (ใบรายงานผล, แบบรายงานฯ, invitation letter), upload, forward to student, then approve → triggers invitation emails. Admin panel shows a step-6-specific checklist banner.
+- **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 4–5 (`THESIS_STEP.ADMIN_RELAY`/`ADMIN_FORWARD`) — step 4: upload the cover page and send B2+B3 to Faculty; step 5: forward the Faculty's email to the student and confirm. Admin panel shows a relay-step-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
-- **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, no role restriction. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
+- **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, except on an ADMIN step, which offers only อนุมัติ + ส่งกลับ. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
 - **One active proposal per student, defense created from a completed one** — a new PROPOSAL is blocked while an existing one is anything other than `CANCELLED`; a THESIS_DEFENSE requires a `COMPLETED`, non-cancelled source proposal (`sourceProposalId`) and imports (editable, independent copy) its committee. See "Proposal-first" above.
 - **Every committee person must already have an account, and the editor only offers existing ones** — `POST /api/submissions` never auto-creates one, and an email that doesn't resolve (the account was deleted between page load and submit) is a plain 400. The only path to a new committee account is a STUDENT's EXTERNAL-account request, approved by an ADMIN. See "Committee accounts must pre-exist" above.
 - **Cancellation is a two-step admin-gated request**, not an immediate student action — `request_cancel` only sets `cancelRequested` and freezes all other actions on that submission; only ADMIN's `accept_cancel`/`decline_cancel` actually resolves it. See "Cancellation — student requests, ADMIN accepts or declines" above.
 
 ## UI conventions (recent)
 - **FileList** takes a `submissionType` prop and groups uploads into phase-aware sections. PROPOSAL: เอกสารหลัก (B1/B1A/B1B/B1C/B1D) / เอกสารการเงิน / เอกสารอื่นๆ. THESIS_DEFENSE: บ.2+บ.3 (B2/B3/FINANCE_ATTACH) / เอกสารการเงิน (FINANCE_DOC) / เอกสารจากคณะและผลการสอบ (SIGNED/EXAM_RESULT/INVITE_LETTER/VERY_GOOD_EVAL) / วิทยานิพนธ์ (B4/THESIS). See `FILE_GROUPS_PROPOSAL` / `FILE_GROUPS_THESIS` in `FileList.tsx`. Unknown types fall into the last section. Row labels are always Thai form names (FORM_SHORT primary, full FORM_LABELS as subtitle) — never raw filenames as titles. FileList shows its own file count in the header; callers must NOT add another count to the `title` prop.
-- **THESIS step 8 (student report) downloads**: the student page shows a download card listing admin's step-7 SIGNED files (those uploaded at/before step 7's `actedAt`) so the student can download แบบรายงานฯ, fill + sign, and re-upload. Files newer than step 7's `actedAt` count as the student's own upload (`effectiveUploads` filter).
+- **THESIS step 6 (student report)**: there is nothing to download — the student has แบบรายงานฯ and ใบรายงานผลการสอบ from the Faculty email the admin forwarded at step 5, and uploads both.
 - **FileUploader** slots always render a `SlotHeader`: form-code badge (FORM_SHORT) + description + status chip (อัปโหลดแล้ว / เลือกไฟล์แล้ว / ยังไม่ได้เลือกไฟล์). The uploaded file's name opens a preview.
-- **One action-card design for every role** (2026-10-01). The card a user acts in when it is their turn — `StudentSubmissionActions`' upload card and rejected-fix card, `SignatureButton`, `CommitteeSignPanel`, `AdminSubmissionPanel`'s action card and finance card — is built only from the shared pieces exported by `src/components/FileUploader.tsx`: `ACTION_CARD` (frame), `SectionLabel` (numbered heading), `DownloadRow`/`NoDownloads`, `UploadSlot`/`FileUploader`, `B1Checklist`, `NotesField`, `ActionError`, `PRIMARY_BUTTON` (the one green ✓ button), `REJECT_BUTTON`, and `postUpload()` (throws the server's Thai error). Fixed order: ① download → ② sign/fill → ③ upload (sections a step doesn't have are left out and the rest renumber) → checklist → notes → primary button → ปฏิเสธ. Files picked in a card are uploaded when its primary button is pressed — the only immediate-upload card is the finance card (generate / edit / replace). Errors are shown inline on the card, not as a toast. The reject action is labelled ปฏิเสธ everywhere (never ไม่อนุมัติ). Don't hand-roll a new card; compose these.
+- **One action-card design for every role** (2026-10-01). The card a user acts in when it is their turn — `StudentSubmissionActions`' upload card and rejected-fix card, `SignatureButton`, `CommitteeSignPanel`, `AdminSubmissionPanel`'s action card and finance card — is built only from the shared pieces exported by `src/components/FileUploader.tsx`: `ACTION_CARD` (frame), `SectionLabel` (numbered heading), `DownloadRow`/`NoDownloads`, `UploadSlot`/`FileUploader`, `B1Checklist`, `NotesField`, `ActionError`, `PRIMARY_BUTTON` (the one green ✓ button), `REJECT_BUTTON`, and `postUpload()` (throws the server's Thai error). Fixed order: ① download → ② sign/fill → ③ upload (sections a step doesn't have are left out and the rest renumber) → checklist → notes → primary button → ปฏิเสธ (the admin card has ส่งกลับ there instead). Files picked in a card are uploaded when its primary button is pressed — the only immediate-upload card is the finance card (generate / edit / replace). Errors are shown inline on the card, not as a toast. The reject action is labelled ปฏิเสธ everywhere (never ไม่อนุมัติ). Don't hand-roll a new card; compose these.
 - **Professor dashboard** shows the generic "อาจารย์" label on card badges (a professor can hold several roles per submission); other views keep specific role labels.
 - **Admin detail** committee panel lists every person (incl. per-submission program chair) with mailto links.
 - **Emails** use formal Thai business-letter register: เรียน …, จึงเรียนมาเพื่อโปรดพิจารณาดำเนินการ, ขอแสดงความนับถือ + department signature block.
@@ -1105,7 +1126,7 @@ through to a detail page" step):
    — same allowed-incomplete rule as the proposal draft above — stays `DRAFT`, safe to navigate away
    and come back to) and **"ยืนยัน — ขอสอบวิทยานิพนธ์"** (`confirm: true` — re-validated/re-resolved
    through the full `validatePeople`/`resolvePeople` pipeline, same as any other creation; flips to
-   `IN_PROGRESS`, builds the 22 workflow steps, notifies admins). After confirming, the same
+   `IN_PROGRESS`, builds the 19 workflow steps, notifies admins). After confirming, the same
    `StudentSubmissionActions` view takes over. If there's no eligible completed proposal at all yet,
    a locked gray card explains that, followed by the "No defense" preview timeline (unchanged from
    before).

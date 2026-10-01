@@ -21,6 +21,14 @@ The app is **live with real users** — treat data and email as production, on e
 
 ## Read this before touching real accounts or sending email
 
+- **The one live THESIS_DEFENSE (`cmune0rpg00066wv6gukndljh`, the test student นายสมชาย ตั้งใจดี)
+  still has a stale 27-row step layout** from before the 2026-09-30/10-01 restructures — its
+  current step 2 is assigned to ADMIN and every later row has the wrong role. Only step 1 has been
+  acted on, so the fix is to delete its steps 2+ and recreate steps 2–19 from
+  `buildWorkflowSteps("THESIS_DEFENSE", …)`, keeping step 1 (a one-off `scripts/` write to the
+  production DB — not done yet, needs the owner's go-ahead). It also holds a student-uploaded
+  FINANCE_ATTACH from the old flow, which would satisfy the new step-2 gate without the admin
+  regenerating the form. Alternative: cancel it and let the student re-create it from the proposal.
 - **There are currently 0 `EXTERNAL` accounts in the system** (21 PROFESSOR, 24 users total, and
   0 submissions as of 2026-09-15). Since 2026-09-15 a `PHD` submission needs an `EXTERNAL`
   account to chair its exam committee, and every degree already needed one for กรรมการภายนอก —

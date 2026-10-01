@@ -8,9 +8,9 @@ import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
-  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
 } from "@/lib/utils";
-import { THESIS_STEP, financeStepOf } from "@/lib/workflowSteps";
+import { THESIS_STEP, financeStepOf, previousActiveStep } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
@@ -38,7 +38,7 @@ function StepCard({
   step,
   isCurrentStep,
   onOverride,
-  onReject,
+  onSendBack,
   stepUploads,
   assignedName,
   committeeStatus,
@@ -48,7 +48,8 @@ function StepCard({
   step: MockWorkflowStep;
   isCurrentStep: boolean;
   onOverride: (stepOrder: number, action: "APPROVED" | "REJECTED", notes?: string) => Promise<void>;
-  onReject?: (notes?: string) => Promise<void>;
+  /** ส่งกลับ from the current step to the previous one (`return_to_prev`); unset where there is none */
+  onSendBack?: (notes?: string) => Promise<void>;
   stepUploads: MockUpload[];
   assignedName?: string | null;
   committeeStatus?: { name: string; signed: boolean; approved: boolean }[];
@@ -56,7 +57,8 @@ function StepCard({
   displayOrder: string;
 }) {
   const [open,    setOpen]    = useState(false);
-  const [action,  setAction]  = useState<"APPROVED" | "REJECTED">("APPROVED");
+  // An approved step can only be sent back to; any other step is approved by default
+  const [action,  setAction]  = useState<"APPROVE" | "SEND_BACK">(step.status === "APPROVED" ? "SEND_BACK" : "APPROVE");
   const [notes,   setNotes]   = useState("");
   const [saving,  setSaving]  = useState(false);
   const [errMsg,  setErrMsg]  = useState<string | null>(null);
@@ -162,59 +164,47 @@ function StepCard({
       {/* Expandable admin controls */}
       {open && (
         <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
-          {/* APPROVED step: only ส่งกลับ (reset back to this step) */}
-          {step.status === "APPROVED" && (
-            <>
-              <p className="text-sm font-medium text-gray-600">ส่งกลับมาขั้นนี้เพื่อดำเนินการใหม่:</p>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="เหตุผลการส่งกลับ (ไม่บังคับ)..."
-                className="w-full border border-orange-300 rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-            </>
-          )}
-
-          {/* PENDING / REJECTED step: อนุมัติ + ปฏิเสธ (ปฏิเสธ only on current step) */}
-          {step.status !== "APPROVED" && (
-            <>
-              <p className="text-sm font-medium text-gray-600">บังคับเปลี่ยนสถานะขั้นนี้:</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setAction("APPROVED")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-sm transition ${
-                    action === "APPROVED"
-                      ? "bg-green-600 text-white"
-                      : "bg-white border border-gray-200 text-gray-600 hover:border-green-400"
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  อนุมัติ
-                </button>
-                {isCurrentStep && onReject && (
-                  <button
-                    onClick={() => setAction("REJECTED")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-sm transition ${
-                      action === "REJECTED"
-                        ? "bg-red-600 text-white"
-                        : "bg-white border border-gray-200 text-gray-600 hover:border-red-400"
-                    }`}
-                  >
-                    <XCircle className="w-4 h-4" />
-                    ปฏิเสธ
-                  </button>
-                )}
-              </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={action === "REJECTED" ? "เหตุผลการปฏิเสธ (จำเป็น)..." : "หมายเหตุ (ไม่บังคับ)..."}
-                className={`w-full border rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${
-                  action === "REJECTED" ? "border-red-300 focus:ring-red-400" : "border-gray-200 focus:ring-orange-400"
+          {/* Two override actions: อนุมัติ (approve up to this step) and ส่งกลับ. On an APPROVED step
+              ส่งกลับ brings the workflow back to this step; on the current step it sends it back
+              one step (same as the action card's ส่งกลับ). A future or REJECTED step can only be
+              approved — a REJECTED one is waiting on the student's resubmit. */}
+          <p className="text-sm font-medium text-gray-600">
+            {step.status === "APPROVED" ? "ส่งกลับมาขั้นนี้เพื่อดำเนินการใหม่:" : "บังคับเปลี่ยนสถานะขั้นนี้:"}
+          </p>
+          {step.status !== "APPROVED" && onSendBack && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAction("APPROVE")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-sm transition ${
+                  action === "APPROVE"
+                    ? "bg-green-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:border-green-400"
                 }`}
-              />
-            </>
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                อนุมัติ
+              </button>
+              <button
+                onClick={() => setAction("SEND_BACK")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-medium text-sm transition ${
+                  action === "SEND_BACK"
+                    ? "bg-orange-500 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:border-orange-400"
+                }`}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                ส่งกลับ
+              </button>
+            </div>
           )}
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder={action === "SEND_BACK" ? "เหตุผลการส่งกลับ (ไม่บังคับ)..." : "หมายเหตุ (ไม่บังคับ)..."}
+            className={`w-full border rounded-xl p-3 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${
+              action === "SEND_BACK" ? "border-orange-300 focus:ring-orange-400" : "border-gray-200 focus:ring-orange-400"
+            }`}
+          />
 
           {errMsg && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{errMsg}</p>
@@ -227,12 +217,11 @@ function StepCard({
                 setErrMsg(null);
                 try {
                   if (step.status === "APPROVED") {
-                    // ส่งกลับ: reset from this step onward
+                    // ส่งกลับมาขั้นนี้: reset from this step onward
                     await onOverride(step.stepOrder, "REJECTED", notes || undefined);
-                  } else if (action === "REJECTED" && onReject) {
-                    if (!notes.trim()) { setErrMsg("กรุณาระบุเหตุผลในการปฏิเสธ"); setSaving(false); return; }
-                    // ปฏิเสธ: real rejection → student fixes and resubmits
-                    await onReject(notes || undefined);
+                  } else if (action === "SEND_BACK" && onSendBack) {
+                    // ส่งกลับ from the current step: back to the previous step
+                    await onSendBack(notes || undefined);
                   } else {
                     await onOverride(step.stepOrder, "APPROVED", notes || undefined);
                   }
@@ -245,14 +234,12 @@ function StepCard({
                 }
               }}
               className={`flex-1 py-2.5 text-white font-semibold rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                step.status === "APPROVED" ? "bg-orange-500 hover:bg-orange-600"
-                : action === "REJECTED" ? "bg-red-600 hover:bg-red-700"
+                action === "SEND_BACK" ? "bg-orange-500 hover:bg-orange-600"
                 : "bg-green-600 hover:bg-green-700"
               }`}
             >
               {saving ? "กำลังบันทึก..."
-                : step.status === "APPROVED" ? "ยืนยันส่งกลับ"
-                : action === "REJECTED" ? "ยืนยันปฏิเสธ"
+                : action === "SEND_BACK" ? "ยืนยันส่งกลับ"
                 : "ยืนยันอนุมัติ"}
             </button>
             <button
@@ -267,16 +254,6 @@ function StepCard({
     </div>
   );
 }
-
-// ─── THESIS_DEFENSE faculty-docs step (THESIS_STEP.ADMIN_FACULTY_DOCS): the 4 Faculty returns ──
-// Uploaded from the admin action card's upload section, on อนุมัติ (like every other step's files).
-
-const FACULTY_SLOTS = [
-  { key: "SIGNED",        formType: "SIGNED",        label: "แบบรายงานการเสนอผลงานทางวิชาการของนิสิต" },
-  { key: "EXAM_RESULT",   formType: "EXAM_RESULT",   label: "ใบรายงานผลการสอบวิทยานิพนธ์" },
-  { key: "INVITE_LETTER", formType: "INVITE_LETTER", label: "หนังสือเชิญกรรมการสอบ" },
-  { key: "FINANCE_DOC",   formType: "FINANCE_DOC",   label: "เอกสารการเงิน" },
-] as const;
 
 const ADMIN_STEP2_CHECKS = [...B1_CHECKS, ...ADMIN_B1_EXTRA_CHECKS];
 
@@ -488,7 +465,7 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
 // pattern used elsewhere in this app).
 
 export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId: string; onDeleted?: () => void }) {
-  const { submissions, users, adminUpdateSubmission, adminDeleteSubmission, adminOverrideStep, approveCurrentStep, rejectCurrentStep, returnToPrevStep, adminAcceptCancel, adminDeclineCancel } = useApp();
+  const { submissions, users, adminUpdateSubmission, adminDeleteSubmission, adminOverrideStep, approveCurrentStep, returnToPrevStep, adminAcceptCancel, adminDeclineCancel } = useApp();
   const { showToast } = useToast();
   const [cancelActionBusy, setCancelActionBusy] = useState(false);
   const [confirmAcceptCancel, setConfirmAcceptCancel] = useState(false);
@@ -497,8 +474,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
 
   const pendingStep$ = sub?.workflowSteps.find((s) => s.status === "PENDING");
   const isMyTurn = pendingStep$?.role === "ADMIN";
+  // ADMIN steps offer อนุมัติ + ส่งกลับ only (no ปฏิเสธ); ส่งกลับ goes to this step's previous one
+  const sendBackToStudent = isMyTurn && !!sub && previousActiveStep(sub.workflowSteps, pendingStep$!)?.role === "STUDENT";
   const isThesisRelayStep  = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_RELAY;
-  const isThesisUploadStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_FACULTY_DOCS;
+  const isThesisForwardStep = sub?.submissionType === "THESIS_DEFENSE" && pendingStep$?.stepOrder === THESIS_STEP.ADMIN_FORWARD;
   // The ADMIN check that generates the finance form (PROPOSAL 2, THESIS_DEFENSE 4); approving sends the email
   const isFinanceReviewStep = (sub?.submissionType === "PROPOSAL" || sub?.submissionType === "THESIS_DEFENSE")
     && pendingStep$?.stepOrder === financeStepOf(sub?.submissionType) && pendingStep$?.role === "ADMIN";
@@ -506,6 +485,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const isProposalVerifyStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 10;
   // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
   const isProposalCoverStep   = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 12;
+  // Steps whose approve is gated on the department-chair-signed cover page (COVER_PAGE): PROPOSAL
+  // step 8 and THESIS_DEFENSE step 4 (the cover page that goes to the Faculty with บ.2 + บ.3)
+  const isCoverStep = isProposalCoverStep || isThesisRelayStep;
   const latestCover = (sub?.uploads ?? [])
     .filter((u) => u.formType === "COVER_PAGE")
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
@@ -518,27 +500,18 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const adminChecks = isFinanceReviewStep ? (sub?.submissionType === "THESIS_DEFENSE" ? ADMIN_DEFENSE_FINANCE_CHECKS : ADMIN_STEP2_CHECKS)
     : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
     : isProposalCoverStep ? ADMIN_STEP8_CHECKS
+    : isThesisForwardStep ? ADMIN_DEFENSE_FORWARD_CHECKS
     : null;
   const [adminCheckState, setAdminCheckState] = useState<Record<string, boolean>>({});
   const adminAllChecked = !adminChecks || allChecked(adminChecks, adminCheckState);
-  // Files picked in the action card's upload section (cover page / Faculty returns) — uploaded on อนุมัติ
+  // Files picked in the action card's upload section (cover page) — uploaded on อนุมัติ
   const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({});
   const [actionError,  setActionError]  = useState<string | null>(null);
-  // The Faculty returns only count once uploaded after the relay step (same rule as the server gate)
-  const relayActedAt = (() => {
-    const t = sub?.workflowSteps.find((s) => s.stepOrder === THESIS_STEP.ADMIN_RELAY)?.actedAt;
-    return t ? new Date(t).getTime() : 0;
-  })();
-  const latestFacultyDoc = (formType: string) => (sub?.uploads ?? [])
-    .filter((u) => u.formType === formType && new Date(u.uploadedAt).getTime() >= relayActedAt)
-    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-  const facultyDocsReady = FACULTY_SLOTS.every((sl) => !!pendingFiles[sl.key] || !!latestFacultyDoc(sl.formType));
   const approveBlocked = (isFinanceReviewStep && !latestFinanceAttach)
-    || (isProposalCoverStep && !latestCover && !pendingFiles.COVER_PAGE)
-    || (isThesisUploadStep && !facultyDocsReady)
+    || (isCoverStep && !latestCover && !pendingFiles.COVER_PAGE)
     || !adminAllChecked;
   const [approveNotes, setApproveNotes] = useState("");
-  const [actionMode,   setActionMode]   = useState<"reject" | "return" | null>(null);
+  const [actionMode,   setActionMode]   = useState<"return" | null>(null);
   const [actionNotes,  setActionNotes]  = useState("");
   const [actionBusy,   setActionBusy]   = useState(false);
 
@@ -708,21 +681,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     }
   }
 
-  async function handleRejectStep() {
-    if (!sub || actionBusy || !actionNotes.trim()) return;
-    setActionBusy(true);
-    try {
-      await rejectCurrentStep(sub.id, actionNotes.trim());
-      setActionMode(null);
-      setActionNotes("");
-      setActionError(null);
-    } catch (err) {
-      setActionError(toUserErrorMessage(err, "ปฏิเสธไม่สำเร็จ กรุณาลองอีกครั้ง"));
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
   async function handleReturnToPrev() {
     if (!sub || actionBusy) return;
     setActionBusy(true);
@@ -730,8 +688,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       await returnToPrevStep(sub.id, actionNotes.trim() || undefined);
       setActionMode(null);
       setActionNotes("");
+      setActionError(null);
     } catch (err) {
-      showToast(toUserErrorMessage(err, "ส่งกลับไม่สำเร็จ กรุณาลองอีกครั้ง"), "error");
+      setActionError(toUserErrorMessage(err, "ส่งกลับไม่สำเร็จ กรุณาลองอีกครั้ง"));
     } finally {
       setActionBusy(false);
     }
@@ -1077,7 +1036,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     onOverride={(stepOrder, action, notes) =>
                       adminOverrideStep(sub.id, stepOrder, action, notes)
                     }
-                    onReject={(notes) => rejectCurrentStep(sub.id, notes ?? "")}
+                    onSendBack={step.stepOrder === currentOrd && step.status === "PENDING" && previousActiveStep(sub.workflowSteps, step)
+                      ? (notes) => returnToPrevStep(sub.id, notes)
+                      : undefined}
                   />
                 );
               })}
@@ -1093,7 +1054,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
         <div className="space-y-4">
 
           {/* Task description card — numbered instructions for special admin steps */}
-          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisUploadStep) && (
+          {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisForwardStep) && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-500" />
@@ -1104,14 +1065,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               {isThesisRelayStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>พิมพ์ / รวบรวม บ.2 + บ.3 จากระบบ</li>
-                  <li>นำส่งไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>นำส่ง บ.2 + บ.3 พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>กดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>รับเอกสารจากคณะวิศวกรรมศาสตร์</li>
-                  <li>อัปโหลดเอกสารด้านล่าง</li>
-                  <li>กดอนุมัติ — ระบบจะแจ้งนิสิตโดยอัตโนมัติ</li>
+                  <li>ส่งต่ออีเมลจากคณะวิศวกรรมศาสตร์ให้นิสิต</li>
+                  <li>กดอนุมัติเพื่อยืนยันว่าส่งต่อแล้ว — ระบบจะแจ้งนิสิตให้อัปโหลดเอกสารต่อ</li>
                 </ol>
               )}
             </div>
@@ -1128,33 +1089,17 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               <div className={ACTION_CARD}>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">ดำเนินการ</h3>
-                  {!isThesisRelayStep && !isThesisUploadStep && (
+                  {!isThesisRelayStep && !isThesisForwardStep && (
                     <p className="text-sm text-gray-500">ตรวจสอบเอกสาร แล้วเลือกการดำเนินการ</p>
                   )}
                 </div>
 
                 {/* Upload section — the step's own files, uploaded on อนุมัติ */}
-                {actionMode === null && isThesisUploadStep && (
+                {actionMode === null && isCoverStep && (
                   <div>
-                    <SectionLabel n={1} required>อัปโหลดเอกสารจากคณะ</SectionLabel>
-                    <div className="space-y-3">
-                      {FACULTY_SLOTS.map((sl) => (
-                        <FileUploader
-                          key={sl.key}
-                          submissionId={sub.id}
-                          formType={sl.formType}
-                          slotLabel={sl.label}
-                          existingUpload={latestFacultyDoc(sl.formType)}
-                          selectedFile={pendingFiles[sl.key] ?? null}
-                          onFileSelect={(f) => pickPending(sl.key, f)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {actionMode === null && isProposalCoverStep && (
-                  <div>
-                    <SectionLabel n={1} required>อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์</SectionLabel>
+                    <SectionLabel n={1} required>
+                      {isThesisRelayStep ? "อัปโหลดใบปะหน้าส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์" : "อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์"}
+                    </SectionLabel>
                     <p className="text-sm text-gray-600 mb-2">
                       ใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
                       <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
@@ -1171,7 +1116,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 )}
 
                 {/* Approve — always visible at top */}
-                {actionMode !== "reject" && actionMode !== "return" && (
+                {actionMode !== "return" && (
                   <div className="space-y-4">
                     {adminChecks && (
                       <B1Checklist
@@ -1197,10 +1142,8 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         <Info className="w-3.5 h-3.5 shrink-0" />
                         {isFinanceReviewStep && !latestFinanceAttach
                           ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
-                          : isProposalCoverStep && !latestCover && !pendingFiles.COVER_PAGE
+                          : isCoverStep && !latestCover && !pendingFiles.COVER_PAGE
                           ? "ต้องเลือกไฟล์ใบปะหน้าก่อนจึงจะอนุมัติได้"
-                          : isThesisUploadStep && !facultyDocsReady
-                          ? "ต้องเลือกเอกสารจากคณะให้ครบทั้ง 4 รายการก่อนจึงจะอนุมัติได้"
                           : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
                       </p>
                     )}
@@ -1216,36 +1159,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   </div>
                 )}
 
-                {/* Reject form */}
-                {actionMode === "reject" && (
-                  <div className="space-y-4">
-                    <p className="text-sm font-semibold text-red-700">ปฏิเสธ — นิสิตต้องแก้ไขและยื่นใหม่</p>
-                    <NotesField value={actionNotes} onChange={setActionNotes} reject />
-                    <ActionError message={actionError} />
-                    <div className="flex gap-3">
-                      <button
-                        disabled={!actionNotes.trim() || actionBusy}
-                        onClick={handleRejectStep}
-                        className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {actionBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-                        {actionBusy ? "กำลังบันทึก..." : "ยืนยันการปฏิเสธ"}
-                      </button>
-                      <button
-                        disabled={actionBusy}
-                        onClick={() => { setActionMode(null); setActionNotes(""); setActionError(null); }}
-                        className="px-5 py-3.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition disabled:opacity-60"
-                      >
-                        ยกเลิก
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Return-to-prev form */}
                 {actionMode === "return" && (
                   <div className="space-y-3 border border-orange-200 rounded-xl p-3 bg-orange-50">
-                    <p className="text-sm font-semibold text-orange-700">ส่งกลับ — ขั้นตอนก่อนหน้าต้องดำเนินการใหม่</p>
+                    <p className="text-sm font-semibold text-orange-700">
+                      {sendBackToStudent ? "ส่งกลับ — นิสิตต้องแก้ไขและส่งต่อใหม่" : "ส่งกลับ — ขั้นตอนก่อนหน้าต้องดำเนินการใหม่"}
+                    </p>
                     <textarea
                       value={actionNotes}
                       onChange={(e) => setActionNotes(e.target.value)}
@@ -1253,6 +1172,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       autoFocus
                       className="w-full border border-orange-300 rounded-xl p-3 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-orange-400"
                     />
+                    <ActionError message={actionError} />
                     <div className="flex gap-2">
                       <button
                         disabled={actionBusy}
@@ -1272,16 +1192,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   </div>
                 )}
 
-                {/* Reject / Return buttons */}
+                {/* Send-back button — ADMIN steps have no ปฏิเสธ */}
                 {!actionMode && (
                   <div className="flex gap-2 pt-1 border-t border-gray-100">
-                    <button
-                      onClick={() => { setActionMode("reject"); setActionError(null); }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition text-sm"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      ปฏิเสธ
-                    </button>
                     <button
                       onClick={() => { setActionMode("return"); setActionError(null); }}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border-2 border-orange-200 text-orange-600 font-semibold rounded-xl hover:bg-orange-50 transition text-sm"

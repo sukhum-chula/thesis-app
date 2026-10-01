@@ -16,53 +16,50 @@ export const PROPOSAL_ROLES = [
   "ADMIN",                 // 12 recheck everything + upload the cover page (COVER_PAGE) for the Faculty
 ] as const;
 
-// THESIS_DEFENSE: 21 steps — บ.2/3 through thesis cover signing. Restructured 2026-09-30: the
-// committee's บ.3 evaluations are collected OUTSIDE the system (the student and advisor contact each
-// member) and uploaded by the student at step 1, one copy per member (FormUpload.memberId); the
-// advisor and head of committee then sign บ.2 BEFORE the ADMIN check, which generates the finance
-// form; the program chair signs บ.2 last. บ.2 has no co-advisor signature, so there is no co-advisor
-// บ.2 step. Refer to steps through THESIS_STEP below, never bare numbers.
+// THESIS_DEFENSE: 19 steps — บ.2/3 through thesis cover signing. Restructured 2026-09-30, again
+// 2026-10-01: the committee's บ.3 evaluations are collected OUTSIDE the system (the student and
+// advisor contact each member) and uploaded by the student at step 1, one copy per member
+// (FormUpload.memberId); บ.2 is uploaded at step 1 already signed by the student, the advisor and
+// the head of committee (also outside the system — the student attests it in the checklist), so the
+// ADMIN check that generates the finance form comes straight after; the program chair signs บ.2
+// last. Refer to steps through THESIS_STEP below, never bare numbers.
 export const THESIS_ROLES = [
-  "STUDENT",               // 1  upload B2 (signed by the student) + one signed B3 per committee member
-  "ADVISOR",               // 2  sign B2
-  "HEAD_EXAM_COMMITTEE",   // 3  sign B2
-  "ADMIN",                 // 4  check + generate FINANCE_ATTACH → approve sends the finance email
-  "PROGRAM_CHAIR",         // 5  sign B2 → notify admin
-  "ADMIN",                 // 6  collect + send B2+B3 to Faculty
-  "ADMIN",                 // 7  receive faculty docs + upload + send invitation letters
-  "STUDENT",               // 8  fill + sign แบบรายงานฯ
-  "ADVISOR",               // 9  sign แบบรายงาน + ใบรายงานผล
-  "CO_ADVISOR",            // 10 sign แบบรายงาน + ใบรายงานผล (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 11 sign ใบรายงานผล
-  "EXAM_COMMITTEE",        // 12 sign ใบรายงานผล (sequential)
-  "INVITED_EXAM_COMMITTEE",// 13 sign ใบรายงานผล
-  "PROGRAM_CHAIR",         // 14 sign ใบรายงานผล
-  "STUDENT",               // 15 upload B4 + THESIS
-  "PROGRAM_CHAIR",         // 16 sign B4
-  "ADVISOR",               // 17 sign thesis cover
-  "CO_ADVISOR",            // 18 sign thesis cover (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 19 sign thesis cover
-  "EXAM_COMMITTEE",        // 20 sign thesis cover (sequential)
-  "INVITED_EXAM_COMMITTEE",// 21 sign thesis cover
+  "STUDENT",               // 1  upload B2 (signed by student + advisor + head) + one signed B3 per member
+  "ADMIN",                 // 2  check + generate FINANCE_ATTACH → approve sends the finance email
+  "PROGRAM_CHAIR",         // 3  sign B2 → notify admin
+  "ADMIN",                 // 4  collect + send B2+B3 to Faculty
+  "ADMIN",                 // 5  confirm the Faculty's email was forwarded to the student
+  "STUDENT",               // 6  fill + sign แบบรายงานฯ; upload it + ใบรายงานผลการสอบ (from the Faculty email)
+  "ADVISOR",               // 7  sign แบบรายงาน + ใบรายงานผล
+  "CO_ADVISOR",            // 8  sign แบบรายงาน + ใบรายงานผล (sequential, skipped if none)
+  "HEAD_EXAM_COMMITTEE",   // 9  sign ใบรายงานผล
+  "EXAM_COMMITTEE",        // 10 sign ใบรายงานผล (sequential)
+  "INVITED_EXAM_COMMITTEE",// 11 sign ใบรายงานผล
+  "PROGRAM_CHAIR",         // 12 sign ใบรายงานผล
+  "STUDENT",               // 13 upload B4 + THESIS
+  "PROGRAM_CHAIR",         // 14 sign B4
+  "ADVISOR",               // 15 sign thesis cover
+  "CO_ADVISOR",            // 16 sign thesis cover (sequential, skipped if none)
+  "HEAD_EXAM_COMMITTEE",   // 17 sign thesis cover
+  "EXAM_COMMITTEE",        // 18 sign thesis cover (sequential)
+  "INVITED_EXAM_COMMITTEE",// 19 sign thesis cover
 ] as const;
 
 /** Named THESIS_DEFENSE stepOrders for the steps code branches on — use these, never bare numbers,
  *  so the next restructure only has to touch THESIS_ROLES and this map. */
 export const THESIS_STEP = {
-  STUDENT_B2_B3:      1,  // B2 + one B3 per committee member (committeeRoster)
-  ADVISOR_B2:         2,
-  HEAD_B2:            3,
-  ADMIN_CHECK:        4,  // generates FINANCE_ATTACH; approving sends the finance email
-  CHAIR_B2:           5,  // last บ.2 signature → admins notified to send to the Faculty
-  ADMIN_RELAY:        6,
-  ADMIN_FACULTY_DOCS: 7,  // uploads SIGNED/EXAM_RESULT/INVITE_LETTER/FINANCE_DOC → invitation emails
-  STUDENT_REPORT:     8,  // student signs แบบรายงานฯ (SIGNED)
-  ADVISOR_RESULT:     9,  // advisor picks the exam result
-  STUDENT_THESIS:     15, // B4 + THESIS
+  STUDENT_B2_B3:      1,  // B2 (student + advisor + head signed) + one B3 per committee member (committeeRoster)
+  ADMIN_CHECK:        2,  // generates FINANCE_ATTACH; approving sends the finance email
+  CHAIR_B2:           3,  // last บ.2 signature → admins notified to send to the Faculty
+  ADMIN_RELAY:        4,
+  ADMIN_FORWARD:      5,  // confirm only: Faculty email forwarded to the student (no uploads)
+  STUDENT_REPORT:     6,  // student uploads แบบรายงานฯ (SIGNED) + ใบรายงานผลการสอบ (EXAM_RESULT)
+  ADVISOR_RESULT:     7,  // advisor picks the exam result
+  STUDENT_THESIS:     13, // B4 + THESIS
 } as const;
 
 /** The ADMIN step that generates the finance attachment (and whose approval emails it), by type:
- *  PROPOSAL step 2, THESIS_DEFENSE step 4. The one place this number lives. */
+ *  PROPOSAL step 2, THESIS_DEFENSE step 2. The one place this number lives. */
 export function financeStepOf(submissionType: string | null | undefined): number {
   return submissionType === "THESIS_DEFENSE" ? THESIS_STEP.ADMIN_CHECK : 2;
 }
@@ -239,4 +236,13 @@ export function currentTurn(steps: SyncableStep[]): { stepId: string; role: stri
     (m) => !actions.some((a) => a.userId === m && a.decision === "APPROVED")
   );
   return { stepId: step.id, role: step.role, memberId };
+}
+
+type StepLike = { stepOrder: number; role: string; status: string };
+
+/** The nearest earlier step that isn't SKIPPED — where ส่งกลับ (`return_to_prev`) sends a step back to. */
+export function previousActiveStep<T extends StepLike>(steps: T[], step: StepLike): T | undefined {
+  return steps
+    .filter((s) => s.stepOrder < step.stepOrder && s.status !== "SKIPPED")
+    .sort((a, b) => b.stepOrder - a.stepOrder)[0];
 }
