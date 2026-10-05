@@ -5,6 +5,20 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-10-05
+
+- **A proposal with any defense built from it can no longer be deleted.** `DELETE
+  /api/submissions/[id]` used to refuse only while the linked THESIS_DEFENSE was still running, so a
+  proposal whose defense was `COMPLETED` or `CANCELLED` could be deleted, silently nulling the
+  defense's `sourceProposalId`. It now refuses (409) for a linked defense of any status, and the
+  admin panel's "ลบคำร้อง" card shows why instead of the delete button. Delete the defense first.
+
+- **`/super-dashboard`'s user directory now lists EXTERNAL (กรรมการภายนอก) accounts.** The page
+  grouped the directory by a hard-coded role list that left out `EXTERNAL`, so those accounts were
+  fetched but never rendered (the header count included them). Added `EXTERNAL` to that list and
+  to `GET /api/super-admin/users`' sort order (between PROFESSOR and STUDENT); the role-reference
+  card on the same page gains an EXTERNAL entry too.
+
 ## 2026-10-01
 
 - **Checklist wording made consistent across every step, plus the missing checklists.** One

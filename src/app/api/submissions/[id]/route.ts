@@ -1118,16 +1118,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const target = await prisma.submission.findUnique({ where: { id }, select: { submissionType: true } });
   if (target?.submissionType === "PROPOSAL") {
     // sourceProposalId is an optional FK, so Prisma would otherwise just SetNull it on
-    // delete and silently orphan a still-running defense instead of stopping it — see
-    // how accept_cancel (above) deliberately cascades a proposal cancellation to its
-    // linked defense. A hard delete must not be allowed to skip that check.
+    // delete and silently orphan the defense. Any linked defense — whatever its status,
+    // COMPLETED and CANCELLED included — blocks the delete; the defense must be deleted first.
     const linkedDefense = await prisma.submission.findFirst({
-      where: { sourceProposalId: id, status: { notIn: ["CANCELLED", "COMPLETED"] } },
+      where: { sourceProposalId: id },
       select: { id: true, title: true },
     });
     if (linkedDefense) {
       return NextResponse.json(
-        { error: `ไม่สามารถลบคำร้องนี้ได้ เนื่องจากมีคำร้องขอสอบวิทยานิพนธ์ "${linkedDefense.title}" ที่สร้างจากคำร้องนี้และยังดำเนินการอยู่ กรุณายกเลิกคำร้องสอบวิทยานิพนธ์ก่อน` },
+        { error: `ไม่สามารถลบคำร้องนี้ได้ เนื่องจากมีคำร้องขอสอบวิทยานิพนธ์ "${linkedDefense.title}" ที่สร้างจากคำร้องนี้ กรุณาลบคำร้องขอสอบวิทยานิพนธ์ก่อน` },
         { status: 409 },
       );
     }

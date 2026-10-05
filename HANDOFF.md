@@ -65,7 +65,7 @@ The app is **live with real users** — treat data and email as production, on e
 
 | | |
 | --- | --- |
-| Local checkout | `C:\Users\ASUS\Desktop\Grad Tracking System\thesis-app` |
+| Local checkout | `C:\Users\lenovo\Desktop\Grad Tracking System\thesis-app` (moved from `C:\Users\ASUS\...` by 2026-10-05 — if `next dev` panics with "Next.js package not found" after a move, delete the copied `.next/` cache) |
 | `origin` | `https://github.com/sukhum-chula/thesis-app` |
 | `upstream` | `https://github.com/Jukkruu/thesis-app` (original author, read-only reference) |
 | Vercel | `thesis-app` under account `sukhums-4319` — auto-deploys on push to `main` |

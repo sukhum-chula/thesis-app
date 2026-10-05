@@ -501,7 +501,11 @@ the outer page, which used to shift the whole layout when the browser's own scro
      switching straight from one open card to another — smoothly scrolls it to the top of the list
      frame (`cardRefs` map + `scrollIntoView` on `expandedId` change), so a lower card never opens
      stranded mid-scroll. Deleting a submission is done from inside the expanded panel only (typed
-     "ลบ" confirmation), not from the list row.
+     "ลบ" confirmation), not from the list row. **A PROPOSAL with any THESIS_DEFENSE built from it
+     (`sourceProposalId`, any status — COMPLETED/CANCELLED included) cannot be deleted**: `DELETE
+     /api/submissions/[id]` returns 409 and the panel's "ลบคำร้อง" card shows the reason instead of
+     the button (2026-10-05). Delete the defense first — otherwise its `sourceProposalId` would be
+     silently nulled.
 2. **จัดการผู้ใช้งาน (users)** — renders `AdminUsersPanel` (`src/components/AdminUsersPanel.tsx`,
    extracted 2026-09-06): pending committee-account requests **at the top of the user list** (see
    "Committee accounts must pre-exist" above), a role-filter pill row + search bar + **"มีคำร้อง
@@ -594,7 +598,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 ### In-system roles (have accounts and login)
 | Role | Thai | Key Actions |
 |---|---|---|
-| Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passcodes. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission. As of 2026-09-06 it CAN view (read-only oversight, not act on) a full directory of every account including STUDENT/PROFESSOR via `GET /api/super-admin/users`, and a full list of every submission via `GET /api/super-admin/submissions` (no detail-page link, no actions); the older counts-only `GET /api/super-admin/stats` was removed as redundant once these two list endpoints shipped |
+| Super Admin | ผู้ดูแลระบบสูงสุด | Landing page `/super-dashboard`. Account/user management restricted to the **SUPER_ADMIN/ADMIN tier only** — create/edit/delete SUPER_ADMIN or ADMIN accounts, reset their passcodes. **Cannot** touch STUDENT/PROFESSOR accounts (that's ADMIN's job) and has **zero submission workflow access** — cannot approve, reject, override, upload to, or otherwise act on any submission. As of 2026-09-06 it CAN view (read-only oversight, not act on) a full directory of every account including STUDENT/PROFESSOR/EXTERNAL via `GET /api/super-admin/users`, and a full list of every submission via `GET /api/super-admin/submissions` (no detail-page link, no actions); the older counts-only `GET /api/super-admin/stats` was removed as redundant once these two list endpoints shipped |
 | Admin | เจ้าหน้าที่ภาควิชา (พี่โบ้) | Landing page `/admin-dashboard`. Owns the entire submission workflow exclusively — approve/reject/override steps, relay documents to Faculty, forward docs to Student, approve/reject STUDENT requests for a new EXTERNAL committee account, accept/decline student cancellation requests. Account management covers **ADMIN/PROFESSOR/STUDENT** (shares the ADMIN tier with SUPER_ADMIN, but not SUPER_ADMIN accounts) via `/dashboard/admin/users` |
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students — always an internal `PROFESSOR` account, both degrees |

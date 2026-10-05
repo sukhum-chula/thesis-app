@@ -490,6 +490,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const [confirmAcceptCancel, setConfirmAcceptCancel] = useState(false);
 
   const sub = submissions.find((s) => s.id === submissionId);
+  // A proposal with any defense built from it can't be deleted (the server refuses too)
+  const linkedDefense = sub?.submissionType === "PROPOSAL"
+    ? submissions.find((s) => s.sourceProposalId === sub.id) ?? null
+    : null;
 
   const pendingStep$ = sub?.workflowSteps.find((s) => s.status === "PENDING");
   const isMyTurn = pendingStep$?.role === "ADMIN";
@@ -1358,7 +1362,11 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
           {/* Delete */}
           <div className="bg-white rounded-2xl border border-red-200 p-5 space-y-3">
             <h2 className="font-semibold text-red-700">ลบคำร้อง</h2>
-            {!confirmDel ? (
+            {linkedDefense ? (
+              <p className="text-sm text-gray-600">
+                ไม่สามารถลบคำร้องนี้ได้ เนื่องจากมีคำร้องขอสอบวิทยานิพนธ์ &quot;{linkedDefense.title}&quot; ที่สร้างจากคำร้องนี้ — กรุณาลบคำร้องขอสอบวิทยานิพนธ์ก่อน
+              </p>
+            ) : !confirmDel ? (
               <button
                 onClick={() => setConfirmDel(true)}
                 className="w-full flex items-center justify-center gap-2 py-3 border-2 border-red-200 text-red-600 font-medium rounded-xl hover:bg-red-50 transition"
