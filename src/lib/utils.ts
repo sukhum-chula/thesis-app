@@ -89,7 +89,7 @@ export const FORM_LABELS: Record<FormType, string> = {
   INVITE_LETTER: "หนังสือเชิญกรรมการสอบ",
   VERY_GOOD_EVAL:"แบบประเมินวิทยานิพนธ์ดีมาก",
   COVER_PAGE:    "บันทึกข้อความส่งคณะวิศวกรรมศาสตร์",
-  LESSPAPER_RECEIPT: "เลขรับเอกสารที่ออกโดยคณะผ่านระบบ LessPaper",
+  LESSPAPER_RECEIPT: "เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper",
 };
 
 export const PROGRAM_LABELS: Record<string, string> = {
@@ -363,7 +363,7 @@ export const FORM_SHORT: Record<FormType, string> = {
   INVITE_LETTER: "หนังสือเชิญ",
   VERY_GOOD_EVAL:"แบบประเมินดีมาก",
   COVER_PAGE:    "บันทึกข้อความ",
-  LESSPAPER_RECEIPT: "เลขรับ LessPaper",
+  LESSPAPER_RECEIPT: "เอกสารเลขรับ LessPaper",
 };
 
 /** File format each form type must be uploaded in. FINANCE_ATTACH is filled in from a .docx
@@ -456,7 +456,7 @@ export const B1_CHECK_GROUPS = [
   { key: "mySign",    title: "การลงนามของท่าน" },
   { key: "verify",    title: "การตรวจสอบของเจ้าหน้าที่" },
   { key: "cover",     title: "บันทึกข้อความส่งคณะฯ" },
-  { key: "lessPaper", title: "เลขรับเอกสารจากคณะฯ" },
+  { key: "lessPaper", title: "เอกสารที่มีเลขรับจากคณะฯ" },
   { key: "b2",        title: "บ.2" },
   { key: "b3",        title: "บ.3" },
   { key: "b4",        title: "บ.4" },
@@ -506,7 +506,7 @@ export const ADMIN_STEP8_CHECKS: B1Check[] = [
   { key: "allSigned",   group: "verify", label: "บ.วศ.1ก–ง ครบถ้วน และลงนามครบทุกตำแหน่งแล้ว" },
   { key: "titleSynced", group: "verify", label: "หัวข้อวิทยานิพนธ์ในระบบตรงกับ บ.วศ.1ง แล้ว" },
   { key: "coverSigned", group: "cover",  label: COVER_SIGNED_LABEL },
-  { key: "lessPaper",   group: "lessPaper", label: "อัปโหลดเลขรับเอกสารที่ออกโดยคณะผ่านระบบ LessPaper แล้ว" },
+  { key: "lessPaper",   group: "lessPaper", label: "อัปโหลดเอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper แล้ว" },
 ];
 export const CHAIR_B1_CHECKS: B1Check[] = [
   { key: "chairSignA", group: "mySign", label: "ท่านลงนามใน บ.วศ.1ก แล้ว (1 ตำแหน่ง)" },

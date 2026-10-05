@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     PROPOSAL: {
       FINANCE_ATTACH: { steps: [2],  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
       COVER_PAGE:     { steps: [12], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
-      LESSPAPER_RECEIPT: { steps: [12], label: "เลขรับเอกสารจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+      LESSPAPER_RECEIPT: { steps: [12], label: "เอกสารที่มีเลขรับจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
     },
     THESIS_DEFENSE: {
       FINANCE_ATTACH: { steps: [THESIS_STEP.ADMIN_CHECK], label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },

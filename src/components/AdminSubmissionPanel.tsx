@@ -525,7 +525,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const latestCover = (sub?.uploads ?? [])
     .filter((u) => u.formType === "COVER_PAGE" && (coverCutoff === null || new Date(u.uploadedAt).getTime() > coverCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-  // PROPOSAL step 8 also needs the Faculty's LessPaper receipt (เลขรับเอกสาร) for the package
+  // PROPOSAL step 8 also needs the package document stamped with the Faculty's LessPaper receipt number
   const latestLessPaper = (sub?.uploads ?? [])
     .filter((u) => u.formType === "LESSPAPER_RECEIPT")
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
@@ -1149,7 +1149,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>ตรวจสอบ บ.วศ.1ก–ง ฉบับสุดท้ายว่าครบถ้วนและลงนามครบทุกตำแหน่ง</li>
                   <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
-                  <li>เลือกไฟล์เลขรับเอกสารที่ออกโดยคณะผ่านระบบ LessPaper</li>
+                  <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — การสอบโครงร่างจะเสร็จสมบูรณ์</li>
                 </ol>
               ) : isThesisRelayStep ? (
@@ -1253,7 +1253,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     {isProposalCoverStep && (
                       <div>
                         <SectionLabel n={adminStepForms ? 3 : 2} required>
-                          อัปโหลดเลขรับเอกสารที่ออกโดยคณะผ่านระบบ LessPaper
+                          อัปโหลดเอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper
                         </SectionLabel>
                         <FileUploader
                           submissionId={sub.id}
@@ -1293,7 +1293,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                           : isCoverStep && !latestCover && !pendingFiles.COVER_PAGE
                           ? "ต้องเลือกไฟล์บันทึกข้อความก่อนจึงจะอนุมัติได้"
                           : isProposalCoverStep && !latestLessPaper && !pendingFiles.LESSPAPER_RECEIPT
-                          ? "ต้องเลือกไฟล์เลขรับเอกสารจากระบบ LessPaper ก่อนจึงจะอนุมัติได้"
+                          ? "ต้องเลือกไฟล์เอกสารที่มีเลขรับจากระบบ LessPaper ก่อนจึงจะอนุมัติได้"
                           : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
                       </p>
                     )}
