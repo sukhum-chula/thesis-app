@@ -518,16 +518,18 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
   const isProposalCoverStep   = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 12;
   // Steps whose approve is gated on the department-chair-signed cover page (COVER_PAGE): PROPOSAL
-  // step 8, THESIS_DEFENSE step 4 (sent with บ.2 + บ.3) and step 11 (sent with the exam result).
-  // Step 11's must be a new copy — the step-4 one already exists (freshUploadCutoff, same as the server)
-  const isCoverStep = isProposalCoverStep || isThesisRelayStep || isThesisResultSendStep || isThesisDocCheckStep;
-  const coverCutoff = sub && pendingStep$ ? freshUploadCutoff(sub.workflowSteps, sub.submissionType, pendingStep$.stepOrder) : null;
+  // step 8 and THESIS_DEFENSE step 11 (sent with the exam result).
+  // A defense's must be a new copy (freshUploadCutoff, same as the server)
+  const isCoverStep = isProposalCoverStep || isThesisResultSendStep;
+  const uploadCutoff = sub && pendingStep$ ? freshUploadCutoff(sub.workflowSteps, sub.submissionType, pendingStep$.stepOrder) : null;
   const latestCover = (sub?.uploads ?? [])
-    .filter((u) => u.formType === "COVER_PAGE" && (coverCutoff === null || new Date(u.uploadedAt).getTime() > coverCutoff))
+    .filter((u) => u.formType === "COVER_PAGE" && (uploadCutoff === null || new Date(u.uploadedAt).getTime() > uploadCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-  // PROPOSAL step 8 also needs the package document stamped with the Faculty's LessPaper receipt number
+  // PROPOSAL step 8 and THESIS_DEFENSE steps 4 and 13 need the package document stamped with the
+  // Faculty's LessPaper receipt number (step 13's a new copy — freshUploadCutoff)
+  const isLessPaperStep = isProposalCoverStep || isThesisRelayStep || isThesisDocCheckStep;
   const latestLessPaper = (sub?.uploads ?? [])
-    .filter((u) => u.formType === "LESSPAPER_RECEIPT")
+    .filter((u) => u.formType === "LESSPAPER_RECEIPT" && (uploadCutoff === null || new Date(u.uploadedAt).getTime() > uploadCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
   const deptChair = users.find((u) => u.isDepartmentChair) ?? null;
   const latestFinanceAttach = (sub?.uploads ?? [])
@@ -553,7 +555,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const [actionError,  setActionError]  = useState<string | null>(null);
   const approveBlocked = (isFinanceReviewStep && !latestFinanceAttach)
     || (isCoverStep && !latestCover && !pendingFiles.COVER_PAGE)
-    || (isProposalCoverStep && !latestLessPaper && !pendingFiles.LESSPAPER_RECEIPT)
+    || (isLessPaperStep && !latestLessPaper && !pendingFiles.LESSPAPER_RECEIPT)
     || !adminAllChecked;
   const [approveNotes, setApproveNotes] = useState("");
   const [actionMode,   setActionMode]   = useState<"return" | null>(null);
@@ -1155,8 +1157,8 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               ) : isThesisRelayStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>พิมพ์ / รวบรวม บ.2 + บ.3 จากระบบ</li>
-                  <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
-                  <li>นำส่ง บ.2 + บ.3 พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>นำส่ง บ.2 + บ.3 ไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : isThesisResultCheckStep ? (
@@ -1173,12 +1175,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               ) : isThesisDocCheckStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>ตรวจสอบ บ.4 และวิทยานิพนธ์ฉบับสมบูรณ์ที่นิสิตอัปโหลด</li>
-                  <li>เตรียมบันทึกข้อความ แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
                 </ol>
               ) : isThesisDocSendStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ส่งอีเมล บ.4 และวิทยานิพนธ์ที่หัวหน้าภาควิชาลงนามแล้ว พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>ส่งอีเมล บ.4 และวิทยานิพนธ์ที่หัวหน้าภาควิชาลงนามแล้วไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
                 </ol>
               ) : isThesisDocForwardStep ? (
@@ -1231,9 +1233,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     {isCoverStep && (
                       <div>
                         <SectionLabel n={adminStepForms ? 2 : 1} required>
-                          {isThesisRelayStep ? "อัปโหลดบันทึกข้อความส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์"
-                            : isThesisResultSendStep ? "อัปโหลดบันทึกข้อความส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
-                            : isThesisDocCheckStep ? "อัปโหลดบันทึกข้อความส่ง บ.4 + วิทยานิพนธ์ไปคณะวิศวกรรมศาสตร์"
+                          {isThesisResultSendStep ? "อัปโหลดบันทึกข้อความส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
                             : "อัปโหลดบันทึกข้อความส่งคณะวิศวกรรมศาสตร์"}
                         </SectionLabel>
                         <p className="text-sm text-gray-600 mb-2">
@@ -1250,9 +1250,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         />
                       </div>
                     )}
-                    {isProposalCoverStep && (
+                    {isLessPaperStep && (
                       <div>
-                        <SectionLabel n={adminStepForms ? 3 : 2} required>
+                        <SectionLabel n={(adminStepForms ? 1 : 0) + (isCoverStep ? 1 : 0) + 1} required>
                           อัปโหลดเอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper
                         </SectionLabel>
                         <FileUploader
@@ -1292,7 +1292,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                           ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
                           : isCoverStep && !latestCover && !pendingFiles.COVER_PAGE
                           ? "ต้องเลือกไฟล์บันทึกข้อความก่อนจึงจะอนุมัติได้"
-                          : isProposalCoverStep && !latestLessPaper && !pendingFiles.LESSPAPER_RECEIPT
+                          : isLessPaperStep && !latestLessPaper && !pendingFiles.LESSPAPER_RECEIPT
                           ? "ต้องเลือกไฟล์เอกสารที่มีเลขรับจากระบบ LessPaper ก่อนจึงจะอนุมัติได้"
                           : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
                       </p>

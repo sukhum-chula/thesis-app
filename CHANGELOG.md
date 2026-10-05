@@ -5,6 +5,20 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-10-06
+
+- **THESIS_DEFENSE steps 4 and 13 (stepOrders 4 and 16) take a LessPaper receipt instead of a
+  บันทึกข้อความ.** Neither step has a cover page any more: the `COVER_PAGE` upload box, its
+  "หัวหน้าภาควิชาลงนามในบันทึกข้อความแล้ว" checkbox and the server approve gate are gone from
+  both, and `POST /api/upload` now accepts a defense's `COVER_PAGE` only at step 11
+  (`ADMIN_RESULT_SEND`). Both steps instead have the "อัปโหลดเอกสารที่มีเลขรับโดยคณะผ่านระบบ
+  LessPaper" box plus the same checkbox PROPOSAL step 8 uses (`LESSPAPER_CHECK` in `utils.ts`),
+  gated client- and server-side (`REQUIRED_UPLOADS.THESIS_DEFENSE`). Step 13's copy must be newer
+  than step 12's approval (`freshUploadCutoff`, which now applies to the LessPaper file at that
+  step), and `LESSPAPER_RECEIPT` keeps every version for a defense — the step-4 copy moves under
+  ประวัติ. Step names, instructions, admin task labels, step 15's "emailed to the Faculty" wording
+  (no longer "พร้อมบันทึกข้อความ") and translations updated to match. No schema change.
+
 ## 2026-10-05
 
 - **PROPOSAL step 8 now also requires the Faculty's LessPaper receipt** ("เลขรับเอกสารที่ออกโดย

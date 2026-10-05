@@ -52,7 +52,7 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
   PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)],  step 12 (ADMIN) → [COVER_PAGE, LESSPAPER_RECEIPT]
-  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [COVER_PAGE],  step 6 → [SIGNED, EXAM_RESULT],   step 14 (ADMIN) → [COVER_PAGE, a new copy after step 13],   step 15 → [B4, THESIS],   step 16 (ADMIN) → [COVER_PAGE, a new copy after step 15]
+  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [LESSPAPER_RECEIPT],  step 6 → [SIGNED, EXAM_RESULT],   step 14 (ADMIN) → [COVER_PAGE, a new copy after step 13],   step 15 → [B4, THESIS],   step 16 (ADMIN) → [LESSPAPER_RECEIPT, a new copy after step 15]
   ```
   PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE's Faculty-returned FINANCE_DOC is unrelated and unchanged.)
 - **Tailwind class names in lookup maps must be whole static strings** (no interpolation).
@@ -909,7 +909,7 @@ the paper บ.2 before the student uploads it. บ.2 has no co-advisor signature
 #### Phase 4 (Steps 4–5): Faculty relay
 | Step | Role | Action |
 |------|------|--------|
-| 4 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), upload the **cover page** (`COVER_PAGE`, PDF, single version, ADMIN-only at this step, signed by the department chair — the card shows who) that goes to the Faculty with them, send to Faculty, tick `ADMIN_DEFENSE_RELAY_CHECKS` (cover page signed by the department chair; บ.2 + บ.3 sent with it), approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`). Same upload box as PROPOSAL step 8: the picked file is uploaded on อนุมัติ, and approve is gated on it (server `REQUIRED_UPLOADS.THESIS_DEFENSE[ADMIN_RELAY]`). |
+| 4 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), send them to the Faculty, upload the **LessPaper receipt** (`LESSPAPER_RECEIPT`, the package stamped with the Faculty's LessPaper receipt number; PDF, ADMIN-only at this step), tick `ADMIN_DEFENSE_RELAY_CHECKS` (บ.2 + บ.3 sent; LessPaper document uploaded), approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`). Same upload box as PROPOSAL step 8: the picked file is uploaded on อนุมัติ, and approve is gated on it (server `REQUIRED_UPLOADS.THESIS_DEFENSE[ADMIN_RELAY]`). **No cover page at this step** (removed 2026-10-06). |
 | 5 | ADMIN | **Confirm only**: forward the Faculty's email (ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter) to the student, tick the one-box checklist `ADMIN_DEFENSE_FORWARD_CHECKS`, approve (`THESIS_STEP.ADMIN_FORWARD`). Nothing is uploaded and no email is sent by the system. |
 
 Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC) and approving it emailed the advisor + external members an invitation notice; both are gone — the Faculty's email reaches the student directly via the admin, and the student uploads what the committee signs at step 6.
@@ -932,26 +932,27 @@ StepOrders 8–11 are shown as sub-steps 8.1–8.x; each signer ticks the one-bo
 |------|------|--------|
 | 12 | ADMIN | Check the committee-signed ใบรายงานผลการสอบ + แบบรายงานฯ; 3-item checklist `ADMIN_DEFENSE_RESULT_CHECKS` (`THESIS_STEP.ADMIN_RESULT_CHECK`) |
 | 13 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs ใบรายงานผลการสอบ (download latest, upload signed); one-box own-signature checklist (`THESIS_STEP.DEPT_CHAIR_RESULT`) |
-| 14 | ADMIN | Upload a **new cover page** (`COVER_PAGE`, must be newer than step 13 — `freshUploadCutoff`; same upload box as step 4, uploaded on อนุมัติ) and tick `ADMIN_DEFENSE_SEND_CHECKS` (cover page signed by the department chair; the result + cover page emailed to the Faculty); server-gated on the cover page (`THESIS_STEP.ADMIN_RESULT_SEND`) |
+| 14 | ADMIN | Upload a **new cover page** (`COVER_PAGE`, must be newer than step 13 — `freshUploadCutoff`; same upload box as PROPOSAL step 8, uploaded on อนุมัติ) and tick `ADMIN_DEFENSE_SEND_CHECKS` (cover page signed by the department chair; the result + cover page emailed to the Faculty); server-gated on the cover page (`THESIS_STEP.ADMIN_RESULT_SEND`) |
 
-A defense has **two cover pages** sharing the one `COVER_PAGE` slot — step 4's and step 14's — so
-for THESIS_DEFENSE the type is **not** single-version (the step-4 copy moves under ประวัติ); the
-upload route lets the ADMIN upload it at either step only.
+A defense has **one cover page** (`COVER_PAGE`), step 14's — steps 4 and 16 had one too until
+2026-10-06, when both were replaced by a **LessPaper receipt document** (`LESSPAPER_RECEIPT`).
+For THESIS_DEFENSE neither type is single-version (a defense built earlier keeps its older cover
+pages, and the two LessPaper documents share one slot — the step-4 copy moves under ประวัติ); the
+upload route lets the ADMIN upload each only at its own steps.
 
 #### Phase 6 (Steps 15–20, shown as 12–17): Thesis submission to the Faculty + iThesis
 | Step | Role | Action |
 |------|------|--------|
 | 15 | STUDENT | Upload B4 + THESIS (from the iThesis system, with barcode, **already signed by the whole committee outside the system**) (`THESIS_STEP.STUDENT_THESIS`); 6-item checklist `DEFENSE_STEP15_CHECKS` — บ.4 filled in + signed by the student, iThesis file with barcode, committee signatures complete, program name + thesis title correct, confirmed with the advisor |
-| 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 4 items incl. the cover page signed by the department chair) and upload a **new cover page** (`COVER_PAGE`, newer than step 15 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated) (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
+| 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 4 items incl. the LessPaper document uploaded) and upload a **new LessPaper receipt document** (`LESSPAPER_RECEIPT`, newer than step 15 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated). No cover page (removed 2026-10-06) (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
 | 17 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs **both** B4 and THESIS (download latest, upload both signed); 2-item own-signature checklist (`SIGN_CHECKS.THESIS_DEFENSE`) (`THESIS_STEP.DEPT_CHAIR_THESIS`) |
-| 18 | ADMIN | Confirm only: emailed B4 + thesis + cover page to the Faculty (`ADMIN_DEFENSE_THESIS_SEND_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_SEND`) |
+| 18 | ADMIN | Confirm only: emailed B4 + thesis to the Faculty (`ADMIN_DEFENSE_THESIS_SEND_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_SEND`) |
 | 19 | ADMIN | Confirm only, when the Faculty replies: forwarded its documents — **signed by the Dean (คณบดี)** — to the student (`ADMIN_DEFENSE_THESIS_FORWARD_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_FORWARD`) |
 | 20 | STUDENT | Confirm only, nothing uploaded: every required document has been submitted to the iThesis system (`DEFENSE_ITHESIS_CHECKS`, button "ยืนยัน") — the defense's last step (`THESIS_STEP.STUDENT_ITHESIS`) |
 
 The committee signs the thesis **outside the system** (the five in-system cover-signing steps were
 removed 2026-10-01), and the program chair no longer signs บ.4 — the department chair signs both
-documents at step 17. A defense now has **three cover pages** in the one `COVER_PAGE` slot (steps 4,
-14, 16).
+documents at step 17.
 
 **Per-member uploads** (`PER_MEMBER_FORMS` / `isPerMemberForm()` in `workflowSteps.ts` — only the
 defense's B3 so far): `POST /api/upload` requires a `memberId` that is on the submission's committee
@@ -1010,7 +1011,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
   a rejected one — permanently undeletable** while still showing `0 0 0`. (`createdUserId` is
   optional and so already defaulted to `SetNull`; the EXTERNAL account an approved request created
   was never blocked by it.)
-- **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 4–5 (`THESIS_STEP.ADMIN_RELAY`/`ADMIN_FORWARD`) — step 4: upload the cover page and send B2+B3 to Faculty; step 5: forward the Faculty's email to the student and confirm. Admin panel shows a relay-step-specific checklist banner.
+- **Admin (พี่โบ้)** relays at THESIS_DEFENSE steps 4–5 (`THESIS_STEP.ADMIN_RELAY`/`ADMIN_FORWARD`) — step 4: send B2+B3 to Faculty and upload the LessPaper receipt document; step 5: forward the Faculty's email to the student and confirm. Admin panel shows a relay-step-specific checklist banner.
 - **Student upload steps** start PENDING; student uploads required files then clicks submit to advance
 - **Rejection** stays on the same step (marked `REJECTED`) until the student resubmits — it does NOT move back a step. Any role can reject, except on an ADMIN step, which offers only อนุมัติ + ส่งกลับ. (ส่งกลับ/`return_to_prev`, admin-only, is the separate action that actually moves back one step.)
 - **One active proposal per student, defense created from a completed one** — a new PROPOSAL is blocked while an existing one is anything other than `CANCELLED`; a THESIS_DEFENSE requires a `COMPLETED`, non-cancelled source proposal (`sourceProposalId`) and imports (editable, independent copy) its committee. See "Proposal-first" above.

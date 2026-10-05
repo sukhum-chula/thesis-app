@@ -199,10 +199,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         THESIS_DEFENSE: {
           [THESIS_STEP.STUDENT_B2_B3]:  ["B2", "B3"],
           [THESIS_STEP.ADMIN_CHECK]:    ["FINANCE_ATTACH"],
-          [THESIS_STEP.ADMIN_RELAY]:    ["COVER_PAGE"], // cover page sent to the Faculty with บ.2 + บ.3
+          [THESIS_STEP.ADMIN_RELAY]:    ["LESSPAPER_RECEIPT"], // the package stamped with the Faculty's LessPaper receipt number
           [THESIS_STEP.STUDENT_REPORT]: ["SIGNED", "EXAM_RESULT"], // from the Faculty email the admin forwarded
           [THESIS_STEP.ADMIN_RESULT_SEND]: ["COVER_PAGE"], // a new one (freshUploadCutoff) — sent with the result
-          [THESIS_STEP.ADMIN_THESIS_CHECK]: ["COVER_PAGE"], // a new one (freshUploadCutoff) — sent with the thesis
+          [THESIS_STEP.ADMIN_THESIS_CHECK]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — for the thesis
           [THESIS_STEP.STUDENT_THESIS]: ["B4", "THESIS"],
         },
       };
