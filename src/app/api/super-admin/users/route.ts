@@ -10,7 +10,8 @@ const ROLE_SORT_ORDER: Record<string, number> = {
   SUPER_ADMIN: 0,
   ADMIN: 1,
   PROFESSOR: 2,
-  STUDENT: 3,
+  EXTERNAL: 3,
+  STUDENT: 4,
 };
 
 function primaryRole(roles: string[]): string {

@@ -19,7 +19,7 @@ import {
 // view every account read-only via GET /api/super-admin/users (oversight, not management).
 const MANAGEABLE_ROLES: Role[] = ["ADMIN", "SUPER_ADMIN"];
 // Standard user-type sort order used elsewhere in the app (src/lib/utils.ts's ROLE_SORT_ORDER).
-const ALL_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "PROFESSOR", "STUDENT"];
+const ALL_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "PROFESSOR", "EXTERNAL", "STUDENT"];
 
 interface DirectoryUser {
   id: string;
