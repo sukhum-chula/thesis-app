@@ -7,6 +7,11 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-05
 
+- **"ใบปะหน้า" is now called "บันทึกข้อความ" everywhere in the UI** (the `COVER_PAGE` form the
+  ADMIN uploads at PROPOSAL step 8 and THESIS_DEFENSE steps 4/11/13): form labels, step names,
+  checklists, admin task labels, upload-route errors, and the Thai keys in `translations.ts`.
+  The enum value `COVER_PAGE` and the English translations ("cover page") are unchanged.
+
 - **PROPOSAL step 4's name now says the proposal exam must already be done**: "หลังสอบโครงร่างแล้ว —
   นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)" (`PROPOSAL_STEP_NAMES`, plus its English entry in
   `translations.ts`, which is keyed on the Thai string). Display text only; no workflow change.

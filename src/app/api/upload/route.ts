@@ -91,11 +91,11 @@ export async function POST(req: NextRequest) {
   const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { steps: number[]; label: string }>> = {
     PROPOSAL: {
       FINANCE_ATTACH: { steps: [2],  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
-      COVER_PAGE:     { steps: [12], label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+      COVER_PAGE:     { steps: [12], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
     },
     THESIS_DEFENSE: {
       FINANCE_ATTACH: { steps: [THESIS_STEP.ADMIN_CHECK], label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
-      COVER_PAGE:     { steps: [THESIS_STEP.ADMIN_RELAY, THESIS_STEP.ADMIN_RESULT_SEND, THESIS_STEP.ADMIN_THESIS_CHECK], label: "ใบปะหน้าอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 4, 11 และ 13 เท่านั้น" },
+      COVER_PAGE:     { steps: [THESIS_STEP.ADMIN_RELAY, THESIS_STEP.ADMIN_RESULT_SEND, THESIS_STEP.ADMIN_THESIS_CHECK], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 4, 11 และ 13 เท่านั้น" },
     },
   };
   const adminOnly = ADMIN_ONLY_AT_STEP[subCheck.submissionType ?? "PROPOSAL"]?.[formType];

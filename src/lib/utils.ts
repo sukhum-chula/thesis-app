@@ -88,7 +88,7 @@ export const FORM_LABELS: Record<FormType, string> = {
   EXAM_RESULT:    "ใบรายงานผลการสอบวิทยานิพนธ์",
   INVITE_LETTER: "หนังสือเชิญกรรมการสอบ",
   VERY_GOOD_EVAL:"แบบประเมินวิทยานิพนธ์ดีมาก",
-  COVER_PAGE:    "ใบปะหน้าส่งคณะวิศวกรรมศาสตร์",
+  COVER_PAGE:    "บันทึกข้อความส่งคณะวิศวกรรมศาสตร์",
 };
 
 export const PROGRAM_LABELS: Record<string, string> = {
@@ -361,7 +361,7 @@ export const FORM_SHORT: Record<FormType, string> = {
   EXAM_RESULT:    "ใบรายงานผล",
   INVITE_LETTER: "หนังสือเชิญ",
   VERY_GOOD_EVAL:"แบบประเมินดีมาก",
-  COVER_PAGE:    "ใบปะหน้า",
+  COVER_PAGE:    "บันทึกข้อความ",
 };
 
 /** File format each form type must be uploaded in. FINANCE_ATTACH is filled in from a .docx
@@ -453,7 +453,7 @@ export const B1_CHECK_GROUPS = [
   { key: "confirm",   title: "การยืนยันข้อมูล" },
   { key: "mySign",    title: "การลงนามของท่าน" },
   { key: "verify",    title: "การตรวจสอบของเจ้าหน้าที่" },
-  { key: "cover",     title: "ใบปะหน้าส่งคณะฯ" },
+  { key: "cover",     title: "บันทึกข้อความส่งคณะฯ" },
   { key: "b2",        title: "บ.2" },
   { key: "b3",        title: "บ.3" },
   { key: "b4",        title: "บ.4" },
@@ -462,7 +462,7 @@ export const B1_CHECK_GROUPS = [
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
 /** Every ADMIN cover-page step (PROPOSAL 8, THESIS_DEFENSE 4/11/13) ends with this check */
-const COVER_SIGNED_LABEL = "หัวหน้าภาควิชาลงนามในใบปะหน้าแล้ว";
+const COVER_SIGNED_LABEL = "หัวหน้าภาควิชาลงนามในบันทึกข้อความแล้ว";
 export const B1_CHECKS: B1Check[] = [
   { key: "fillA",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ก ครบถ้วนแล้ว" },
   { key: "fillB",    group: "fill", label: "กรอกข้อมูลใน บ.วศ.1ข ครบถ้วนแล้ว" },
@@ -603,13 +603,13 @@ export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   9:  "กรรมการสอบลงนาม บ.วศ.1ค",
   10: "เจ้าหน้าที่ตรวจสอบ (รอบ 2)",
   11: "ประธานหลักสูตรลงนาม บ.วศ.1ค + บ.วศ.1ง",
-  12: "เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดใบปะหน้าส่งคณะฯ",
+  12: "เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดบันทึกข้อความส่งคณะฯ",
 };
 
 /** THESIS_DEFENSE step 4 (THESIS_STEP.ADMIN_RELAY) — the cover page, and บ.2 + บ.3 sent to the Faculty */
 export const ADMIN_DEFENSE_RELAY_CHECKS: B1Check[] = [
   { key: "coverSigned", group: "cover",   label: COVER_SIGNED_LABEL },
-  { key: "emailSent",   group: "confirm", label: "นำส่ง บ.2 และ บ.3 พร้อมใบปะหน้าไปยังคณะฯ แล้ว" },
+  { key: "emailSent",   group: "confirm", label: "นำส่ง บ.2 และ บ.3 พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
 ];
 /** THESIS_DEFENSE step 5 (THESIS_STEP.ADMIN_FORWARD) — the ADMIN only confirms forwarding the
  *  Faculty's email to the student; nothing is uploaded (the student uploads the documents at step 6) */
@@ -650,7 +650,7 @@ export const ADMIN_DEFENSE_RESULT_CHECKS: B1Check[] = [
  *  documents were emailed to the Faculty */
 export const ADMIN_DEFENSE_SEND_CHECKS: B1Check[] = [
   { key: "coverSigned", group: "cover", label: COVER_SIGNED_LABEL },
-  { key: "emailSent", group: "confirm", label: "ส่งอีเมลใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะฯ แล้ว" },
+  { key: "emailSent", group: "confirm", label: "ส่งอีเมลใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_CHECK — the ADMIN checks the student's บ.4 + thesis
  *  (and uploads a new cover page) before the department chair signs them */
@@ -662,7 +662,7 @@ export const ADMIN_DEFENSE_THESIS_CHECKS: B1Check[] = [
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_SEND — the ADMIN confirms the documents were emailed */
 export const ADMIN_DEFENSE_THESIS_SEND_CHECKS: B1Check[] = [
-  { key: "emailSent", group: "confirm", label: "ส่งอีเมล บ.4 และวิทยานิพนธ์ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมใบปะหน้าไปยังคณะฯ แล้ว" },
+  { key: "emailSent", group: "confirm", label: "ส่งอีเมล บ.4 และวิทยานิพนธ์ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_FORWARD — the student confirms iThesis after this */
 export const ADMIN_DEFENSE_THESIS_FORWARD_CHECKS: B1Check[] = [
@@ -678,7 +678,7 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   1:  "นิสิตอัปโหลด บ.2 + บ.3 ของกรรมการทุกท่าน",
   2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
   3:  "ประธานหลักสูตรลงนาม บ.2",
-  4:  "เจ้าหน้าที่อัปโหลดใบปะหน้า และนำส่ง บ.2 + บ.3 ไปคณะ",
+  4:  "เจ้าหน้าที่อัปโหลดบันทึกข้อความ และนำส่ง บ.2 + บ.3 ไปคณะ",
   5:  "เจ้าหน้าที่ส่งต่ออีเมลจากคณะให้นิสิต",
   6:  "นิสิตอัปโหลดแบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนาม) + ใบรายงานผลการสอบ",
   7:  "อาจารย์ที่ปรึกษาลงนาม แบบรายงานฯ + ใบรายงานผล",
@@ -688,9 +688,9 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   11: "กรรมการภายนอกลงนาม ใบรายงานผล",
   12: "เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ",
   13: "หัวหน้าภาควิชาลงนาม ใบรายงานผล",
-  14: "เจ้าหน้าที่อัปโหลดใบปะหน้า และส่งอีเมลเอกสารไปคณะ",
+  14: "เจ้าหน้าที่อัปโหลดบันทึกข้อความ และส่งอีเมลเอกสารไปคณะ",
   15: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์",
-  16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์ และอัปโหลดใบปะหน้า",
+  16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์ และอัปโหลดบันทึกข้อความ",
   17: "หัวหน้าภาควิชาลงนาม บ.4 + วิทยานิพนธ์",
   18: "เจ้าหน้าที่ส่งอีเมลเอกสารวิทยานิพนธ์ไปคณะ",
   19: "เจ้าหน้าที่ส่งต่อเอกสารจากคณะ (คณบดีลงนามแล้ว) ให้นิสิต",

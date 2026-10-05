@@ -58,7 +58,7 @@ enum FormType {
   EXAM_RESULT
   INVITE_LETTER
   VERY_GOOD_EVAL
-  COVER_PAGE   // PROPOSAL step 12: ใบปะหน้า signed by the department chair, sent to the Faculty
+  COVER_PAGE   // PROPOSAL step 12: บันทึกข้อความ signed by the department chair, sent to the Faculty
 }
 
 enum ProgramType {

@@ -1143,14 +1143,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               ) : isProposalCoverStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>ตรวจสอบ บ.วศ.1ก–ง ฉบับสุดท้ายว่าครบถ้วนและลงนามครบทุกตำแหน่ง</li>
-                  <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — การสอบโครงร่างจะเสร็จสมบูรณ์</li>
                 </ol>
               ) : isThesisRelayStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>พิมพ์ / รวบรวม บ.2 + บ.3 จากระบบ</li>
-                  <li>เตรียมใบปะหน้าให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
-                  <li>นำส่ง บ.2 + บ.3 พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>นำส่ง บ.2 + บ.3 พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : isThesisResultCheckStep ? (
@@ -1160,19 +1160,19 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 </ol>
               ) : isThesisResultSendStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>เตรียมใบปะหน้า แล้วเลือกไฟล์ด้านล่าง</li>
-                  <li>ส่งอีเมลใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>เตรียมบันทึกข้อความ แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>ส่งอีเมลใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
                 </ol>
               ) : isThesisDocCheckStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>ตรวจสอบ บ.4 และวิทยานิพนธ์ฉบับสมบูรณ์ที่นิสิตอัปโหลด</li>
-                  <li>เตรียมใบปะหน้า แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>เตรียมบันทึกข้อความ แล้วเลือกไฟล์ด้านล่าง</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
                 </ol>
               ) : isThesisDocSendStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ส่งอีเมล บ.4 และวิทยานิพนธ์ที่หัวหน้าภาควิชาลงนามแล้ว พร้อมใบปะหน้าไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>ส่งอีเมล บ.4 และวิทยานิพนธ์ที่หัวหน้าภาควิชาลงนามแล้ว พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
                 </ol>
               ) : isThesisDocForwardStep ? (
@@ -1225,13 +1225,13 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     {isCoverStep && (
                       <div>
                         <SectionLabel n={adminStepForms ? 2 : 1} required>
-                          {isThesisRelayStep ? "อัปโหลดใบปะหน้าส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์"
-                            : isThesisResultSendStep ? "อัปโหลดใบปะหน้าส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
-                            : isThesisDocCheckStep ? "อัปโหลดใบปะหน้าส่ง บ.4 + วิทยานิพนธ์ไปคณะวิศวกรรมศาสตร์"
-                            : "อัปโหลดใบปะหน้าส่งคณะวิศวกรรมศาสตร์"}
+                          {isThesisRelayStep ? "อัปโหลดบันทึกข้อความส่ง บ.2 + บ.3 ไปคณะวิศวกรรมศาสตร์"
+                            : isThesisResultSendStep ? "อัปโหลดบันทึกข้อความส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
+                            : isThesisDocCheckStep ? "อัปโหลดบันทึกข้อความส่ง บ.4 + วิทยานิพนธ์ไปคณะวิศวกรรมศาสตร์"
+                            : "อัปโหลดบันทึกข้อความส่งคณะวิศวกรรมศาสตร์"}
                         </SectionLabel>
                         <p className="text-sm text-gray-600 mb-2">
-                          ใบปะหน้า (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
+                          บันทึกข้อความ (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
                           <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
                         </p>
                         <FileUploader
@@ -1270,7 +1270,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         {isFinanceReviewStep && !latestFinanceAttach
                           ? "ต้องสร้างเอกสารการเงินก่อนจึงจะอนุมัติได้"
                           : isCoverStep && !latestCover && !pendingFiles.COVER_PAGE
-                          ? "ต้องเลือกไฟล์ใบปะหน้าก่อนจึงจะอนุมัติได้"
+                          ? "ต้องเลือกไฟล์บันทึกข้อความก่อนจึงจะอนุมัติได้"
                           : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนอนุมัติ"}
                       </p>
                     )}
