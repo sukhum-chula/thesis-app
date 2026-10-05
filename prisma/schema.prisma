@@ -59,6 +59,7 @@ enum FormType {
   INVITE_LETTER
   VERY_GOOD_EVAL
   COVER_PAGE   // PROPOSAL step 12: บันทึกข้อความ signed by the department chair, sent to the Faculty
+  LESSPAPER_RECEIPT // PROPOSAL step 12: เลขรับเอกสาร the Faculty issued through LessPaper
 }
 
 enum ProgramType {

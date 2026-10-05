@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!file || !submissionId || !formType)
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-  const ALLOWED_FORM_TYPES = ["B1", "B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL", "COVER_PAGE"];
+  const ALLOWED_FORM_TYPES = ["B1", "B1A", "B1B", "B1C", "B1D", "B2", "B3", "B4", "THESIS", "SIGNED", "FINANCE_DOC", "FINANCE_ATTACH", "EXAM_RESULT", "INVITE_LETTER", "VERY_GOOD_EVAL", "COVER_PAGE", "LESSPAPER_RECEIPT"];
   if (!ALLOWED_FORM_TYPES.includes(formType))
     return NextResponse.json({ error: "Invalid form type" }, { status: 400 });
 
@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
     PROPOSAL: {
       FINANCE_ATTACH: { steps: [2],  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
       COVER_PAGE:     { steps: [12], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+      LESSPAPER_RECEIPT: { steps: [12], label: "เลขรับเอกสารจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
     },
     THESIS_DEFENSE: {
       FINANCE_ATTACH: { steps: [THESIS_STEP.ADMIN_CHECK], label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },

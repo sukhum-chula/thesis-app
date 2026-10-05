@@ -7,6 +7,13 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-05
 
+- **PROPOSAL step 8 now also requires the Faculty's LessPaper receipt** ("เลขรับเอกสารที่ออกโดย
+  คณะผ่านระบบ LessPaper"). New `FormType` value `LESSPAPER_RECEIPT` (PDF, single version, ADMIN-only
+  at stepOrder 12, listed under เอกสารส่งคณะฯ). The admin's step-8 card has a second upload box
+  next to the บันทึกข้อความ, `ADMIN_STEP8_CHECKS` gains a fourth item confirming it was uploaded,
+  and approve is gated on the file client- and server-side (`REQUIRED_UPLOADS.PROPOSAL[12]`).
+  Needs `prisma db push` for the new enum value before deploying.
+
 - **"ใบปะหน้า" is now called "บันทึกข้อความ" everywhere in the UI** (the `COVER_PAGE` form the
   ADMIN uploads at PROPOSAL step 8 and THESIS_DEFENSE steps 4/11/13): form labels, step names,
   checklists, admin task labels, upload-route errors, and the Thai keys in `translations.ts`.

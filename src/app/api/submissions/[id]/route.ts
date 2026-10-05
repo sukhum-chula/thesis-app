@@ -195,7 +195,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // PROPOSAL step 4: student and admin upload in parallel — only student docs required here;
       // FINANCE_DOC is checked separately and auto-advances the step when both sides are ready.
       const REQUIRED_UPLOADS: Record<string, Record<number, string[]>> = {
-        PROPOSAL:       { 1: ["B1"], 2: ["FINANCE_ATTACH"], 4: ["B1"], 12: ["COVER_PAGE"] },
+        PROPOSAL:       { 1: ["B1"], 2: ["FINANCE_ATTACH"], 4: ["B1"], 12: ["COVER_PAGE", "LESSPAPER_RECEIPT"] },
         THESIS_DEFENSE: {
           [THESIS_STEP.STUDENT_B2_B3]:  ["B2", "B3"],
           [THESIS_STEP.ADMIN_CHECK]:    ["FINANCE_ATTACH"],
