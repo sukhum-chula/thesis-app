@@ -7,6 +7,10 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-05
 
+- **PROPOSAL step 4's name now says the proposal exam must already be done**: "หลังสอบโครงร่างแล้ว —
+  นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)" (`PROPOSAL_STEP_NAMES`, plus its English entry in
+  `translations.ts`, which is keyed on the Thai string). Display text only; no workflow change.
+
 - **A proposal with any defense built from it can no longer be deleted.** `DELETE
   /api/submissions/[id]` used to refuse only while the linked THESIS_DEFENSE was still running, so a
   proposal whose defense was `COMPLETED` or `CANCELLED` could be deleted, silently nulling the

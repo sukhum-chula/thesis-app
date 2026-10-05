@@ -874,7 +874,7 @@ internal `stepOrder` every rule keys off.
 #### Phase 2 (Steps 4–11): บ.วศ.1ค + บ.วศ.1ง
 | Step | Shown as | Role | Action |
 |------|----------|------|--------|
-| 4  | 4   | STUDENT | Download the latest B1 (chair-signed), fill บ.วศ.1ค + 1ง, re-upload as a new B1 (must be newer than step 3's approval — `freshUploadCutoff`); 9-item checklist (see "Step 4 uses the same combined file"). No finance document. |
+| 4  | 4   | STUDENT | **After the proposal exam** (the step name says so: "หลังสอบโครงร่างแล้ว — …"). Download the latest B1 (chair-signed), fill บ.วศ.1ค + 1ง, re-upload as a new B1 (must be newer than step 3's approval — `freshUploadCutoff`); 9-item checklist (see "Step 4 uses the same combined file"). No finance document. |
 | 5  | 5.1 | HEAD_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place); one checkbox |
 | 6  | 5.2 | ADVISOR | Sign บ.วศ.1ค (one place); one checkbox |
 | 7  | 5.x | CO_ADVISOR | Sign บ.วศ.1ค (one place each); one checkbox — **auto-SKIPPED (and not numbered) if no co-advisors assigned** |

@@ -47,7 +47,7 @@ export const TH_EN: [string, string][] = [
 
   // ── PROPOSAL step names ──────────────────────────────────────────────────────
   ["นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)", "Student uploads B1 (B1A + B1B filled)"],
-  ["นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)", "Student uploads B1 (B1C + B1D filled)"],
+  ["หลังสอบโครงร่างแล้ว — นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)", "After the proposal exam — student uploads B1 (B1C + B1D filled)"],
   ["บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)", "B1 (B1C + B1D filled)"],
   ["ไฟล์ PDF ไฟล์เดียวที่รวม บ.วศ.1ก–ง — ขั้นตอนนี้กรอก บ.วศ.1ค และ บ.วศ.1ง ต่อจากไฟล์ล่าสุด", "One PDF containing B1A–B1D — at this step fill in B1C and B1D, continuing from the latest file"],
   ["ฉบับล่าสุดในระบบ เพื่อกรอกต่อ", "latest version in the system, to continue filling in"],
