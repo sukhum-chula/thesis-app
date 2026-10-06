@@ -54,6 +54,9 @@ export async function POST() {
       studentCode: account.studentId ?? "",
       studentEmail: account.email,
       studentPhone: account.phone ?? null,
+      // The live column is NOT NULL with no default (it was added by a raw-SQL migration), and
+      // Prisma sends NULL for an omitted scalar list — so this must be set explicitly.
+      invitedCommitteeIds: [],
     },
     include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
   });
