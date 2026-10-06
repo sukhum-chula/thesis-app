@@ -29,6 +29,7 @@ const nextConfig: NextConfig = {
   // can't see an fs.readFile path, so ship the template with that route explicitly.
   outputFileTracingIncludes: {
     "/api/submissions/*/finance-attach": ["./templates/**/*"],
+    "/api/submissions/*/cover-memo": ["./templates/**/*"],
   },
   async headers() {
     return [

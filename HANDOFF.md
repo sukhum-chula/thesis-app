@@ -32,9 +32,10 @@ The app is **live with real users** — treat data and email as production, on e
   `buildWorkflowSteps(...)` in one transaction (one-off script, deleted afterwards).
 - **The department chair (SystemSetting `departmentChair`) is set to what looks like a test account**
   (ศ.ดร.ไพโรจน์ สิงหถนัดกิจ, `sukhum.s+pairod@…`, checked 2026-10-01). Since 2026-10-01 that holder is
-  the only one who can sign THESIS_DEFENSE stepOrders 13 and 17 (shown as 10 and 14 — ใบรายงานผล,
-  then บ.4 + thesis) and can see every defense — set the real หัวหน้าภาควิชา in "ตั้งค่าระบบ"
-  before a real defense reaches those steps.
+  the only one who can sign PROPOSAL stepOrder 13 (shown 9 — the cover memo) and THESIS_DEFENSE
+  stepOrders 13 and 17 (shown as 10 and 14 — ใบรายงานผล + the result memo, then บ.4) and can see
+  every submission — and their name is printed under the signature line of the generated defense
+  result memo. Set the real หัวหน้าภาควิชา in "ตั้งค่าระบบ" before a real submission reaches those steps.
 - **Only 2 `EXTERNAL` accounts exist** (checked 2026-10-05: 28 users — 1 SUPER_ADMIN, 2 ADMIN,
   21 PROFESSOR, 2 EXTERNAL, 2 STUDENT). Every submission needs at least one for กรรมการภายนอก,
   and a `PHD` one needs another to chair the exam committee (one person, one role) — see
@@ -159,6 +160,9 @@ Roughly in priority order:
    upload was confirmed working (after the dev-server restart above). Still unverified: approving
    step 8 (completion), the finance email firing on step 2's approval (this proposal's email went
    out under the old step-3 rule), and a full run on the deployed site.
+   **The generated memos (2026-10-06) have had no browser pass either**: PROPOSAL step 8 → 9 → 10
+   and THESIS_DEFENSE step 9 (generate the ขอส่งผลสอบ memo, upload the PDF) → 10 (the department
+   chair signs ใบรายงานผล + the memo) → 11 (LessPaper only).
 5. **Fix the outgoing-mail quota problem** (see warning above) — pick one of the three options and
    do it, rather than continuing to absorb Gmail's daily cap.
 6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against

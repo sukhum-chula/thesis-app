@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { FormType, MockSubmission, NameTitle, Role, StepStatus, SubmissionStatus } from "@/types";
-import { THESIS_STEP } from "@/lib/workflowSteps";
+import { THESIS_STEP, PROPOSAL_STEP } from "@/lib/workflowSteps";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -394,12 +394,14 @@ export function checkFormFile(formType: string, file: File): string | null {
  *  this the old copy would satisfy step 4's gate. Shared by the approve gate, the step-4
  *  auto-advance in POST /api/upload, and the student's upload checklist. */
 const FRESH_UPLOAD_AFTER_STEP: Record<string, Record<number, number>> = {
-  PROPOSAL: { 4: 3 },
-  // the result-send step's cover page + LessPaper document and the thesis-send step's LessPaper document must be new
+  // step 4's B1; the department chair's signed cover memo must be newer than the ADMIN's unsigned one
+  PROPOSAL: { 4: 3, [PROPOSAL_STEP.DEPT_CHAIR_COVER]: PROPOSAL_STEP.ADMIN_COVER },
+  // the department chair's signed result memo, the result-send step's LessPaper document and the thesis-send step's LessPaper document must be new
   // copies (a defense built before 2026-10-06 also has a relay-step cover page; step 4 has a LessPaper one)
   THESIS_DEFENSE: {
     [THESIS_STEP.ADVISOR_RESULT]:     THESIS_STEP.STUDENT_REPORT, // the advisor's signed แบบรายงานฯ + ใบรายงานผล
-    [THESIS_STEP.ADMIN_RESULT_SEND]:  THESIS_STEP.DEPT_CHAIR_RESULT,
+    [THESIS_STEP.DEPT_CHAIR_RESULT]:  THESIS_STEP.ADMIN_RESULT_CHECK, // the chair's signed memo must be newer than the unsigned one
+    [THESIS_STEP.ADMIN_RESULT_SEND]:  THESIS_STEP.DEPT_CHAIR_RESULT,  // its LessPaper document
     [THESIS_STEP.ADMIN_THESIS_SEND]:  THESIS_STEP.DEPT_CHAIR_THESIS, // a third LessPaper document, for the thesis
   },
 };
@@ -467,7 +469,7 @@ export const B1_CHECK_GROUPS = [
   { key: "report",    title: "แบบรายงานการเสนอผลงานฯ" },
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
-/** Every ADMIN cover-page step (PROPOSAL 8, THESIS_DEFENSE 4/11/13) ends with this check */
+/** Every ADMIN step that sends a chair-signed memo (PROPOSAL 10, THESIS_DEFENSE 11) has this check */
 const COVER_SIGNED_LABEL = "หัวหน้าภาควิชาลงนามในบันทึกข้อความแล้ว";
 const LESSPAPER_CHECK: B1Check = { key: "lessPaper", group: "lessPaper", label: "อัปโหลดเอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper แล้ว" };
 export const B1_CHECKS: B1Check[] = [
@@ -503,13 +505,19 @@ export const ADMIN_STEP6_CHECKS: B1Check[] = [
   { key: "topicOk",         group: "verify", label: "หัวข้อวิทยานิพนธ์ใน บ.วศ.1ง ถูกต้องตามความเห็นของคณะกรรมการสอบแล้ว (หัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ อย่างเป็นทางการ)" },
   { key: "renameTopic",     group: "verify", label: "แก้ไขหัวข้อวิทยานิพนธ์ในระบบให้ตรงกับ บ.วศ.1ง แล้ว (ปุ่ม \"แก้ไข\" ในหน้านี้)" },
 ];
-/** PROPOSAL step 8 (stepOrder 12) — the ADMIN's final recheck before the package goes to the
- *  Faculty, plus the cover page (COVER_PAGE, uploaded on the same card) signed by the
- *  department chair (SystemSetting "departmentChair") */
+/** PROPOSAL step 8 (PROPOSAL_STEP.ADMIN_COVER) — the ADMIN's final recheck, plus the cover memo the
+ *  system generates (.docx), which the ADMIN converts to PDF and uploads (COVER_PAGE) on the same
+ *  card for the department chair to sign at the next step */
 export const ADMIN_STEP8_CHECKS: B1Check[] = [
   { key: "allSigned",   group: "verify", label: "บ.วศ.1ก–ง ครบถ้วน และลงนามครบทุกตำแหน่งแล้ว" },
   { key: "titleSynced", group: "verify", label: "หัวข้อวิทยานิพนธ์ในระบบตรงกับ บ.วศ.1ง แล้ว" },
-  { key: "coverSigned", group: "cover",  label: COVER_SIGNED_LABEL },
+  { key: "coverReady",  group: "cover",  label: "ข้อมูลในบันทึกข้อความถูกต้องครบถ้วน และอัปโหลดเป็นไฟล์ PDF แล้ว" },
+];
+/** PROPOSAL step 10 (PROPOSAL_STEP.ADMIN_SEND) — the department-chair-signed cover memo + บ.วศ.1
+ *  delivered to the Faculty, plus the LessPaper receipt document (uploaded on the same card) */
+export const ADMIN_STEP10_CHECKS: B1Check[] = [
+  { key: "coverSigned", group: "cover",   label: COVER_SIGNED_LABEL },
+  { key: "sent",        group: "confirm", label: "นำส่ง บ.วศ.1 พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
   LESSPAPER_CHECK,
 ];
 export const CHAIR_B1_CHECKS: B1Check[] = [
@@ -578,6 +586,9 @@ export const PROPOSAL_SIGN_CHECKS: Record<number, B1Check[]> = {
   8: SIGN_B1C_CHECKS,
   9: SIGN_B1C_CHECKS,
   11: CHAIR_FINAL_CHECKS,
+  [PROPOSAL_STEP.DEPT_CHAIR_COVER]: [
+    { key: "mySignCover", group: "mySign", label: "ท่านลงนามในบันทึกข้อความแล้ว (1 ตำแหน่ง)" },
+  ],
 };
 /** THESIS_DEFENSE ใบรายงานผลการสอบ signers — the committee (8.x) and the department chair */
 const SIGN_RESULT_CHECKS: B1Check[] = [
@@ -595,7 +606,11 @@ export const SIGN_CHECKS: Record<string, Record<number, B1Check[]>> = {
     9:  SIGN_RESULT_CHECKS,
     10: SIGN_RESULT_CHECKS,
     11: SIGN_RESULT_CHECKS,
-    [THESIS_STEP.DEPT_CHAIR_RESULT]: SIGN_RESULT_CHECKS,
+    // shown as step 10 — the department chair signs ใบรายงานผลการสอบ and the result memo
+    [THESIS_STEP.DEPT_CHAIR_RESULT]: [
+      ...SIGN_RESULT_CHECKS,
+      { key: "mySignCover", group: "mySign", label: "ท่านลงนามในบันทึกข้อความแล้ว (1 ตำแหน่ง)" },
+    ],
     // shown as step 14 — the department chair signs บ.4 only (not the thesis)
     [THESIS_STEP.DEPT_CHAIR_THESIS]: [
       { key: "headSignB4",     group: "mySign", label: "ท่านลงนามใน บ.4 แล้ว (1 ตำแหน่ง)" },
@@ -603,7 +618,7 @@ export const SIGN_CHECKS: Record<string, Record<number, B1Check[]>> = {
   },
 };
 
-// Step names for proposal submissions (12 steps)
+// Step names for proposal submissions (14 steps)
 export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   1:  "นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)",
   2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
@@ -617,6 +632,8 @@ export const PROPOSAL_STEP_NAMES: Record<number, string> = {
   10: "เจ้าหน้าที่ตรวจสอบ (รอบ 2)",
   11: "ประธานหลักสูตรลงนาม บ.วศ.1ค + บ.วศ.1ง",
   12: "เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดบันทึกข้อความส่งคณะฯ",
+  13: "หัวหน้าภาควิชาลงนามบันทึกข้อความ",
+  14: "เจ้าหน้าที่นำส่งคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper",
 };
 
 /** THESIS_DEFENSE step 4 (THESIS_STEP.ADMIN_RELAY) — บ.2 + บ.3 sent to the Faculty, plus the LessPaper
@@ -654,14 +671,15 @@ export function defenseExamResult(steps: { stepOrder: number; notes?: string | n
 }
 
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_CHECK — the ADMIN checks the committee-signed documents
- *  before the department chair signs */
+ *  and generates the บันทึกข้อความ ขอส่งผลสอบ (.docx → PDF, COVER_PAGE) before the department chair signs both */
 export const ADMIN_DEFENSE_RESULT_CHECKS: B1Check[] = [
   { key: "resultSigned", group: "verify", label: "อาจารย์ที่ปรึกษาและคณะกรรมการสอบลงนามในใบรายงานผลการสอบครบทุกท่านแล้ว (นิสิตไม่ต้องลงนาม)" },
   { key: "reportSigned", group: "verify", label: "นิสิตและอาจารย์ที่ปรึกษาลงนามในแบบรายงานการเสนอผลงานฯ แล้ว" },
   { key: "resultMatch",  group: "verify", label: "ผลการสอบในเอกสารตรงกับผลที่อาจารย์ที่ปรึกษาเลือกในระบบแล้ว" },
+  { key: "coverReady",   group: "cover",  label: "ข้อมูลในบันทึกข้อความถูกต้องครบถ้วน และอัปโหลดเป็นไฟล์ PDF แล้ว" },
 ];
-/** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_SEND — the ADMIN uploads the cover page and confirms the
- *  documents were emailed to the Faculty */
+/** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_SEND — the ADMIN delivers the department-chair-signed result +
+ *  memo to the Faculty and uploads the LessPaper document */
 export const ADMIN_DEFENSE_SEND_CHECKS: B1Check[] = [
   { key: "coverSigned", group: "cover", label: COVER_SIGNED_LABEL },
   { key: "emailSent", group: "confirm", label: "นำส่งใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
@@ -702,8 +720,8 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   9:  "ประธานกรรมการสอบลงนาม ใบรายงานผล",
   10: "กรรมการสอบลงนาม ใบรายงานผล",
   11: "กรรมการภายนอกลงนาม ใบรายงานผล",
-  12: "เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ",
-  13: "หัวหน้าภาควิชาลงนาม ใบรายงานผล",
+  12: "เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ และอัปโหลดบันทึกข้อความขอส่งผลสอบ",
+  13: "หัวหน้าภาควิชาลงนาม ใบรายงานผล + บันทึกข้อความ",
   14: "เจ้าหน้าที่นำส่งใบรายงานผลการสอบพร้อมบันทึกข้อความไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper",
   15: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ 5 หน้าแรกจากระบบ iThesis",
   16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์",

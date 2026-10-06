@@ -1,6 +1,6 @@
 import { StepStatus, SubmissionType } from "@/types";
 
-// PROPOSAL: 12 steps — one combined บ.วศ.1 file (1ก/1ข, then 1ค/1ง), shown as 1–4, 5.1–5.x, 6–8
+// PROPOSAL: 14 steps — one combined บ.วศ.1 file (1ก/1ข, then 1ค/1ง), shown as 1–4, 5.1–5.x, 6–10
 export const PROPOSAL_ROLES = [
   "STUDENT",               // 1  upload B1 (combined file, บ.วศ.1ก+1ข filled) + FINANCE_ATTACH (.docx)
   "ADMIN",                 // 2  approve
@@ -13,8 +13,17 @@ export const PROPOSAL_ROLES = [
   "EXAM_COMMITTEE",        // 9  sign B1C + B1D (all members)
   "ADMIN",                 // 10 approve
   "PROGRAM_CHAIR",         // 11 sign B1C + B1D
-  "ADMIN",                 // 12 recheck everything + upload the cover page (COVER_PAGE) for the Faculty
+  "ADMIN",                 // 12 recheck everything + generate the cover memo (.docx) → upload it as PDF (COVER_PAGE)
+  "DEPARTMENT_CHAIR",      // 13 department chair signs the cover memo
+  "ADMIN",                 // 14 send to the Faculty + upload the LessPaper receipt document — last step
 ] as const;
+
+/** Named PROPOSAL stepOrders for the steps after the program chair's final signature — branch on these. */
+export const PROPOSAL_STEP = {
+  ADMIN_COVER:      12, // ADMIN rechecks + generates the cover memo, uploads it as PDF (COVER_PAGE)
+  DEPT_CHAIR_COVER: 13, // department chair signs the cover memo (role DEPARTMENT_CHAIR)
+  ADMIN_SEND:       14, // ADMIN sends to the Faculty + uploads the LessPaper document
+} as const;
 
 // THESIS_DEFENSE: 20 steps — บ.2/3 through the student's iThesis confirmation. Restructured 2026-09-30, again
 // 2026-10-01: the committee's บ.3 evaluations are collected OUTSIDE the system (the student and
@@ -43,9 +52,9 @@ export const THESIS_ROLES = [
   "HEAD_EXAM_COMMITTEE",   // 9  sign ใบรายงานผล
   "EXAM_COMMITTEE",        // 10 sign ใบรายงานผล (sequential)
   "INVITED_EXAM_COMMITTEE",// 11 sign ใบรายงานผล
-  "ADMIN",                 // 12 check the signed ใบรายงานผล + แบบรายงานฯ
-  "DEPARTMENT_CHAIR",      // 13 department chair signs ใบรายงานผล (its last signature)
-  "ADMIN",                 // 14 upload the cover page + confirm the email to the Faculty was sent
+  "ADMIN",                 // 12 check the signed ใบรายงานผล + แบบรายงานฯ; generate the ขอส่งผลสอบ memo (.docx) → upload it as PDF (COVER_PAGE)
+  "DEPARTMENT_CHAIR",      // 13 department chair signs ใบรายงานผล (its last signature) + the memo
+  "ADMIN",                 // 14 deliver both to the Faculty + upload the LessPaper document
   "STUDENT",               // 15 upload B4 + THESIS (already signed by the whole committee, outside the system)
   "ADMIN",                 // 16 check the student's B4 + THESIS
   "DEPARTMENT_CHAIR",      // 17 department chair signs B4 only
@@ -64,9 +73,9 @@ export const THESIS_STEP = {
   ADMIN_FORWARD:      5,  // confirm only: Faculty email forwarded to the student (no uploads)
   STUDENT_REPORT:     6,  // student uploads แบบรายงานฯ (SIGNED) + blank ใบรายงานผลการสอบ (EXAM_RESULT) + แบบประเมินดีมาก (VERY_GOOD_EVAL)
   ADVISOR_RESULT:     7,  // advisor picks the exam result, signs แบบรายงานฯ, fills in + signs ใบรายงานผลการสอบ (EXAM_RESULT)
-  ADMIN_RESULT_CHECK: 12, // ADMIN checks the committee-signed ใบรายงานผล + แบบรายงานฯ
-  DEPT_CHAIR_RESULT:  13, // department chair signs ใบรายงานผล (role DEPARTMENT_CHAIR)
-  ADMIN_RESULT_SEND:  14, // ADMIN uploads the cover page + confirms the email to the Faculty
+  ADMIN_RESULT_CHECK: 12, // ADMIN checks the committee-signed ใบรายงานผล + แบบรายงานฯ, generates the result memo (COVER_PAGE)
+  DEPT_CHAIR_RESULT:  13, // department chair signs ใบรายงานผล + the result memo (role DEPARTMENT_CHAIR)
+  ADMIN_RESULT_SEND:  14, // ADMIN delivers both to the Faculty + uploads the LessPaper document
   STUDENT_THESIS:     15, // B4 + THESIS
   ADMIN_THESIS_CHECK: 16, // ADMIN checks B4 + THESIS
   DEPT_CHAIR_THESIS:  17, // department chair signs B4 only (role DEPARTMENT_CHAIR)

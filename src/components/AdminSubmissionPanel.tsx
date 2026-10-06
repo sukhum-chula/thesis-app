@@ -8,11 +8,11 @@ import { SubmissionStatusBadge, StepStatusBadge } from "@/components/StatusBadge
 import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
-  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_RELAY_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
+  B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_STEP10_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_RELAY_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
   ADMIN_DEFENSE_RESULT_CHECKS, ADMIN_DEFENSE_SEND_CHECKS, freshUploadCutoff, defenseExamResult, VERY_GOOD_RESULT,
   ADMIN_DEFENSE_THESIS_CHECKS, ADMIN_DEFENSE_THESIS_SEND_CHECKS, ADMIN_DEFENSE_THESIS_FORWARD_CHECKS,
 } from "@/lib/utils";
-import { THESIS_STEP, financeStepOf, previousActiveStep, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
+import { THESIS_STEP, PROPOSAL_STEP, financeStepOf, previousActiveStep, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
 import { docxText } from "@/lib/docxText";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
@@ -37,12 +37,16 @@ import {
 // Documents the ADMIN checks at each of their steps — shown as the action card's ① download section,
 // latest version of each (one per member for per-member forms). Steps not listed have nothing to check.
 const ADMIN_STEP_FORMS: Record<string, Record<number, string[]>> = {
-  PROPOSAL: { 2: ["B1"], 10: ["B1"], 12: ["B1"] },
+  PROPOSAL: {
+    2: ["B1"], 10: ["B1"],
+    [PROPOSAL_STEP.ADMIN_COVER]: ["B1"],
+    [PROPOSAL_STEP.ADMIN_SEND]:  ["B1", "COVER_PAGE"], // the final บ.วศ.1 + the chair-signed cover memo, to deliver
+  },
   THESIS_DEFENSE: {
     [THESIS_STEP.ADMIN_CHECK]:        ["B2", "B3"],
     [THESIS_STEP.ADMIN_RELAY]:        ["B2", "B3"],
     [THESIS_STEP.ADMIN_RESULT_CHECK]: ["EXAM_RESULT", "SIGNED", "VERY_GOOD_EVAL"],
-    [THESIS_STEP.ADMIN_RESULT_SEND]:  ["EXAM_RESULT"],
+    [THESIS_STEP.ADMIN_RESULT_SEND]:  ["EXAM_RESULT", "COVER_PAGE"], // both signed by the department chair, to deliver
     [THESIS_STEP.ADMIN_THESIS_SEND]:  ["B4", "THESIS"], // the chair-signed บ.4 + the thesis, to deliver
   },
 };
@@ -516,19 +520,22 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     && pendingStep$?.stepOrder === financeStepOf(sub?.submissionType) && pendingStep$?.role === "ADMIN";
   // PROPOSAL step 6 (stepOrder 10): verify the fully-signed B1 before the chair's final signature
   const isProposalVerifyStep  = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 10;
-  // PROPOSAL step 8 (stepOrder 12): final recheck + the Faculty cover page — the proposal's last step
-  const isProposalCoverStep   = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === 12;
-  // Steps whose approve is gated on the department-chair-signed cover page (COVER_PAGE): PROPOSAL
-  // step 8 and THESIS_DEFENSE step 11 (sent with the exam result).
-  // A defense's must be a new copy (freshUploadCutoff, same as the server)
-  const isCoverStep = isProposalCoverStep || isThesisResultSendStep;
+  // PROPOSAL step 8 (stepOrder 12): final recheck + the cover memo — generated (.docx), converted to
+  // PDF and uploaded unsigned; the department chair signs it at step 9
+  const isProposalCoverStep   = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === PROPOSAL_STEP.ADMIN_COVER;
+  // PROPOSAL step 10 (stepOrder 14): send to the Faculty + LessPaper document — the proposal's last step
+  const isProposalSendStep    = sub?.submissionType === "PROPOSAL" && pendingStep$?.stepOrder === PROPOSAL_STEP.ADMIN_SEND;
+  // Steps that generate a บันทึกข้อความ (.docx, POST /api/submissions/[id]/cover-memo) and are gated on
+  // its PDF (COVER_PAGE, unsigned — the department chair signs it at the next step): PROPOSAL step 8
+  // and THESIS_DEFENSE step 9 (ขอส่งผลสอบวิทยานิพนธ์)
+  const isCoverStep = isProposalCoverStep || isThesisResultCheckStep;
   const uploadCutoff = sub && pendingStep$ ? freshUploadCutoff(sub.workflowSteps, sub.submissionType, pendingStep$.stepOrder) : null;
   const latestCover = (sub?.uploads ?? [])
     .filter((u) => u.formType === "COVER_PAGE" && (uploadCutoff === null || new Date(u.uploadedAt).getTime() > uploadCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-  // PROPOSAL step 8 and THESIS_DEFENSE steps 4, 11 and 15 need the package document stamped with the
+  // PROPOSAL step 10 and THESIS_DEFENSE steps 4, 11 and 15 need the package document stamped with the
   // Faculty's LessPaper receipt number (steps 11 and 15 a new copy each — freshUploadCutoff)
-  const isLessPaperStep = isProposalCoverStep || isThesisRelayStep || isThesisResultSendStep || isThesisDocSendStep;
+  const isLessPaperStep = isProposalSendStep || isThesisRelayStep || isThesisResultSendStep || isThesisDocSendStep;
   const latestLessPaper = (sub?.uploads ?? [])
     .filter((u) => u.formType === "LESSPAPER_RECEIPT" && (uploadCutoff === null || new Date(u.uploadedAt).getTime() > uploadCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
@@ -541,6 +548,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const adminChecks = isFinanceReviewStep ? (sub?.submissionType === "THESIS_DEFENSE" ? ADMIN_DEFENSE_FINANCE_CHECKS : ADMIN_STEP2_CHECKS)
     : isProposalVerifyStep ? ADMIN_STEP6_CHECKS
     : isProposalCoverStep ? ADMIN_STEP8_CHECKS
+    : isProposalSendStep ? ADMIN_STEP10_CHECKS
     : isThesisRelayStep ? ADMIN_DEFENSE_RELAY_CHECKS
     : isThesisForwardStep ? ADMIN_DEFENSE_FORWARD_CHECKS
     : isThesisResultCheckStep ? ADMIN_DEFENSE_RESULT_CHECKS
@@ -554,6 +562,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   // Files picked in the action card's upload section (cover page) — uploaded on อนุมัติ
   const [pendingFiles, setPendingFiles] = useState<Record<string, File>>({});
   const [actionError,  setActionError]  = useState<string | null>(null);
+  // Generating the cover memo (.docx, downloaded — never stored) — PROPOSAL step 8 / THESIS_DEFENSE step 9
+  const [memoBusy,     setMemoBusy]     = useState(false);
+  const [memo,         setMemo]         = useState<{ url: string; name: string; at: Date } | null>(null);
   const approveBlocked = (isFinanceReviewStep && !latestFinanceAttach)
     || (isCoverStep && !latestCover && !pendingFiles.COVER_PAGE)
     || (isLessPaperStep && !latestLessPaper && !pendingFiles.LESSPAPER_RECEIPT)
@@ -727,6 +738,31 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       if (file) next[key] = file; else delete next[key];
       return next;
     });
+  }
+
+  // isCoverStep: the system fills the department's memo from the submission's data (สร้าง), then
+  // the admin downloads it as .docx (ดาวน์โหลด) to convert to PDF. The .docx lives only in this page
+  // (a blob URL); only the PDF is stored (as COVER_PAGE, uploaded on อนุมัติ)
+  async function handleGenerateMemo() {
+    if (!sub || memoBusy) return;
+    setMemoBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/submissions/${sub.id}/cover-memo`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "สร้างบันทึกข้อความไม่สำเร็จ กรุณาลองอีกครั้ง");
+      }
+      const url = URL.createObjectURL(await res.blob());
+      setMemo((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { url, name: `บันทึกข้อความ_${sub.studentCode ?? sub.id}.docx`, at: new Date() };
+      });
+    } catch (err) {
+      setActionError(toUserErrorMessage(err, "สร้างบันทึกข้อความไม่สำเร็จ กรุณาลองอีกครั้ง"));
+    } finally {
+      setMemoBusy(false);
+    }
   }
 
   async function handleApproveStep() {
@@ -1128,7 +1164,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
           {/* Task description card — numbered instructions for special admin steps */}
           {!sub.cancelRequested && isMyTurn && sub.status !== "REJECTED" && (isThesisRelayStep || isThesisForwardStep || isThesisResultCheckStep || isThesisResultSendStep
             || isThesisDocCheckStep || isThesisDocSendStep || isThesisDocForwardStep
-            || (sub.submissionType === "PROPOSAL" && (isFinanceReviewStep || isProposalVerifyStep || isProposalCoverStep))) && (
+            || (sub.submissionType === "PROPOSAL" && (isFinanceReviewStep || isProposalVerifyStep || isProposalCoverStep || isProposalSendStep))) && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-blue-500" />
@@ -1151,7 +1187,14 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               ) : isProposalCoverStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                   <li>ตรวจสอบ บ.วศ.1ก–ง ฉบับสุดท้ายว่าครบถ้วนและลงนามครบทุกตำแหน่ง</li>
-                  <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>กดสร้างบันทึกข้อความ แล้วดาวน์โหลดไฟล์ (.docx)</li>
+                  <li>ตรวจสอบข้อมูลในไฟล์ แล้วแปลงเป็น PDF</li>
+                  <li>เลือกไฟล์ PDF ด้านล่าง</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
+                </ol>
+              ) : isProposalSendStep ? (
+                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                  <li>นำส่ง บ.วศ.1 พร้อมบันทึกข้อความที่หัวหน้าภาควิชาลงนามแล้วไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — การสอบโครงร่างจะเสร็จสมบูรณ์</li>
                 </ol>
@@ -1166,6 +1209,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <>
                   <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
                     <li>ตรวจสอบใบรายงานผลการสอบและแบบรายงานการเสนอผลงานฯ ฉบับล่าสุดในระบบ</li>
+                    <li>กดสร้างบันทึกข้อความ (ขอส่งผลสอบวิทยานิพนธ์) แล้วดาวน์โหลดไฟล์ (.docx)</li>
+                    <li>ตรวจสอบข้อมูลในไฟล์ แล้วแปลงเป็น PDF</li>
+                    <li>เลือกไฟล์ PDF ด้านล่าง</li>
                     <li>ทำเครื่องหมายรายการตรวจสอบด้านล่าง แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
                   </ol>
                   {/* The advisor picked ดีมาก at THESIS_STEP.ADVISOR_RESULT */}
@@ -1180,7 +1226,6 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 </>
               ) : isThesisResultSendStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
                   <li>นำส่งใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
                   <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
@@ -1246,13 +1291,68 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                     {isCoverStep && (
                       <div>
                         <SectionLabel n={adminStepForms ? 2 : 1} required>
-                          {isThesisResultSendStep ? "อัปโหลดบันทึกข้อความส่งใบรายงานผลการสอบไปคณะวิศวกรรมศาสตร์"
-                            : "อัปโหลดบันทึกข้อความส่งคณะวิศวกรรมศาสตร์"}
+                          สร้างบันทึกข้อความ แล้วอัปโหลดเป็น PDF
                         </SectionLabel>
-                        <p className="text-sm text-gray-600 mb-2">
-                          บันทึกข้อความ (PDF) ที่หัวหน้าภาควิชาลงนามแล้ว — หัวหน้าภาควิชา:{" "}
-                          <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
-                        </p>
+                        <div className="space-y-2 mb-2">
+                          <p className="text-sm text-gray-600">
+                            กดสร้างบันทึกข้อความ{isThesisResultCheckStep ? " (ขอส่งผลสอบวิทยานิพนธ์)" : ""} ระบบจะกรอกข้อมูลจากคำร้องนี้ให้ แล้วดาวน์โหลดไฟล์ Word (.docx)
+                            ตรวจสอบ แปลงเป็น PDF แล้วเลือกไฟล์ด้านล่าง (ยังไม่ต้องลงนาม) หัวหน้าภาควิชาจะลงนามในขั้นตอนถัดไป:{" "}
+                            <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
+                          </p>
+                          {memo && (
+                            <div className="border-2 border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
+                              <p className="flex items-center gap-1.5 text-sm font-semibold text-green-800">
+                                <CheckCircle2 className="w-4 h-4" /> สร้างบันทึกข้อความแล้ว — ข้อมูลที่กรอกลงในเอกสาร
+                              </p>
+                              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                                <dt className="text-gray-500">ชื่อ-นามสกุล</dt>
+                                <dd className="text-gray-800">{sub.studentFullName ?? (student ? formatUserName(student) : "—")}</dd>
+                                <dt className="text-gray-500">รหัสนิสิต</dt>
+                                <dd className="text-gray-800">{sub.studentCode ?? student?.studentId ?? "—"}</dd>
+                                <dt className="text-gray-500">หลักสูตร</dt>
+                                <dd className="text-gray-800">{(sub.program && PROGRAM_LABELS[sub.program]) || "—"}</dd>
+                                <dt className="text-gray-500">หัวข้อ</dt>
+                                <dd className="text-gray-800">{sub.title || "—"}</dd>
+                                {isThesisResultCheckStep ? (
+                                  <>
+                                    <dt className="text-gray-500">วันที่</dt>
+                                    <dd className="text-gray-800">{memo.at.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</dd>
+                                    <dt className="text-gray-500">ผู้ลงนาม</dt>
+                                    <dd className="text-gray-800">{deptChair ? formatUserName(deptChair) : "—"}</dd>
+                                  </>
+                                ) : (
+                                  <>
+                                    <dt className="text-gray-500">วันสอบ</dt>
+                                    <dd className="text-gray-800">
+                                      {sub.examDate
+                                        ? new Date(`${sub.examDate}T00:00:00`).toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+                                        : "—"}
+                                    </dd>
+                                  </>
+                                )}
+                              </dl>
+                              <a
+                                href={memo.url}
+                                download={memo.name}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition"
+                              >
+                                <Download className="w-5 h-5" />
+                                ดาวน์โหลดบันทึกข้อความ (.docx)
+                              </a>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleGenerateMemo}
+                            disabled={memoBusy || actionBusy}
+                            className={memo
+                              ? "w-full flex items-center justify-center gap-2 py-2.5 border-2 border-blue-300 text-blue-700 text-sm font-semibold rounded-xl hover:bg-blue-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                              : "w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition disabled:opacity-60 disabled:cursor-not-allowed"}
+                          >
+                            {memoBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : memo ? <RefreshCw className="w-4 h-4" /> : <FileText className="w-5 h-5" />}
+                            {memoBusy ? "กำลังสร้าง..." : memo ? "สร้างใหม่จากข้อมูลในระบบ" : "สร้างบันทึกข้อความ"}
+                          </button>
+                        </div>
                         <FileUploader
                           submissionId={sub.id}
                           formType="COVER_PAGE"
@@ -1293,7 +1393,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                         เมื่อกดอนุมัติ ระบบจะส่งเอกสารการเงินแนบกรรมการสอบไปยังเจ้าหน้าที่การเงินทางอีเมลโดยอัตโนมัติ
                       </p>
                     )}
-                    {isProposalCoverStep && (
+                    {isCoverStep && (
+                      <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                        เมื่อกดอนุมัติ ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนามใน{isThesisResultCheckStep ? "ใบรายงานผลการสอบและ" : ""}บันทึกข้อความ
+                      </p>
+                    )}
+                    {isProposalSendStep && (
                       <p className="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                         เมื่อกดอนุมัติ การสอบโครงร่างวิทยานิพนธ์จะเสร็จสมบูรณ์ และนิสิตจะสามารถยื่นขอสอบวิทยานิพนธ์ต่อได้
                       </p>

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { MockSubmission, MockWorkflowStep } from "@/types";
 import { stepNumbering } from "@/lib/stepNumbering";
-import { THESIS_STEP, financeStepOf } from "@/lib/workflowSteps";
+import { THESIS_STEP, PROPOSAL_STEP, financeStepOf } from "@/lib/workflowSteps";
 
 function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
@@ -202,6 +202,9 @@ export default function AdminDashboard() {
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_FORWARD) {
                 taskLabel = "ส่งต่ออีเมลจากคณะให้นิสิต แล้วกดยืนยัน";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RESULT_CHECK) {
+                taskLabel = "ตรวจสอบใบรายงานผลการสอบ สร้างบันทึกข้อความ และอนุมัติ";
+                taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RESULT_SEND) {
                 taskLabel = "นำส่งใบรายงานผลการสอบพร้อมบันทึกข้อความไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
@@ -214,8 +217,11 @@ export default function AdminDashboard() {
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_FORWARD) {
                 taskLabel = "รอเอกสารจากคณะ (คณบดีลงนาม) แล้วส่งต่อให้นิสิต";
                 taskIcon  = <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
-              } else if (sub.submissionType === "PROPOSAL" && step?.stepOrder === 12) {
+              } else if (sub.submissionType === "PROPOSAL" && step?.stepOrder === PROPOSAL_STEP.ADMIN_COVER) {
                 taskLabel = "ตรวจสอบเอกสารทั้งหมด และอัปโหลดบันทึกข้อความส่งคณะฯ";
+                taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "PROPOSAL" && step?.stepOrder === PROPOSAL_STEP.ADMIN_SEND) {
+                taskLabel = "นำส่งคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else {
                 taskLabel = "ตรวจสอบเอกสารและอนุมัติ";

@@ -6,7 +6,7 @@ import { FORM_SHORT, formFileKind, isSingleVersionForm, formatUserName } from "@
 import { getDepartmentChairUserId } from "@/lib/systemSettings";
 import type { FormType } from "@/types";
 import { keepOnlyLatestVersion } from "@/lib/uploadVersions";
-import { allCommitteeIds, isPerMemberForm, THESIS_STEP } from "@/lib/workflowSteps";
+import { allCommitteeIds, isPerMemberForm, THESIS_STEP, PROPOSAL_STEP } from "@/lib/workflowSteps";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -76,27 +76,28 @@ export async function POST(req: NextRequest) {
       subCheck.headCommitteeId === uid ||
       (subCheck.invitedCommitteeIds as string[]).includes(uid) ||
       (subCheck as any).programChairId === uid ||
-      (subCheck.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === uid);
+      (await getDepartmentChairUserId()) === uid;
     if (!involved) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // PROPOSAL files that only the ADMIN uploads, and only at their own step: the finance
   // attachment at stepOrder 2 (generated, optionally edited and re-uploaded) and the Faculty cover
-  // page at stepOrder 12 (shown as step 8).
+  // page at PROPOSAL_STEP.ADMIN_COVER (shown as step 8; the department chair uploads the signed copy at
+  // DEPT_CHAIR_COVER, step 9) and the LessPaper document at ADMIN_SEND (step 10).
   // THESIS_DEFENSE: the finance attachment is the ADMIN's check-step file too (THESIS_STEP.ADMIN_CHECK,
-  // step 2), the cover page is the result-send step's (THESIS_STEP.ADMIN_RESULT_SEND, shown as step
-  // 11), and the LessPaper document is the relay step's (THESIS_STEP.ADMIN_RELAY, step 4), the
+  // step 2), the cover memo (บันทึกข้อความ ขอส่งผลสอบ) is the result-check step's (THESIS_STEP.ADMIN_RESULT_CHECK,
+  // shown as step 9; the department chair uploads the signed copy at DEPT_CHAIR_RESULT, step 10), and the LessPaper document is the relay step's (THESIS_STEP.ADMIN_RELAY, step 4), the
   // result-send step's (shown as step 11) and the thesis-send step's (THESIS_STEP.ADMIN_THESIS_SEND, shown as step 15)
   // — the 8.x sub-step group absorbs a co-advisor, so those labels never shift.
-  const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { steps: number[]; label: string }>> = {
+  const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { steps: number[]; label: string; deptChairSteps?: number[] }>> = {
     PROPOSAL: {
       FINANCE_ATTACH: { steps: [2],  label: "เอกสารการเงินของคำร้องสอบโครงร่างอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 2 เท่านั้น" },
-      COVER_PAGE:     { steps: [12], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
-      LESSPAPER_RECEIPT: { steps: [12], label: "เอกสารที่มีเลขรับจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 เท่านั้น" },
+      COVER_PAGE:     { steps: [PROPOSAL_STEP.ADMIN_COVER], deptChairSteps: [PROPOSAL_STEP.DEPT_CHAIR_COVER], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 8 และหัวหน้าภาควิชาในขั้นตอนที่ 9 เท่านั้น" },
+      LESSPAPER_RECEIPT: { steps: [PROPOSAL_STEP.ADMIN_SEND], label: "เอกสารที่มีเลขรับจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 10 เท่านั้น" },
     },
     THESIS_DEFENSE: {
       FINANCE_ATTACH: { steps: [THESIS_STEP.ADMIN_CHECK], label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
-      COVER_PAGE:     { steps: [THESIS_STEP.ADMIN_RESULT_SEND], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 11 เท่านั้น" },
+      COVER_PAGE:     { steps: [THESIS_STEP.ADMIN_RESULT_CHECK], deptChairSteps: [THESIS_STEP.DEPT_CHAIR_RESULT], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 9 และหัวหน้าภาควิชาในขั้นตอนที่ 10 เท่านั้น" },
       LESSPAPER_RECEIPT: { steps: [THESIS_STEP.ADMIN_RELAY, THESIS_STEP.ADMIN_RESULT_SEND, THESIS_STEP.ADMIN_THESIS_SEND], label: "เอกสารที่มีเลขรับจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 4, 11 และ 15 เท่านั้น" },
     },
   };
@@ -105,7 +106,11 @@ export async function POST(req: NextRequest) {
     const current = await prisma.workflowStep.findFirst({
       where: { submissionId, status: "PENDING" }, orderBy: { stepOrder: "asc" }, select: { stepOrder: true },
     });
-    if (!sessionRoles.includes("ADMIN") || subCheck.status !== "IN_PROGRESS" || !adminOnly.steps.includes(current?.stepOrder ?? -1))
+    const cur = current?.stepOrder ?? -1;
+    const allowed = subCheck.status === "IN_PROGRESS" && (
+      (sessionRoles.includes("ADMIN") && adminOnly.steps.includes(cur)) ||
+      (!!adminOnly.deptChairSteps?.includes(cur) && (await getDepartmentChairUserId()) === session.user.id));
+    if (!allowed)
       return NextResponse.json({ error: adminOnly.label }, { status: 400 });
   }
 

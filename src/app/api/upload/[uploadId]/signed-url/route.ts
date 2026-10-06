@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ upl
     sub.headCommitteeId === userId ||
     (sub.invitedCommitteeIds as string[]).includes(userId) ||
     (sub as any).programChairId === userId ||
-    (sub.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === userId);
+    (await getDepartmentChairUserId()) === userId;
   if (!isPrivileged && !isInvolved)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   // The proposal's finance paperwork is never served to the submission's own student

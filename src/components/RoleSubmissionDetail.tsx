@@ -10,7 +10,7 @@ import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
 import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS, examResultNote, VERY_GOOD_RESULT, DEFAULT_DEFENSE_EXAM_RESULT } from "@/lib/utils";
 import { ExamResultPicker } from "./ExamResultPicker";
-import { THESIS_STEP } from "@/lib/workflowSteps";
+import { THESIS_STEP, PROPOSAL_STEP } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { ArrowLeft, Clock, AlertCircle, StickyNote, CalendarDays } from "lucide-react";
 import Link from "next/link";
@@ -49,8 +49,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     || ((sub.committeeIds ?? []) as string[]).includes(user.id)
     || ((sub.invitedCommitteeIds ?? []) as string[]).includes(user.id)
     || ((sub as any).programChairId === user.id)
-    // The department chair signs every defense's ใบรายงานผลการสอบ, so is involved in all of them
-    || (sub.submissionType === "THESIS_DEFENSE" && users.some((u) => u.id === user.id && u.isDepartmentChair));
+    // The department chair signs every proposal's cover memo and every defense's ใบรายงานผลการสอบ + บ.4
+    || users.some((u) => u.id === user.id && u.isDepartmentChair);
 
   if (!authorized) {
     return (
@@ -112,6 +112,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       8:  ["B1"],            // INVITED_EXAM_COMMITTEE signs บ.วศ.1ค
       9:  ["B1"],            // EXAM_COMMITTEE — each member signs บ.วศ.1ค
       11: ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ค + 1ง
+      // Step 12 (shown 8, ADMIN generates + uploads the cover memo) and 14 (shown 10, ADMIN sends) — admin page
+      [PROPOSAL_STEP.DEPT_CHAIR_COVER]: ["COVER_PAGE"], // DEPARTMENT_CHAIR signs the cover memo
     },
     THESIS_DEFENSE: {
       // บ.2 (student + advisor + head signed) and บ.3 are collected outside the system and
@@ -123,8 +125,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       9:  ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
       10: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
       11: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
-      // Steps 12 (ADMIN check) and 14 (ADMIN cover page + email to the Faculty) — admin page
-      13: ["EXAM_RESULT"],           // DEPARTMENT_CHAIR signs ใบรายงานผล
+      // Steps 12 (ADMIN check + result memo) and 14 (ADMIN send to the Faculty) — admin page
+      13: ["EXAM_RESULT", "COVER_PAGE"], // DEPARTMENT_CHAIR signs ใบรายงานผล + the result memo
       // Step 16 (ADMIN check + cover page), 18 and 19 (ADMIN confirmations) — admin page
       17: ["B4"],            // DEPARTMENT_CHAIR signs B4 only (the thesis arrives committee-signed at step 15)
     },
@@ -141,7 +143,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const signChecks = currentStep && isMyTurn
     ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;
-  const signChecksTitle = sub.submissionType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบก่อนส่งต่อ" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
+  const signChecksTitle = sub.submissionType === "THESIS_DEFENSE" || currentStep?.stepOrder === PROPOSAL_STEP.DEPT_CHAIR_COVER
+    ? "กรุณาตรวจสอบก่อนส่งต่อ" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
   // THESIS advisor-result step: the advisor picks the result; ดีมาก — the student's evaluation form must be filled in
   const advisorResultChecks = isThesisAdvisorResultStep
     ? [

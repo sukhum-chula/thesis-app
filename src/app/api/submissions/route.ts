@@ -53,8 +53,8 @@ export async function GET() {
       { programChairId: userId },
     ];
     if (chairedPrograms.length) or.push({ program: { in: chairedPrograms } });
-    // The department chair signs every defense's ใบรายงานผลการสอบ (THESIS_STEP.DEPT_CHAIR_RESULT)
-    if ((await getDepartmentChairUserId()) === userId) or.push({ submissionType: "THESIS_DEFENSE" });
+    // The department chair signs every proposal's cover memo and every defense's ใบรายงานผลการสอบ + บ.4
+    if ((await getDepartmentChairUserId()) === userId) or.push({ submissionType: { in: ["PROPOSAL", "THESIS_DEFENSE"] } });
     where = { OR: or };
   }
   // ADMIN sees all (no where filter)

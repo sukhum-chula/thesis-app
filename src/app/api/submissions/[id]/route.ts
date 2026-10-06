@@ -5,7 +5,7 @@ import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCu
 import type { FormType } from "@/types";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
-import { buildWorkflowSteps, planCommitteeStepSync, currentTurn, THESIS_STEP, committeeRoster, previousActiveStep } from "@/lib/workflowSteps";
+import { buildWorkflowSteps, planCommitteeStepSync, currentTurn, THESIS_STEP, PROPOSAL_STEP, committeeRoster, previousActiveStep } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, validateResolvedCommitteeCounts, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
 import { getProgramChairUserId, getProgramChairsOfUser, getDepartmentChairUserId } from "@/lib/systemSettings";
@@ -113,7 +113,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     sub.headCommitteeId === userId ||
     (sub.invitedCommitteeIds as string[]).includes(userId) ||
     (sub as any).programChairId === userId ||
-    (sub.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === userId);
+    (await getDepartmentChairUserId()) === userId;
   if (!isPrivileged && !isInvolved)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -144,8 +144,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const sub = await getSub(id);
   if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  // The department chair is involved in every defense (they sign its ใบรายงานผลการสอบ)
-  const isDeptChair = sub.submissionType === "THESIS_DEFENSE" && (await getDepartmentChairUserId()) === userId;
+  // The department chair is involved in every submission (signs the proposal's cover memo and the
+  // defense's ใบรายงานผลการสอบ + บ.4)
+  const isDeptChair = (await getDepartmentChairUserId()) === userId;
   if ((sub as any).cancelRequested && !["accept_cancel", "decline_cancel"].includes(action))
     return NextResponse.json({ error: "คำร้องนี้มีคำขอยกเลิกที่รอการอนุมัติ ไม่สามารถดำเนินการอื่นได้ในขณะนี้" }, { status: 400 });
 
@@ -187,14 +188,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       // PROPOSAL step 4: student and admin upload in parallel — only student docs required here;
       // FINANCE_DOC is checked separately and auto-advances the step when both sides are ready.
       const REQUIRED_UPLOADS: Record<string, Record<number, string[]>> = {
-        PROPOSAL:       { 1: ["B1"], 2: ["FINANCE_ATTACH"], 4: ["B1"], 12: ["COVER_PAGE", "LESSPAPER_RECEIPT"] },
+        PROPOSAL: {
+          1: ["B1"], 2: ["FINANCE_ATTACH"], 4: ["B1"],
+          [PROPOSAL_STEP.ADMIN_COVER]:      ["COVER_PAGE"],        // the generated memo, converted to PDF
+          [PROPOSAL_STEP.DEPT_CHAIR_COVER]: ["COVER_PAGE"],        // the department chair's signed copy (freshUploadCutoff)
+          [PROPOSAL_STEP.ADMIN_SEND]:       ["LESSPAPER_RECEIPT"],
+        },
         THESIS_DEFENSE: {
           [THESIS_STEP.STUDENT_B2_B3]:  ["B2", "B3"],
           [THESIS_STEP.ADMIN_CHECK]:    ["FINANCE_ATTACH"],
           [THESIS_STEP.ADMIN_RELAY]:    ["LESSPAPER_RECEIPT"], // the package stamped with the Faculty's LessPaper receipt number
           [THESIS_STEP.STUDENT_REPORT]: ["SIGNED", "EXAM_RESULT", "VERY_GOOD_EVAL"], // ใบรายงานผล blank; แบบประเมินดีมาก always (blank unless ดีมาก)
           [THESIS_STEP.ADVISOR_RESULT]: ["SIGNED", "EXAM_RESULT"], // signed แบบรายงานฯ + filled-in, signed ใบรายงานผล, newer than step 6 (freshUploadCutoff)
-          [THESIS_STEP.ADMIN_RESULT_SEND]: ["COVER_PAGE", "LESSPAPER_RECEIPT"], // new ones (freshUploadCutoff) — the result's package
+          [THESIS_STEP.ADMIN_RESULT_CHECK]: ["COVER_PAGE"],      // the generated บันทึกข้อความ ขอส่งผลสอบ, converted to PDF
+          [THESIS_STEP.DEPT_CHAIR_RESULT]:  ["COVER_PAGE"],      // the department chair's signed copy (freshUploadCutoff)
+          [THESIS_STEP.ADMIN_RESULT_SEND]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — the result's package
           [THESIS_STEP.ADMIN_THESIS_SEND]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — for the thesis
           [THESIS_STEP.STUDENT_THESIS]: ["B4", "THESIS"],
         },

@@ -7,6 +7,36 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-06
 
+- **THESIS_DEFENSE step 9 (stepOrder 12): the system generates the result memo, and the department
+  chair signs it in the system at step 10.** The admin's step-9 card gains the same
+  "สร้างบันทึกข้อความ" → download (.docx) → upload PDF flow as PROPOSAL step 8:
+  `POST /api/submissions/[id]/cover-memo` now also serves a defense at `THESIS_STEP.ADMIN_RESULT_CHECK`,
+  filling `templates/cover-memo-defense-result.docx` (the department's "ขอส่งผลสอบวิทยานิพนธ์";
+  `buildDefenseResultMemoDocx`) with the date, name, code, degree, สาขาวิชา, title and the department
+  chair's name. The PDF is stored as `COVER_PAGE` (approve server-gated); step 10 (stepOrder 13)
+  now signs ใบรายงานผล **and** the memo (signed copy must be newer than step 9, server-gated; upload
+  route lets the admin upload COVER_PAGE at 12 and the chair at 13, no longer the admin at 14).
+  Step 11 (stepOrder 14) no longer uploads a cover page — only the LessPaper document; it lists the
+  signed memo under download. Checklists, step names 12/13, admin task labels and translations updated.
+  No defense was in flight, so no rows needed changing (the step roles are unchanged).
+
+- **PROPOSAL grows from 12 to 14 steps (shown 1–4, 5.x, 6–10): the system generates the cover memo,
+  the department chair signs it in the system, and the LessPaper upload moves to a new last step.**
+  Step 8 (stepOrder 12): the admin clicks "สร้างบันทึกข้อความ" →
+  `POST /api/submissions/[id]/cover-memo` fills `templates/cover-memo-proposal.docx` (the department's
+  "ขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์พร้อมรายชื่ออาจารย์ที่ปรึกษาและคณะกรรมการสอบวิทยานิพนธ์"; generator
+  `src/lib/coverMemoDoc.ts`) with name, code, หลักสูตร, title and exam date, then shows those values and a
+  separate "ดาวน์โหลดบันทึกข้อความ (.docx)" button once it finishes (not
+  stored); the admin uploads it back as an unsigned PDF `COVER_PAGE`. New step 9 (stepOrder 13,
+  `DEPARTMENT_CHAIR`) signs it and uploads the signed PDF (must be newer than step 8's approval). New
+  step 10 (stepOrder 14, ADMIN) delivers to the Faculty and uploads `LESSPAPER_RECEIPT` — the proposal's
+  last step. Named stepOrders in `PROPOSAL_STEP`; the department chair is now involved in every
+  submission, not only defenses (list scoping, GET/reject, uploads, signed URLs, detail page). Upload
+  route lets the department chair upload COVER_PAGE at stepOrder 13 only. Checklists
+  `ADMIN_STEP8_CHECKS` (reworked) / `ADMIN_STEP10_CHECKS` / the chair's own-signature box, step names,
+  task labels and translations added. The one in-flight proposal (`cmuv9ul2l…`, at step 8) was
+  backfilled with PENDING rows for stepOrders 13–14 (insert-only, one-off script, deleted).
+
 - **THESIS_DEFENSE step 14 (stepOrder 17): the department head signs บ.4 only, not the thesis.**
   `STEP_SIGN_FORMS[17]` is `["B4"]` and the own-signature checklist is the one บ.4 item. Step name,
   the admin's step-13/15 wording and translations updated.

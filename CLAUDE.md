@@ -87,6 +87,10 @@ src/lib/
                              api/users/route.ts and api/users/[id]/route.ts
   financeDoc.ts              buildProposalFinanceDocx() — fills templates/finance-attach-proposal.docx
                              (the department's form) for POST /api/submissions/[id]/finance-attach
+  coverMemoDoc.ts            buildCoverMemoDocx() / buildDefenseResultMemoDocx() — fill
+                             templates/cover-memo-proposal.docx (PROPOSAL step 8) and
+                             templates/cover-memo-defense-result.docx (THESIS_DEFENSE step 9) for
+                             POST /api/submissions/[id]/cover-memo (download only)
   stepNumbering.ts           stepNumbering() — the step numbers users SEE (PROPOSAL 5.1–5.x sub-steps,
                              admin check = 6, chair = 7); internal stepOrder is unchanged. Never
                              derive a displayed step number from an index — call this
