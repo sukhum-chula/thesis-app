@@ -322,7 +322,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               ) : isProposalHeadResultStep ? (n) => (
                 // Pass/fail — HEAD_EXAM_COMMITTEE at PROPOSAL step 5.1
                 <ExamResultPicker n={n} value={thesisResult} onChange={setThesisResult}
-                  options={["ผ่าน", "ไม่ผ่าน"]} hint="กรุณาเลือกผลการสอบก่อนลงนาม" />
+                  options={["ผ่าน", "ไม่ผ่าน"]} title="เลือกผลการสอบโครงร่างวิทยานิพนธ์" hint="กรุณาเลือกผลการสอบก่อนลงนาม" />
               ) : undefined}
             />
           )}

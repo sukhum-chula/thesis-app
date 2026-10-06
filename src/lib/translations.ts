@@ -24,6 +24,7 @@ export const TH_EN: [string, string][] = [
   ["แก้ไขเอกสารในกล่อง", "Fix the documents in the box"],
   ["ดาวน์โหลดเอกสารเพื่อตรวจสอบ", "Download documents to check"],
   ["กรุณาเลือกผลการสอบก่อนลงนาม", "Please choose the exam result before signing"],
+  ["เลือกผลการสอบโครงร่างวิทยานิพนธ์", "Choose the proposal exam result"],
   ["เลือกผลการสอบวิทยานิพนธ์", "Choose the thesis exam result"],
   ["เหตุผลในการส่งกลับ (ไม่บังคับ)", "Reason for sending back (optional)"],
   ["ส่งกลับเรียบร้อยแล้ว", "Sent back"],
@@ -343,6 +344,7 @@ export const TH_EN: [string, string][] = [
 
   // Error messages
   ["กรุณาเลือกผลการสอบวิทยานิพนธ์ก่อน",                    "Please select the thesis exam result first"],
+  ["กรุณาเลือกผลการสอบก่อน",                               "Please select the exam result first"],
   ["กรุณาเลือกผลการสอบก่อนลงนาม",                          "Please select the exam result before signing"],
   ["กรุณาเลือกไฟล์ที่ลงนามแล้วให้ครบก่อน",                "Please select all signed files before proceeding"],
   ["กรุณาแนบเอกสารที่ลงนามแล้วก่อนอัปโหลด",               "Please attach the signed document before uploading"],

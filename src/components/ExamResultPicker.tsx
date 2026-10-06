@@ -21,17 +21,19 @@ export function ExamResultPicker({
   value,
   onChange,
   options = DEFENSE_EXAM_RESULTS,
+  title = "เลือกผลการสอบวิทยานิพนธ์",
   hint = "เลือกผลการสอบตามใบรายงานผลการสอบ",
 }: {
   n: number;
   value: string;
   onChange: (v: string) => void;
   options?: readonly Result[];
+  title?: string;
   hint?: string;
 }) {
   return (
     <div>
-      <SectionLabel n={n} required>เลือกผลการสอบวิทยานิพนธ์</SectionLabel>
+      <SectionLabel n={n} required>{title}</SectionLabel>
       <p className="text-sm text-gray-500 pl-6 mb-2">{hint}</p>
       <div className="grid grid-cols-2 gap-2">
         {options.map((r) => (

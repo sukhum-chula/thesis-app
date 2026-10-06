@@ -80,7 +80,7 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
 
   async function handleApprove() {
     if (requireNotePrefix && !notePrefix) {
-      setError("กรุณาเลือกผลการสอบวิทยานิพนธ์ก่อน");
+      setError("กรุณาเลือกผลการสอบก่อน");
       return;
     }
     if (!allFormsReady) {
