@@ -23,6 +23,8 @@ interface Props {
   label?: string;
   onSuccess?: () => void;
   formsToShow?: string[];
+  /** Forms listed under ① download only, with no upload slot (e.g. the student's แบบประเมินดีมาก) */
+  downloadOnly?: string[];
   notePrefix?: string;
   requireNotePrefix?: boolean;
   extraSlots?: ExtraSlot[];
@@ -34,11 +36,13 @@ interface Props {
   intro?: React.ReactNode;
   /** A section that comes before ① download (e.g. the head's ผ่าน/ไม่ผ่าน picker) — given its number */
   leadSection?: (n: number) => React.ReactNode;
+  /** Replaces the ② sign section's heading/hint when the step also fills in a form (THESIS step 7) */
+  signSection?: { title: string; hint: string };
 }
 
 /** Single-signer action card: ① download → ② sign → ③ upload → checklist → notes → ส่งต่อ / ปฏิเสธ.
  *  Same parts, in the same order, as CommitteeSignPanel (built from the FileUploader building blocks). */
-export function SignatureButton({ submissionId, label = "ส่งต่อ", onSuccess, formsToShow, notePrefix, requireNotePrefix, extraSlots, checklist, approveNote, intro, leadSection }: Props) {
+export function SignatureButton({ submissionId, label = "ส่งต่อ", onSuccess, formsToShow, downloadOnly, notePrefix, requireNotePrefix, extraSlots, checklist, approveNote, intro, leadSection, signSection }: Props) {
   const { approveCurrentStep, rejectCurrentStep, submissions } = useApp();
   const { showToast } = useToast();
   const [notes,      setNotes]      = useState("");
@@ -67,7 +71,7 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
 
   // Latest version of each form this step signs
   const downloads = (() => {
-    const list = (sub?.uploads ?? []).filter((u) => !formsToShow?.length || formsToShow.includes(u.formType));
+    const list = (sub?.uploads ?? []).filter((u) => !formsToShow?.length || formsToShow.includes(u.formType) || !!downloadOnly?.includes(u.formType));
     const latestByType = new Map<string, (typeof list)[number]>();
     for (const u of [...list].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()))
       if (!latestByType.has(u.formType)) latestByType.set(u.formType, u);
@@ -144,8 +148,8 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
           </div>
 
           <div>
-            <SectionLabel n={base + 2}>ลงนามในเอกสาร</SectionLabel>
-            <p className="text-sm text-gray-500 pl-6">ลงนามในไฟล์ที่ดาวน์โหลด แล้วบันทึกเป็นไฟล์ PDF</p>
+            <SectionLabel n={base + 2} required={!!signSection}>{signSection?.title ?? "ลงนามในเอกสาร"}</SectionLabel>
+            <p className="text-sm text-gray-500 pl-6">{signSection?.hint ?? "ลงนามในไฟล์ที่ดาวน์โหลด แล้วบันทึกเป็นไฟล์ PDF"}</p>
           </div>
 
           <div>

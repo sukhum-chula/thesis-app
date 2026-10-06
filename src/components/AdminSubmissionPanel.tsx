@@ -9,7 +9,7 @@ import {
   FORM_LABELS, ROLE_LABELS, getStepName, PROGRAM_LABELS, formatBytes, formatDate, previewFile,
   toUserErrorMessage, formatUserName, FORM_FILE_ACCEPT, checkFormFile,
   B1_CHECKS, ADMIN_B1_EXTRA_CHECKS, ADMIN_STEP6_CHECKS, ADMIN_STEP8_CHECKS, ADMIN_DEFENSE_FINANCE_CHECKS, ADMIN_DEFENSE_RELAY_CHECKS, ADMIN_DEFENSE_FORWARD_CHECKS,
-  ADMIN_DEFENSE_RESULT_CHECKS, ADMIN_DEFENSE_SEND_CHECKS, freshUploadCutoff,
+  ADMIN_DEFENSE_RESULT_CHECKS, ADMIN_DEFENSE_SEND_CHECKS, freshUploadCutoff, defenseExamResult, VERY_GOOD_RESULT,
   ADMIN_DEFENSE_THESIS_CHECKS, ADMIN_DEFENSE_THESIS_SEND_CHECKS, ADMIN_DEFENSE_THESIS_FORWARD_CHECKS,
 } from "@/lib/utils";
 import { THESIS_STEP, financeStepOf, previousActiveStep, committeeRoster, isPerMemberForm } from "@/lib/workflowSteps";
@@ -43,6 +43,7 @@ const ADMIN_STEP_FORMS: Record<string, Record<number, string[]>> = {
     [THESIS_STEP.ADMIN_RELAY]:        ["B2", "B3"],
     [THESIS_STEP.ADMIN_RESULT_CHECK]: ["EXAM_RESULT", "SIGNED", "VERY_GOOD_EVAL"],
     [THESIS_STEP.ADMIN_RESULT_SEND]:  ["EXAM_RESULT"],
+    [THESIS_STEP.ADMIN_THESIS_SEND]:  ["B4", "THESIS"], // the chair-signed บ.4 + the thesis, to deliver
   },
 };
 
@@ -525,9 +526,9 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   const latestCover = (sub?.uploads ?? [])
     .filter((u) => u.formType === "COVER_PAGE" && (uploadCutoff === null || new Date(u.uploadedAt).getTime() > uploadCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
-  // PROPOSAL step 8 and THESIS_DEFENSE steps 4 and 13 need the package document stamped with the
-  // Faculty's LessPaper receipt number (step 13's a new copy — freshUploadCutoff)
-  const isLessPaperStep = isProposalCoverStep || isThesisRelayStep || isThesisDocCheckStep;
+  // PROPOSAL step 8 and THESIS_DEFENSE steps 4, 11 and 15 need the package document stamped with the
+  // Faculty's LessPaper receipt number (steps 11 and 15 a new copy each — freshUploadCutoff)
+  const isLessPaperStep = isProposalCoverStep || isThesisRelayStep || isThesisResultSendStep || isThesisDocSendStep;
   const latestLessPaper = (sub?.uploads ?? [])
     .filter((u) => u.formType === "LESSPAPER_RECEIPT" && (uploadCutoff === null || new Date(u.uploadedAt).getTime() > uploadCutoff))
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
@@ -1162,26 +1163,38 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : isThesisResultCheckStep ? (
-                <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ตรวจสอบใบรายงานผลการสอบและแบบรายงานการเสนอผลงานฯ ฉบับล่าสุดในระบบ</li>
-                  <li>ทำเครื่องหมายรายการตรวจสอบด้านล่าง แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
-                </ol>
+                <>
+                  <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
+                    <li>ตรวจสอบใบรายงานผลการสอบและแบบรายงานการเสนอผลงานฯ ฉบับล่าสุดในระบบ</li>
+                    <li>ทำเครื่องหมายรายการตรวจสอบด้านล่าง แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
+                  </ol>
+                  {/* The advisor picked ดีมาก at THESIS_STEP.ADVISOR_RESULT */}
+                  {defenseExamResult(sub.workflowSteps) === VERY_GOOD_RESULT && (
+                    <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-purple-800">ผลการสอบ ดีมาก</p>
+                      <p className="text-sm text-purple-700 mt-0.5">
+                        อาจารย์ที่ปรึกษาเลือกผลการสอบเป็น ดีมาก — กรุณาตรวจสอบแบบประเมินวิทยานิพนธ์ดีมากที่นิสิตกรอกด้วย
+                      </p>
+                    </div>
+                  )}
+                </>
               ) : isThesisResultSendStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>เตรียมบันทึกข้อความ แล้วเลือกไฟล์ด้านล่าง</li>
-                  <li>ส่งอีเมลใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
-                  <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
+                  <li>เตรียมบันทึกข้อความให้หัวหน้าภาควิชาลงนาม แล้วเลือกไฟล์ด้านล่าง</li>
+                  <li>นำส่งใบรายงานผลการสอบที่หัวหน้าภาควิชาลงนามแล้ว พร้อมบันทึกข้อความไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : isThesisDocCheckStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ตรวจสอบ บ.4 และวิทยานิพนธ์ฉบับสมบูรณ์ที่นิสิตอัปโหลด</li>
-                  <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
-                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม</li>
+                  <li>ตรวจสอบ บ.4 และวิทยานิพนธ์ 5 หน้าแรกที่นิสิตอัปโหลด</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม บ.4</li>
                 </ol>
               ) : isThesisDocSendStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ส่งอีเมล บ.4 และวิทยานิพนธ์ที่หัวหน้าภาควิชาลงนามแล้วไปยังคณะวิศวกรรมศาสตร์</li>
-                  <li>ทำเครื่องหมายยืนยันว่าส่งอีเมลแล้ว และกดอนุมัติ</li>
+                  <li>นำส่ง บ.4 ที่หัวหน้าภาควิชาลงนามแล้ว และวิทยานิพนธ์ไปยังคณะวิศวกรรมศาสตร์</li>
+                  <li>เลือกไฟล์เอกสารที่มีเลขรับโดยคณะผ่านระบบ LessPaper</li>
+                  <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว</li>
                 </ol>
               ) : isThesisDocForwardStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">

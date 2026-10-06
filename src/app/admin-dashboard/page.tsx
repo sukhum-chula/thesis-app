@@ -197,20 +197,20 @@ export default function AdminDashboard() {
                 taskLabel = "ตรวจสอบเอกสาร สร้างเอกสารการเงิน และอนุมัติ";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RELAY) {
-                taskLabel = "นำส่ง บ.2 + บ.3 ไปยังคณะวิศวกรรมศาสตร์";
+                taskLabel = "นำส่ง บ.2 + บ.3 ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper";
                 taskIcon  = <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_FORWARD) {
                 taskLabel = "ส่งต่ออีเมลจากคณะให้นิสิต แล้วกดยืนยัน";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_RESULT_SEND) {
-                taskLabel = "อัปโหลดบันทึกข้อความ แล้วส่งอีเมลใบรายงานผลการสอบไปคณะ";
+                taskLabel = "นำส่งใบรายงานผลการสอบพร้อมบันทึกข้อความไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper";
                 taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_CHECK) {
-                taskLabel = "ตรวจสอบ บ.4 + วิทยานิพนธ์ และอัปโหลดเอกสารเลขรับ LessPaper";
-                taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
-              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_SEND) {
-                taskLabel = "ส่งอีเมล บ.4 + วิทยานิพนธ์ไปคณะ แล้วกดยืนยัน";
+                taskLabel = "ตรวจสอบ บ.4 + วิทยานิพนธ์ แล้วกดอนุมัติ";
                 taskIcon  = <CheckCircle2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
+              } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_SEND) {
+                taskLabel = "นำส่ง บ.4 + วิทยานิพนธ์ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper";
+                taskIcon  = <Upload className="w-3.5 h-3.5 text-orange-500 shrink-0" />;
               } else if (sub.submissionType === "THESIS_DEFENSE" && step?.stepOrder === THESIS_STEP.ADMIN_THESIS_FORWARD) {
                 taskLabel = "รอเอกสารจากคณะ (คณบดีลงนาม) แล้วส่งต่อให้นิสิต";
                 taskIcon  = <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />;

@@ -81,7 +81,7 @@ export const FORM_LABELS: Record<FormType, string> = {
   B2:            "บ.2 — ออกหนังสือเชิญกรรมการ",
   B3:            "บ.3 — ประเมินวิทยานิพนธ์ก่อนสอบ",
   B4:            "บ.4 — ลงนามอนุมัติวิทยานิพนธ์",
-  THESIS:        "วิทยานิพนธ์ฉบับสมบูรณ์",
+  THESIS:        "วิทยานิพนธ์ 5 หน้าแรก (จากระบบ iThesis)",
   SIGNED:        "แบบรายงานการเสนอผลงานทางวิชาการของนิสิต",
   FINANCE_DOC:    "เอกสารการเงิน",
   FINANCE_ATTACH: "เอกสารการเงินแนบกรรมการสอบ",
@@ -395,11 +395,12 @@ export function checkFormFile(formType: string, file: File): string | null {
  *  auto-advance in POST /api/upload, and the student's upload checklist. */
 const FRESH_UPLOAD_AFTER_STEP: Record<string, Record<number, number>> = {
   PROPOSAL: { 4: 3 },
-  // the result-send step's cover page and the thesis-check step's LessPaper document must be new
+  // the result-send step's cover page + LessPaper document and the thesis-send step's LessPaper document must be new
   // copies (a defense built before 2026-10-06 also has a relay-step cover page; step 4 has a LessPaper one)
   THESIS_DEFENSE: {
+    [THESIS_STEP.ADVISOR_RESULT]:     THESIS_STEP.STUDENT_REPORT, // the advisor's signed แบบรายงานฯ + ใบรายงานผล
     [THESIS_STEP.ADMIN_RESULT_SEND]:  THESIS_STEP.DEPT_CHAIR_RESULT,
-    [THESIS_STEP.ADMIN_THESIS_CHECK]: THESIS_STEP.STUDENT_THESIS, // a second LessPaper document, for the thesis
+    [THESIS_STEP.ADMIN_THESIS_SEND]:  THESIS_STEP.DEPT_CHAIR_THESIS, // a third LessPaper document, for the thesis
   },
 };
 /** Upload time (ms) a step's required files must be newer than, or null when any copy counts. */
@@ -462,7 +463,7 @@ export const B1_CHECK_GROUPS = [
   { key: "b2",        title: "บ.2" },
   { key: "b3",        title: "บ.3" },
   { key: "b4",        title: "บ.4" },
-  { key: "thesis",    title: "วิทยานิพนธ์ฉบับสมบูรณ์" },
+  { key: "thesis",    title: "วิทยานิพนธ์ 5 หน้าแรก (จากระบบ iThesis)" },
   { key: "report",    title: "แบบรายงานการเสนอผลงานฯ" },
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
@@ -542,15 +543,21 @@ export const DEFENSE_STEP1_CHECKS: B1Check[] = [
   { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาแล้ว" },
 ];
 /** THESIS_DEFENSE step 6 (THESIS_STEP.STUDENT_REPORT) — the student signs แบบรายงานการเสนอผลงานฯ;
- *  ใบรายงานผลการสอบ is uploaded unsigned (the committee and the department chair sign it in the system) */
+ *  ใบรายงานผลการสอบ is uploaded blank — the advisor fills it in, signs it and picks the result at
+ *  THESIS_STEP.ADVISOR_RESULT; แบบประเมินวิทยานิพนธ์ดีมาก is always uploaded, blank unless the result is ดีมาก */
 export const DEFENSE_STEP6_CHECKS: B1Check[] = [
-  { key: "signReport", group: "report", label: "นิสิตลงนามในแบบรายงานการเสนอผลงานฯ แล้ว (1 ตำแหน่ง) โดยไม่ต้องลงนามในใบรายงานผลการสอบ" },
+  { key: "signReport", group: "report", label: "นิสิตลงนามในแบบรายงานการเสนอผลงานฯ แล้ว (1 ตำแหน่ง)" },
+  { key: "blankResult", group: "report", label: "ใบรายงานผลการสอบที่อัปโหลดเป็นฉบับว่าง ไม่ได้กรอกข้อมูลหรือลงนามใดๆ แล้ว" },
+  { key: "veryGoodEval", group: "report", label: "แบบประเมินวิทยานิพนธ์ดีมากกรอกข้อมูลครบถ้วนแล้วหากผลการสอบเป็น ดีมาก หรือเป็นฉบับว่างหากไม่ใช่" },
 ];
-/** THESIS_DEFENSE step 12 (stepOrder 15, THESIS_STEP.STUDENT_THESIS) — บ.4 + the iThesis file */
+/** THESIS_DEFENSE step 12 (stepOrder 15, THESIS_STEP.STUDENT_THESIS) — บ.4 + the first 5 pages of the
+ *  iThesis file (covers TH/EN, committee signatures, abstracts TH/EN), barcoded and not edited in iThesis since */
 export const DEFENSE_STEP15_CHECKS: B1Check[] = [
   { key: "fillB4",    group: "b4",      label: "กรอกข้อมูลใน บ.4 ครบถ้วนแล้ว" },
   { key: "signB4",    group: "b4",      label: "นิสิตลงนามใน บ.4 แล้ว (1 ตำแหน่ง)" },
-  { key: "eThesis",   group: "thesis",  label: "วิทยานิพนธ์เป็นไฟล์จากระบบ iThesis ของจุฬาฯ และมีบาร์โค้ดแล้ว" },
+  { key: "fivePages", group: "thesis",  label: "ไฟล์วิทยานิพนธ์มีเฉพาะ 5 หน้าแรกจากระบบ iThesis (ปกภาษาไทย ปกภาษาอังกฤษ หน้าลายมือชื่อคณะกรรมการสอบ บทคัดย่อภาษาไทย บทคัดย่อภาษาอังกฤษ) แล้ว" },
+  { key: "eThesis",   group: "thesis",  label: "วิทยานิพนธ์มีบาร์โค้ดจากระบบ iThesis แล้ว" },
+  { key: "noEdit",    group: "thesis",  label: "ไม่ได้แก้ไขวิทยานิพนธ์ในระบบ iThesis หลังดาวน์โหลดแล้ว" },
   { key: "committeeSigned", group: "thesis", label: "คณะกรรมการสอบลงนามในวิทยานิพนธ์ครบทุกท่านแล้ว" },
   { key: "namesOk",   group: "thesis",  label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
   { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาแล้ว" },
@@ -589,10 +596,9 @@ export const SIGN_CHECKS: Record<string, Record<number, B1Check[]>> = {
     10: SIGN_RESULT_CHECKS,
     11: SIGN_RESULT_CHECKS,
     [THESIS_STEP.DEPT_CHAIR_RESULT]: SIGN_RESULT_CHECKS,
-    // shown as step 14 — the department chair signs both of the student's step-12 documents
+    // shown as step 14 — the department chair signs บ.4 only (not the thesis)
     [THESIS_STEP.DEPT_CHAIR_THESIS]: [
       { key: "headSignB4",     group: "mySign", label: "ท่านลงนามใน บ.4 แล้ว (1 ตำแหน่ง)" },
-      { key: "headSignThesis", group: "mySign", label: "ท่านลงนามในวิทยานิพนธ์แล้ว (1 ตำแหน่ง)" },
     ],
   },
 };
@@ -625,7 +631,7 @@ export const ADMIN_DEFENSE_FORWARD_CHECKS: B1Check[] = [
   { key: "forwarded", group: "confirm", label: "ส่งต่ออีเมลจากคณะฯ (ใบรายงานผลการสอบ แบบรายงานการเสนอผลงานฯ หนังสือเชิญ) ให้นิสิตแล้ว" },
 ];
 
-/** A picked exam result (THESIS_DEFENSE: the student at THESIS_STEP.STUDENT_REPORT; PROPOSAL: the
+/** A picked exam result (THESIS_DEFENSE: the advisor at THESIS_STEP.ADVISOR_RESULT; PROPOSAL: the
  *  head of committee) travels as the first line of the approval note: `ผลการสอบ: <result>`. */
 export const EXAM_RESULT_NOTE_PREFIX = "ผลการสอบ: ";
 /** The defense result that also needs แบบประเมินวิทยานิพนธ์ดีมาก (VERY_GOOD_EVAL) uploaded */
@@ -641,10 +647,10 @@ export function examResultFromNotes(notes: string | null | undefined): string | 
 /** The THESIS_DEFENSE exam results, in picker order (ผ่าน is preselected by design) */
 export const DEFENSE_EXAM_RESULTS = ["ดีมาก", "ดี", "ผ่าน", "ไม่ผ่าน"] as const;
 export const DEFAULT_DEFENSE_EXAM_RESULT = "ผ่าน";
-/** A defense's exam result: picked by the student at THESIS_STEP.STUDENT_REPORT (stored as that
- *  step's approval note) and double-checked by the advisor at THESIS_STEP.ADVISOR_RESULT */
+/** A defense's exam result: picked by the advisor at THESIS_STEP.ADVISOR_RESULT (stored as that
+ *  step's approval note) — null until that step is approved */
 export function defenseExamResult(steps: { stepOrder: number; notes?: string | null }[]): string | null {
-  return examResultFromNotes(steps.find((s) => s.stepOrder === THESIS_STEP.STUDENT_REPORT)?.notes);
+  return examResultFromNotes(steps.find((s) => s.stepOrder === THESIS_STEP.ADVISOR_RESULT)?.notes);
 }
 
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_CHECK — the ADMIN checks the committee-signed documents
@@ -652,25 +658,27 @@ export function defenseExamResult(steps: { stepOrder: number; notes?: string | n
 export const ADMIN_DEFENSE_RESULT_CHECKS: B1Check[] = [
   { key: "resultSigned", group: "verify", label: "อาจารย์ที่ปรึกษาและคณะกรรมการสอบลงนามในใบรายงานผลการสอบครบทุกท่านแล้ว (นิสิตไม่ต้องลงนาม)" },
   { key: "reportSigned", group: "verify", label: "นิสิตและอาจารย์ที่ปรึกษาลงนามในแบบรายงานการเสนอผลงานฯ แล้ว" },
-  { key: "resultMatch",  group: "verify", label: "ผลการสอบในเอกสารตรงกับผลที่นิสิตเลือกและอาจารย์ที่ปรึกษายืนยันในระบบแล้ว" },
+  { key: "resultMatch",  group: "verify", label: "ผลการสอบในเอกสารตรงกับผลที่อาจารย์ที่ปรึกษาเลือกในระบบแล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_RESULT_SEND — the ADMIN uploads the cover page and confirms the
  *  documents were emailed to the Faculty */
 export const ADMIN_DEFENSE_SEND_CHECKS: B1Check[] = [
   { key: "coverSigned", group: "cover", label: COVER_SIGNED_LABEL },
-  { key: "emailSent", group: "confirm", label: "ส่งอีเมลใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
-];
-/** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_CHECK — the ADMIN checks the student's บ.4 + thesis
- *  (and uploads a new LessPaper document) before the department chair signs them */
-export const ADMIN_DEFENSE_THESIS_CHECKS: B1Check[] = [
-  { key: "b4Ok",     group: "verify", label: "บ.4 กรอกข้อมูลครบถ้วน และนิสิตลงนามแล้ว" },
-  { key: "thesisOk", group: "verify", label: "วิทยานิพนธ์เป็นไฟล์จากระบบ iThesis มีบาร์โค้ด และคณะกรรมการสอบลงนามครบทุกท่านแล้ว" },
-  { key: "namesOk",  group: "verify", label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
+  { key: "emailSent", group: "confirm", label: "นำส่งใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
   LESSPAPER_CHECK,
 ];
-/** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_SEND — the ADMIN confirms the documents were emailed */
+/** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_CHECK — the ADMIN checks the student's บ.4 + thesis
+ *  before the department chair signs them */
+export const ADMIN_DEFENSE_THESIS_CHECKS: B1Check[] = [
+  { key: "b4Ok",     group: "verify", label: "บ.4 กรอกข้อมูลครบถ้วน และนิสิตลงนามแล้ว" },
+  { key: "thesisOk", group: "verify", label: "วิทยานิพนธ์เป็น 5 หน้าแรกจากระบบ iThesis ครบถ้วน มีบาร์โค้ด และคณะกรรมการสอบลงนามครบทุกท่านแล้ว" },
+  { key: "namesOk",  group: "verify", label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
+];
+/** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_SEND — the ADMIN delivers the signed documents to the
+ *  Faculty and uploads a new LessPaper document (same as step 4 / step 11) */
 export const ADMIN_DEFENSE_THESIS_SEND_CHECKS: B1Check[] = [
-  { key: "emailSent", group: "confirm", label: "ส่งอีเมล บ.4 และวิทยานิพนธ์ (หัวหน้าภาควิชาลงนามแล้ว) ไปยังคณะฯ แล้ว" },
+  { key: "emailSent", group: "confirm", label: "นำส่ง บ.4 (หัวหน้าภาควิชาลงนามแล้ว) และวิทยานิพนธ์ไปยังคณะฯ แล้ว" },
+  LESSPAPER_CHECK,
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_FORWARD — the student confirms iThesis after this */
 export const ADMIN_DEFENSE_THESIS_FORWARD_CHECKS: B1Check[] = [
@@ -686,21 +694,21 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   1:  "นิสิตอัปโหลด บ.2 + บ.3 ของกรรมการทุกท่าน",
   2:  "เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ",
   3:  "ประธานหลักสูตรลงนาม บ.2",
-  4:  "เจ้าหน้าที่นำส่ง บ.2 + บ.3 ไปคณะ",
+  4:  "เจ้าหน้าที่นำส่ง บ.2 + บ.3 ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper",
   5:  "เจ้าหน้าที่ส่งต่ออีเมลจากคณะให้นิสิต",
-  6:  "นิสิตอัปโหลดแบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนาม) + ใบรายงานผลการสอบ",
-  7:  "อาจารย์ที่ปรึกษาลงนาม แบบรายงานฯ + ใบรายงานผล",
+  6:  "นิสิตอัปโหลดแบบรายงานการเสนอผลงานฯ (กรอกข้อมูลและลงนาม) + ใบรายงานผลการสอบ (ฉบับว่าง) + แบบประเมินวิทยานิพนธ์ดีมาก",
+  7:  "อาจารย์ที่ปรึกษาเลือกผลการสอบ + ลงนาม แบบรายงานฯ + กรอกและลงนาม ใบรายงานผล",
   8:  "อาจารย์ที่ปรึกษาร่วมลงนาม ใบรายงานผล",
   9:  "ประธานกรรมการสอบลงนาม ใบรายงานผล",
   10: "กรรมการสอบลงนาม ใบรายงานผล",
   11: "กรรมการภายนอกลงนาม ใบรายงานผล",
   12: "เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ",
   13: "หัวหน้าภาควิชาลงนาม ใบรายงานผล",
-  14: "เจ้าหน้าที่อัปโหลดบันทึกข้อความ และส่งอีเมลเอกสารไปคณะ",
-  15: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ฉบับสมบูรณ์",
-  16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์ และอัปโหลดเอกสารเลขรับ LessPaper",
-  17: "หัวหน้าภาควิชาลงนาม บ.4 + วิทยานิพนธ์",
-  18: "เจ้าหน้าที่ส่งอีเมลเอกสารวิทยานิพนธ์ไปคณะ",
+  14: "เจ้าหน้าที่นำส่งใบรายงานผลการสอบพร้อมบันทึกข้อความไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper",
+  15: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ 5 หน้าแรกจากระบบ iThesis",
+  16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์",
+  17: "หัวหน้าภาควิชาลงนาม บ.4",
+  18: "เจ้าหน้าที่นำส่ง บ.4 + วิทยานิพนธ์ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper",
   19: "เจ้าหน้าที่ส่งต่อเอกสารจากคณะ (คณบดีลงนามแล้ว) ให้นิสิต",
   20: "นิสิตยืนยันการส่งเอกสารเข้าระบบ iThesis",
 };

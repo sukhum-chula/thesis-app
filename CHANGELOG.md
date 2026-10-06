@@ -7,6 +7,47 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-06
 
+- **THESIS_DEFENSE step 14 (stepOrder 17): the department head signs บ.4 only, not the thesis.**
+  `STEP_SIGN_FORMS[17]` is `["B4"]` and the own-signature checklist is the one บ.4 item. Step name,
+  the admin's step-13/15 wording and translations updated.
+- **THESIS_DEFENSE: the thesis-package LessPaper upload moved from step 13 (stepOrder 16) to step 15
+  (stepOrder 18).** Step 13 is now a plain check (3-item checklist, no upload); step 15 delivers the
+  chair-signed บ.4 + the thesis (now listed under ① download) and uploads a LessPaper document newer than
+  step 14's approval, with the same task-list wording and checklist item as steps 4 and 11. Server gate
+  (`REQUIRED_UPLOADS`), `FRESH_UPLOAD_AFTER_STEP`, the upload route (steps 4, 11, 15), step names and
+  admin-dashboard task labels follow.
+
+- **THESIS_DEFENSE step 12 (stepOrder 15): the student uploads only the first 5 pages of the thesis.**
+  The THESIS upload is now the first 5 pages downloaded from iThesis — ปกภาษาไทย, ปกภาษาอังกฤษ,
+  หน้าลายมือชื่อคณะกรรมการสอบ, บทคัดย่อภาษาไทย, บทคัดย่อภาษาอังกฤษ — already barcoded, and the thesis
+  must not be edited in iThesis after downloading. Upload instructions, step name, `FORM_LABELS.THESIS`
+  ("วิทยานิพนธ์ 5 หน้าแรก (จากระบบ iThesis)"), the student's checklist (`DEFENSE_STEP15_CHECKS`: +5-pages,
+  +not-edited, barcode split out) and the admin's step-13 check/task text updated; also removed the
+  last "e-thesis"/"barcode" wording from the student screen. Translations added. No server change.
+
+- **THESIS_DEFENSE step 11 (stepOrder 14) also takes a LessPaper receipt document.** Same upload box,
+  instruction line and checklist item (`LESSPAPER_CHECK`) as step 4; must be newer than step 10's
+  approval (`freshUploadCutoff`), gated client- and server-side (`REQUIRED_UPLOADS`), and
+  `POST /api/upload` now accepts a defense's `LESSPAPER_RECEIPT` at steps 4, 11 and 13. Wording made
+  consistent with step 4: the task list reads "นำส่ง … / เลือกไฟล์เอกสารที่มีเลขรับ… / ทำเครื่องหมาย
+  รายการตรวจสอบ แล้วกดอนุมัติเพื่อยืนยันว่านำส่งแล้ว", and both steps' names and admin-dashboard task
+  labels now end in "และอัปโหลดเอกสารเลขรับ LessPaper" (matching step 13).
+
+- **THESIS_DEFENSE steps 6–7 reworked: the advisor picks the exam result and fills in ใบรายงานผลการสอบ.**
+  Step 6 (student) requires `SIGNED` + a blank `EXAM_RESULT` + `VERY_GOOD_EVAL` — the evaluation
+  form is now always uploaded, filled in only when the result is ดีมาก — with a checklist box for each;
+  the student's result picker is gone. Step 7 (advisor) picks ดีมาก/ดี/ผ่าน/ไม่ผ่าน (`ExamResultPicker`
+  lead section; the server now requires the `ผลการสอบ:` note line at step 7 instead of step 6, and
+  `defenseExamResult()` reads step 7), can download the student's evaluation form
+  (`SignatureButton` `downloadOnly`), fills in all of ใบรายงานผลการสอบ and signs it (the card's ②
+  section is "กรอกข้อมูลและลงนามในเอกสาร" via the new `signSection` prop), and is gated on `SIGNED` +
+  `EXAM_RESULT` both newer than step 6's approval (`REQUIRED_UPLOADS`, `FRESH_UPLOAD_AFTER_STEP`).
+  Step 9 (stepOrder 12, the ADMIN's result check) shows a purple "ผลการสอบ ดีมาก" note in its task card
+  when the advisor picked ดีมาก, asking the admin to also check the evaluation form.
+  The student's re-pick-the-result resubmit flow (`resubmit` + `examResult`, `hasVeryGoodEval`) was
+  removed. Step names, checklists and translations updated. No schema change; no in-flight defense
+  was affected.
+
 - **THESIS_DEFENSE steps 4 and 13 (stepOrders 4 and 16) take a LessPaper receipt instead of a
   บันทึกข้อความ.** Neither step has a cover page any more: the `COVER_PAGE` upload box, its
   "หัวหน้าภาควิชาลงนามในบันทึกข้อความแล้ว" checkbox and the server approve gate are gone from

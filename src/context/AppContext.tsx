@@ -56,7 +56,7 @@ interface AppContextType {
   returnToPrevStep: (submissionId: string, notes?: string) => Promise<void>;
   addUpload: (submissionId: string, formType: FormType, fileName: string, fileSize: number, fileContent?: string) => void;
   getPendingCount: (role: string) => number;
-  studentResubmit: (submissionId: string, examResult?: string) => Promise<void>;
+  studentResubmit: (submissionId: string) => Promise<void>;
   requestCancelSubmission: (submissionId: string) => Promise<void>;
   adminAcceptCancel: (submissionId: string) => Promise<void>;
   adminDeclineCancel: (submissionId: string) => Promise<void>;
@@ -250,8 +250,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refreshNotifications();
   }
 
-  async function studentResubmit(submissionId: string, examResult?: string) {
-    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "resubmit", ...(examResult ? { examResult } : {}) });
+  async function studentResubmit(submissionId: string) {
+    const sub = await api<MockSubmission>(`/api/submissions/${submissionId}`, "PATCH", { action: "resubmit" });
     setSubmissions((prev) => prev.map((s) => (s.id === submissionId ? sub : s)));
   }
 

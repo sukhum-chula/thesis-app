@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCutoff, isHiddenFromStudent, FORM_SHORT, examResultFromNotes, examResultNote, VERY_GOOD_RESULT, DEFENSE_EXAM_RESULTS } from "@/lib/utils";
+import { getStepName, ROLE_LABELS, PROGRAM_LABELS, formatUserName, freshUploadCutoff, isHiddenFromStudent, FORM_SHORT, examResultFromNotes, DEFENSE_EXAM_RESULTS } from "@/lib/utils";
 import type { FormType } from "@/types";
 import { sendStepEmail, sendFinanceEmail } from "@/lib/email";
 import { deleteFolder } from "@/lib/supabase";
@@ -35,14 +35,6 @@ async function getSub(id: string) {
     where: { id },
     include: { workflowSteps: { orderBy: { stepOrder: "asc" } }, uploads: true },
   });
-}
-
-/** A แบบประเมินวิทยานิพนธ์ดีมาก uploaded since the Faculty email was forwarded to the student
- *  (THESIS_STEP.ADMIN_FORWARD) — what a ดีมาก defense result requires */
-function hasVeryGoodEval(sub: { workflowSteps: { stepOrder: number; actedAt: Date | null }[]; uploads: { formType: string; uploadedAt: Date }[] }): boolean {
-  const forwarded = sub.workflowSteps.find((s) => s.stepOrder === THESIS_STEP.ADMIN_FORWARD)?.actedAt;
-  const since = forwarded ? new Date(forwarded).getTime() : 0;
-  return sub.uploads.some((u) => u.formType === "VERY_GOOD_EVAL" && new Date(u.uploadedAt).getTime() > since);
 }
 
 async function notifyRole(role: string, sub: any, message: string, type: string) {
@@ -200,9 +192,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           [THESIS_STEP.STUDENT_B2_B3]:  ["B2", "B3"],
           [THESIS_STEP.ADMIN_CHECK]:    ["FINANCE_ATTACH"],
           [THESIS_STEP.ADMIN_RELAY]:    ["LESSPAPER_RECEIPT"], // the package stamped with the Faculty's LessPaper receipt number
-          [THESIS_STEP.STUDENT_REPORT]: ["SIGNED", "EXAM_RESULT"], // from the Faculty email the admin forwarded
-          [THESIS_STEP.ADMIN_RESULT_SEND]: ["COVER_PAGE"], // a new one (freshUploadCutoff) — sent with the result
-          [THESIS_STEP.ADMIN_THESIS_CHECK]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — for the thesis
+          [THESIS_STEP.STUDENT_REPORT]: ["SIGNED", "EXAM_RESULT", "VERY_GOOD_EVAL"], // ใบรายงานผล blank; แบบประเมินดีมาก always (blank unless ดีมาก)
+          [THESIS_STEP.ADVISOR_RESULT]: ["SIGNED", "EXAM_RESULT"], // signed แบบรายงานฯ + filled-in, signed ใบรายงานผล, newer than step 6 (freshUploadCutoff)
+          [THESIS_STEP.ADMIN_RESULT_SEND]: ["COVER_PAGE", "LESSPAPER_RECEIPT"], // new ones (freshUploadCutoff) — the result's package
+          [THESIS_STEP.ADMIN_THESIS_SEND]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — for the thesis
           [THESIS_STEP.STUDENT_THESIS]: ["B4", "THESIS"],
         },
       };
@@ -245,14 +238,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // THESIS student-report step: the student picks the exam result (the note's `ผลการสอบ: …` line);
-    // ดีมาก also needs แบบประเมินวิทยานิพนธ์ดีมาก, uploaded since the Faculty email was forwarded
-    if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === THESIS_STEP.STUDENT_REPORT) {
+    // THESIS advisor-result step: the advisor picks the exam result (the note's `ผลการสอบ: …` line)
+    if (sub.submissionType === "THESIS_DEFENSE" && step.stepOrder === THESIS_STEP.ADVISOR_RESULT) {
       const result = examResultFromNotes(body.notes);
       if (!result || !(DEFENSE_EXAM_RESULTS as readonly string[]).includes(result))
         return NextResponse.json({ error: "กรุณาเลือกผลการสอบวิทยานิพนธ์" }, { status: 400 });
-      if (result === VERY_GOOD_RESULT && !hasVeryGoodEval(sub))
-        return NextResponse.json({ error: "ผลการสอบ ดีมาก — กรุณาอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากก่อน" }, { status: 400 });
     }
 
     await prisma.workflowStep.update({
@@ -585,23 +575,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (sub.studentId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const rejectedStep = sub.workflowSteps.find((s: any) => s.status === "REJECTED");
     if (!rejectedStep) return NextResponse.json({ error: "No rejected step" }, { status: 400 });
-
-    // The advisor rejected the exam result: the student may send a corrected one, which replaces the
-    // result line on the student-report step's note (where defenseExamResult reads it)
-    if (body.examResult !== undefined) {
-      const reportStep = sub.workflowSteps.find((s: any) => s.stepOrder === THESIS_STEP.STUDENT_REPORT);
-      if (sub.submissionType !== "THESIS_DEFENSE" || rejectedStep.stepOrder !== THESIS_STEP.ADVISOR_RESULT || !reportStep)
-        return NextResponse.json({ error: "แก้ไขผลการสอบได้เฉพาะเมื่ออาจารย์ที่ปรึกษาปฏิเสธผลการสอบ" }, { status: 400 });
-      if (!(DEFENSE_EXAM_RESULTS as readonly string[]).includes(body.examResult))
-        return NextResponse.json({ error: "ผลการสอบไม่ถูกต้อง" }, { status: 400 });
-      if (body.examResult === VERY_GOOD_RESULT && !hasVeryGoodEval(sub))
-        return NextResponse.json({ error: "ผลการสอบ ดีมาก — กรุณาอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากก่อน" }, { status: 400 });
-      const rest = (reportStep.notes ?? "").split("\n").slice(1).join("\n");
-      await prisma.workflowStep.update({
-        where: { id: reportStep.id },
-        data: { notes: [examResultNote(body.examResult), rest].filter(Boolean).join("\n") },
-      });
-    }
 
     // Reset only the rejected step itself — the reviewer re-reviews from the same step
     await prisma.workflowStep.update({

@@ -85,8 +85,8 @@ export async function POST(req: NextRequest) {
   // page at stepOrder 12 (shown as step 8).
   // THESIS_DEFENSE: the finance attachment is the ADMIN's check-step file too (THESIS_STEP.ADMIN_CHECK,
   // step 2), the cover page is the result-send step's (THESIS_STEP.ADMIN_RESULT_SEND, shown as step
-  // 11), and the LessPaper document is the relay step's (THESIS_STEP.ADMIN_RELAY, step 4) and the
-  // thesis-check step's (THESIS_STEP.ADMIN_THESIS_CHECK, shown as step 13)
+  // 11), and the LessPaper document is the relay step's (THESIS_STEP.ADMIN_RELAY, step 4), the
+  // result-send step's (shown as step 11) and the thesis-send step's (THESIS_STEP.ADMIN_THESIS_SEND, shown as step 15)
   // — the 8.x sub-step group absorbs a co-advisor, so those labels never shift.
   const ADMIN_ONLY_AT_STEP: Record<string, Record<string, { steps: number[]; label: string }>> = {
     PROPOSAL: {
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     THESIS_DEFENSE: {
       FINANCE_ATTACH: { steps: [THESIS_STEP.ADMIN_CHECK], label: `เอกสารการเงินของคำร้องสอบวิทยานิพนธ์อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ ${THESIS_STEP.ADMIN_CHECK} เท่านั้น` },
       COVER_PAGE:     { steps: [THESIS_STEP.ADMIN_RESULT_SEND], label: "บันทึกข้อความอัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 11 เท่านั้น" },
-      LESSPAPER_RECEIPT: { steps: [THESIS_STEP.ADMIN_RELAY, THESIS_STEP.ADMIN_THESIS_CHECK], label: "เอกสารที่มีเลขรับจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 4 และ 13 เท่านั้น" },
+      LESSPAPER_RECEIPT: { steps: [THESIS_STEP.ADMIN_RELAY, THESIS_STEP.ADMIN_RESULT_SEND, THESIS_STEP.ADMIN_THESIS_SEND], label: "เอกสารที่มีเลขรับจากระบบ LessPaper อัปโหลดได้โดยเจ้าหน้าที่ในขั้นตอนที่ 4, 11 และ 15 เท่านั้น" },
     },
   };
   const adminOnly = ADMIN_ONLY_AT_STEP[subCheck.submissionType ?? "PROPOSAL"]?.[formType];

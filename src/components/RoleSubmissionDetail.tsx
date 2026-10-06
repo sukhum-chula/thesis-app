@@ -8,7 +8,7 @@ import { SignatureButton } from "./SignatureButton";
 import { CommitteeSignPanel } from "./CommitteeSignPanel";
 import { SubmissionStatusBadge } from "./StatusBadge";
 import { FileList } from "./FileList";
-import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS, examResultNote, VERY_GOOD_RESULT, defenseExamResult } from "@/lib/utils";
+import { ROLE_LABELS, formatDate, PROGRAM_LABELS, formatUserName, SIGN_CHECKS, examResultNote, VERY_GOOD_RESULT, DEFAULT_DEFENSE_EXAM_RESULT } from "@/lib/utils";
 import { ExamResultPicker } from "./ExamResultPicker";
 import { THESIS_STEP } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
@@ -27,6 +27,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   const sub = submissions.find((s) => s.id === submissionId);
 
   const [thesisResult, setThesisResult] = useState("ผ่าน"); // PROPOSAL head-of-committee pass/fail
+  const [defenseResult, setDefenseResult] = useState<string>(DEFAULT_DEFENSE_EXAM_RESULT); // THESIS advisor's pick
 
   if (!sub) {
     return (
@@ -117,7 +118,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       // uploaded by the student at step 1. Steps 2 (ADMIN check), 4 (ADMIN relay) and 5 (ADMIN
       // upload of the Faculty docs) are omitted — no signing, handled via the admin page
       3:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 2)
-      7:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงาน + ใบรายงานผล (แบบรายงานฯ: student + advisor only)
+      7:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงานฯ (student + advisor only) fills in + signs the blank ใบรายงานผล the student uploaded
       8:  ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
       9:  ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
       10: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
@@ -125,7 +126,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       // Steps 12 (ADMIN check) and 14 (ADMIN cover page + email to the Faculty) — admin page
       13: ["EXAM_RESULT"],           // DEPARTMENT_CHAIR signs ใบรายงานผล
       // Step 16 (ADMIN check + cover page), 18 and 19 (ADMIN confirmations) — admin page
-      17: ["B4", "THESIS"],  // DEPARTMENT_CHAIR signs B4 + the thesis (which arrives committee-signed at step 15)
+      17: ["B4"],            // DEPARTMENT_CHAIR signs B4 only (the thesis arrives committee-signed at step 15)
     },
   };
   const formsToShow = currentStep
@@ -141,12 +142,15 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     ? (SIGN_CHECKS[sub.submissionType ?? "PROPOSAL"]?.[currentStep.stepOrder] ?? null)
     : null;
   const signChecksTitle = sub.submissionType === "THESIS_DEFENSE" ? "กรุณาตรวจสอบก่อนส่งต่อ" : "กรุณาตรวจสอบ บ.วศ.1 ก่อนส่งต่อ";
-  // THESIS advisor-result step: the advisor confirms the student's result instead of picking one
-  const studentResult = isThesisAdvisorResultStep ? defenseExamResult(sub.workflowSteps) : null;
+  // THESIS advisor-result step: the advisor picks the result; ดีมาก — the student's evaluation form must be filled in
   const advisorResultChecks = isThesisAdvisorResultStep
     ? [
-        { key: "resultOk",     group: "confirm" as const, label: `ผลการสอบ "${studentResult ?? "-"}" ตรงกับใบรายงานผลการสอบแล้ว` },
+        { key: "resultOk",     group: "confirm" as const, label: `ผลการสอบ "${defenseResult}" ตรงกับใบรายงานผลการสอบแล้ว` },
+        ...(defenseResult === VERY_GOOD_RESULT
+          ? [{ key: "evalFilled", group: "confirm" as const, label: "นิสิตกรอกแบบประเมินวิทยานิพนธ์ดีมากครบถ้วนแล้ว" }]
+          : []),
         { key: "signedReport", group: "mySign" as const, label: "ท่านลงนามในแบบรายงานการเสนอผลงานฯ แล้ว (1 ตำแหน่ง)" },
+        { key: "filledResult", group: "mySign" as const, label: "ท่านกรอกข้อมูลในใบรายงานผลการสอบครบถ้วนแล้ว" },
         { key: "signedResult", group: "mySign" as const, label: "ท่านลงนามในใบรายงานผลการสอบแล้ว (1 ตำแหน่ง)" },
       ]
     : null;
@@ -293,24 +297,26 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
               submissionId={sub.id}
               formsToShow={formsToShow}
               onSuccess={() => router.push(backPath)}
-              notePrefix={isThesisAdvisorResultStep && studentResult ? examResultNote(studentResult)
+              downloadOnly={isThesisAdvisorResultStep ? ["VERY_GOOD_EVAL"] : undefined}
+              signSection={isThesisAdvisorResultStep ? {
+                title: "กรอกข้อมูลและลงนามในเอกสาร",
+                hint: "กรอกข้อมูลในใบรายงานผลการสอบวิทยานิพนธ์ให้ครบถ้วน (ผลการสอบตรงกับที่เลือกด้านบน) แล้วลงนาม และลงนามในแบบรายงานการเสนอผลงานฯ จากนั้นบันทึกเป็นไฟล์ PDF",
+              } : undefined}
+              notePrefix={isThesisAdvisorResultStep && defenseResult ? examResultNote(defenseResult)
                 : isProposalHeadResultStep && thesisResult ? examResultNote(thesisResult) : undefined}
               requireNotePrefix={isThesisAdvisorResultStep || isProposalHeadResultStep}
               checklist={advisorResultChecks ? { title: signChecksTitle, checks: advisorResultChecks }
                 : signChecks ? { title: signChecksTitle, checks: signChecks } : undefined}
               intro={isThesisAdvisorResultStep ? (
-                // Exam result — picked by the student at THESIS_STEP.STUDENT_REPORT; the advisor double-checks it
-                <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 space-y-2">
-                  <p className="text-sm font-semibold text-gray-700">ผลการสอบวิทยานิพนธ์ที่นิสิตเลือก</p>
-                  <p className="text-2xl font-bold text-purple-800">{studentResult ?? "— ไม่พบผลการสอบ —"}</p>
-                  <p className="text-sm text-amber-800">
-                    กรุณาตรวจสอบว่าผลการสอบนี้ตรงกับใบรายงานผลการสอบ
-                    {studentResult === VERY_GOOD_RESULT && " และนิสิตอัปโหลดแบบประเมินวิทยานิพนธ์ดีมากแล้ว"}
-                    {" "}— หากไม่ถูกต้อง กรุณากด ปฏิเสธ พร้อมระบุเหตุผล นิสิตจะแก้ไขผลการสอบและยื่นใหม่
-                  </p>
-                </div>
+                <p className="text-sm text-gray-600 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  ใบรายงานผลการสอบที่นิสิตอัปโหลดเป็นฉบับว่าง — ท่านเป็นผู้กรอกข้อมูลทั้งหมดในใบรายงานผลการสอบและลงนาม แล้วอัปโหลดในขั้นตอนนี้ คณะกรรมการสอบและหัวหน้าภาควิชาจะลงนามต่อจากไฟล์นี้
+                  แบบประเมินวิทยานิพนธ์ดีมากที่นิสิตอัปโหลดจะมีข้อมูลเฉพาะเมื่อผลการสอบเป็น ดีมาก
+                </p>
               ) : undefined}
-              leadSection={isProposalHeadResultStep ? (n) => (
+              leadSection={isThesisAdvisorResultStep ? (n) => (
+                // Exam result — picked by the advisor (ผ่าน preselected); stored as this step's approval note
+                <ExamResultPicker n={n} value={defenseResult} onChange={setDefenseResult} />
+              ) : isProposalHeadResultStep ? (n) => (
                 // Pass/fail — HEAD_EXAM_COMMITTEE at PROPOSAL step 5.1
                 <ExamResultPicker n={n} value={thesisResult} onChange={setThesisResult}
                   options={["ผ่าน", "ไม่ผ่าน"]} hint="กรุณาเลือกผลการสอบก่อนลงนาม" />

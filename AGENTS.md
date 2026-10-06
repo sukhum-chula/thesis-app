@@ -52,7 +52,7 @@ NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPa
 - **Required uploads gate**: Before a STUDENT step can advance, the student must upload specific form types. Enforced server-side in `PATCH /api/submissions/[id]` (action `"approve"`) and client-side in the student detail page.
   ```
   PROPOSAL:       step 1 → [B1],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 → [B1 (new copy, after step 3)],  step 12 (ADMIN) → [COVER_PAGE, LESSPAPER_RECEIPT]
-  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [LESSPAPER_RECEIPT],  step 6 → [SIGNED, EXAM_RESULT],   step 14 (ADMIN) → [COVER_PAGE, a new copy after step 13],   step 15 → [B4, THESIS],   step 16 (ADMIN) → [LESSPAPER_RECEIPT, a new copy after step 15]
+  THESIS_DEFENSE: step 1 → [B2, one B3 per committee member],  step 2 (ADMIN) → [FINANCE_ATTACH, generated],  step 4 (ADMIN) → [LESSPAPER_RECEIPT],  step 6 → [SIGNED, EXAM_RESULT (blank), VERY_GOOD_EVAL (blank unless ดีมาก)],   step 7 (ADVISOR) → [SIGNED, EXAM_RESULT, both newer than step 6],   step 14 (ADMIN) → [COVER_PAGE + LESSPAPER_RECEIPT, new copies after step 13],   step 15 → [B4, THESIS],   step 18 (ADMIN) → [LESSPAPER_RECEIPT, a new copy after step 17]
   ```
   PROPOSAL needs no finance document at step 4 or later (removed 2026-09-29) — the proposal's only finance paperwork is the FINANCE_ATTACH the ADMIN generates at step 2. Step 4 is a plain student step: the student's own submit advances it. (THESIS_DEFENSE's Faculty-returned FINANCE_DOC is unrelated and unchanged.)
 - **Tailwind class names in lookup maps must be whole static strings** (no interpolation).
@@ -205,7 +205,7 @@ per-program, so there is no `:<program>` suffix). Read/written only through
 `src/lib/systemSettings.ts`, cleared by the same `clearUserFromSystemSettings` on account delete,
 and surfaced to the client as a computed `isDepartmentChair: boolean` by `attachSystemSettings`
 (alongside `programChairFor`/`isFinanceContact`). Since 2026-10-01 it is a **workflow
-actor**: THESIS_DEFENSE stepOrders 13 and 17 have role `DEPARTMENT_CHAIR` (sign ใบรายงานผลการสอบ, then บ.4 + the thesis), routed to
+actor**: THESIS_DEFENSE stepOrders 13 and 17 have role `DEPARTMENT_CHAIR` (sign ใบรายงานผลการสอบ, then บ.4 — not the thesis, since 2026-10-06), routed to
 this user for notifications, email, approve authorization and every client "whose turn" check; the
 holder is also treated as involved in **every** THESIS_DEFENSE (list scoping in `GET
 /api/submissions`, submission GET/reject, uploads, signed URLs). With nobody assigned, that step
@@ -459,7 +459,7 @@ THESIS_DEFENSE: 3→[B2]   (บ.2 and บ.3 are signed outside the system, uploa
                 (steps 2, 4, 5 are ADMIN steps — no signing, not in this map)
                 7→[SIGNED,EXAM_RESULT]  8→[EXAM_RESULT]  9→[EXAM_RESULT]  10→[EXAM_RESULT]  11→[EXAM_RESULT]
                 13→[EXAM_RESULT] (DEPARTMENT_CHAIR)   (steps 12, 14 are ADMIN steps — no signing)
-                17→[B4, THESIS] (DEPARTMENT_CHAIR)   (steps 16, 18, 19 are ADMIN steps)
+                17→[B4] (DEPARTMENT_CHAIR — not the thesis)   (steps 16, 18, 19 are ADMIN steps)
                 (the thesis is uploaded at step 15 already signed by the whole committee —
                 no in-system cover-signing steps since 2026-10-01)
                 Who signs what: ใบรายงานผลการสอบ (EXAM_RESULT) = advisor, co-advisors, head, exam committee,
@@ -603,7 +603,7 @@ stepUploads={isFutureStep ? [] : stepUploads}
 | Student | นิสิต | Landing page `/student-dashboard`. Starts with a PROPOSAL (only one active at a time — cancel to start over); creates a THESIS_DEFENSE by importing/editing the committee from a COMPLETED proposal. Upload documents, assign committee members (must already have accounts, else the submission is a DRAFT pending admin approval), request cancellation (ADMIN must accept), track status |
 | Advisor | อาจารย์ที่ปรึกษา | Sign forms, monitor assigned students — always an internal `PROFESSOR` account, both degrees |
 | Co-Advisor | อาจารย์ที่ปรึกษาร่วม | Signs immediately after Advisor at every Advisor step — **optional**, step auto-SKIPPED when no co-advisors assigned; multiple allowed (sequential like EXAM_COMMITTEE); may be an internal `PROFESSOR` or an `EXTERNAL` account, both degrees |
-| Department Head | หัวหน้าภาควิชา | Signs the defense's ใบรายงานผลการสอบ after the committee and the ADMIN's check (THESIS_DEFENSE stepOrder 13, shown 10), and later บ.4 + the thesis (stepOrder 17, shown 14) — role `DEPARTMENT_CHAIR` — the one PROFESSOR an ADMIN designates in "ตั้งค่าระบบ" (`SystemSetting` key `departmentChair`); sees every defense |
+| Department Head | หัวหน้าภาควิชา | Signs the defense's ใบรายงานผลการสอบ after the committee and the ADMIN's check (THESIS_DEFENSE stepOrder 13, shown 10), and later บ.4 only (stepOrder 17, shown 14) — role `DEPARTMENT_CHAIR` — the one PROFESSOR an ADMIN designates in "ตั้งค่าระบบ" (`SystemSetting` key `departmentChair`); sees every defense |
 | Program Chair | ประธานหลักสูตร | Sign at multiple phases — **assigned per submission by Student** (`submissions.programChairId`); falls back to whichever PROFESSOR an ADMIN has designated ประธานหลักสูตร **for that submission's program** (`SystemSetting` key `programChair:<program>` — a professor may chair more than one program, see "Program Chair & finance-contact assignment" below) |
 | Head Exam Committee | ประธานกรรมการสอบ | Signs before regular committee — assigned per submission by Student. **Account type is degree-dependent**: `PROFESSOR` or `EXTERNAL` for a master's submission, `EXTERNAL` only for a doctoral one (see "Committee composition by degree" below) |
 | Exam Committee | กรรมการสอบ | Multiple members, sign separately in order — assigned per submission by Student; internal `PROFESSOR` accounts only, both degrees (an external examiner belongs in กรรมการภายนอก or อาจารย์ที่ปรึกษาร่วม instead) |
@@ -912,47 +912,47 @@ the paper บ.2 before the student uploads it. บ.2 has no co-advisor signature
 | 4 | ADMIN | Collect B2+B3 (every member's บ.3 is its own row in the file list), send them to the Faculty, upload the **LessPaper receipt** (`LESSPAPER_RECEIPT`, the package stamped with the Faculty's LessPaper receipt number; PDF, ADMIN-only at this step), tick `ADMIN_DEFENSE_RELAY_CHECKS` (บ.2 + บ.3 sent; LessPaper document uploaded), approve to confirm delivery (`THESIS_STEP.ADMIN_RELAY`). Same upload box as PROPOSAL step 8: the picked file is uploaded on อนุมัติ, and approve is gated on it (server `REQUIRED_UPLOADS.THESIS_DEFENSE[ADMIN_RELAY]`). **No cover page at this step** (removed 2026-10-06). |
 | 5 | ADMIN | **Confirm only**: forward the Faculty's email (ใบรายงานผลการสอบ, แบบรายงานฯ, invitation letter) to the student, tick the one-box checklist `ADMIN_DEFENSE_FORWARD_CHECKS`, approve (`THESIS_STEP.ADMIN_FORWARD`). Nothing is uploaded and no email is sent by the system. |
 
-Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC) and approving it emailed the advisor + external members an invitation notice; both are gone — the Faculty's email reaches the student directly via the admin, and the student uploads what the committee signs at step 6.
+Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM_RESULT, INVITE_LETTER, FINANCE_DOC) and approving it emailed the advisor + external members an invitation notice; both are gone — the Faculty's email reaches the student directly via the admin, the student uploads แบบรายงานฯ and a blank ใบรายงานผลการสอบ at step 6, and the advisor fills in and signs ใบรายงานผลการสอบ at step 7.
 
 #### Phase 5 (Steps 6–12): Post-defense signing
 | Step | Role | Action |
 |------|------|--------|
-| 6  | STUDENT | From the forwarded Faculty email: fill info and sign แบบรายงานการเสนอผลงานฯ and upload it (formType: SIGNED), plus upload ใบรายงานผลการสอบ (EXAM_RESULT) for steps 7–12 to sign. **The student picks the exam result** (`ExamResultPicker`: ดีมาก/ดี/ผ่าน/ไม่ผ่าน, ผ่าน preselected by design), sent as the approval note's first line `ผลการสอบ: …` and read back with `defenseExamResult()` (`src/lib/utils.ts`); **ดีมาก adds a required upload of แบบประเมินวิทยานิพนธ์ดีมาก** (`VERY_GOOD_EVAL`, filled in by the student, uploaded after step 5's approval). Both enforced client- and server-side (`THESIS_STEP.STUDENT_REPORT`; server `REQUIRED_UPLOADS`) |
-| 7  | ADVISOR | Sign แบบรายงานฯ + ใบรายงานผลการสอบ; **double-checks the student's exam result** — the card shows it with a notice, and a 3-box checklist confirms it matches ใบรายงานผลการสอบ and that the advisor signed both แบบรายงานการเสนอผลงานฯ and ใบรายงานผลการสอบ. If it's wrong the advisor rejects with a reason; the student's resubmit screen then offers the result picker again (`resubmit` accepts `examResult`, which rewrites the step-6 note's result line; switching to ดีมาก needs the evaluation form) (`THESIS_STEP.ADVISOR_RESULT`) |
+| 6  | STUDENT | From the forwarded Faculty email: fill info and sign แบบรายงานการเสนอผลงานฯ and upload it (formType: SIGNED). The student also uploads ใบรายงานผลการสอบ (EXAM_RESULT) **blank** — nothing filled in, nothing signed — and **always** uploads แบบประเมินวิทยานิพนธ์ดีมาก (`VERY_GOOD_EVAL`): filled in when the result is ดีมาก, blank otherwise. 3-item checklist `DEFENSE_STEP6_CHECKS`. All three files are required client- and server-side (`THESIS_STEP.STUDENT_REPORT`; server `REQUIRED_UPLOADS`). **The student no longer picks the exam result** (moved to step 7, 2026-10-06). |
+| 7  | ADVISOR | **Picks the exam result** (`ExamResultPicker` as the card's lead section: ดีมาก/ดี/ผ่าน/ไม่ผ่าน, ผ่าน preselected), sent as the approval note's first line `ผลการสอบ: …` (server-required) and read back with `defenseExamResult()` (`src/lib/utils.ts`). Signs แบบรายงานฯ and **fills in + signs the blank ใบรายงานผลการสอบ (EXAM_RESULT)** the student uploaded — the advisor fills in all of its information (the card's ② section reads "กรอกข้อมูลและลงนามในเอกสาร", `SignatureButton`'s `signSection`, and a checklist box confirms it) — steps 8–13 sign from this copy; both files are server-gated and must be newer than step 6 (`REQUIRED_UPLOADS`, `freshUploadCutoff`). The student's แบบประเมินดีมาก is listed under download (`SignatureButton`'s `downloadOnly`). Checklist: the result matches ใบรายงานผลการสอบ, (ดีมาก only) the student filled in the evaluation form, the advisor filled in ใบรายงานผลการสอบ and signed both documents. If a student document is wrong the advisor rejects; the student re-uploads and resubmits (`resubmit` no longer takes an `examResult`) (`THESIS_STEP.ADVISOR_RESULT`) |
 | 8  | CO_ADVISOR | Sign ใบรายงานผลการสอบ — **auto-SKIPPED if no co-advisors assigned** |
 | 9  | HEAD_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 | 10 | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
 | 11 | INVITED_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 
 StepOrders 8–11 are shown as sub-steps 8.1–8.x; each signer ticks the one-box own-signature checklist `SIGN_RESULT_CHECKS` (also used at step 13). The program chair does **not** sign ใบรายงานผลการสอบ
-(its step was removed 2026-10-01); the student doesn't either (step 6 uploads it unsigned).
+(its step was removed 2026-10-01); the student doesn't either (step 6 uploads it blank; the advisor fills it in at step 7).
 
 #### Phase 5b (Steps 12–14, shown as 9–11): result to the Faculty
 | Step | Role | Action |
 |------|------|--------|
-| 12 | ADMIN | Check the committee-signed ใบรายงานผลการสอบ + แบบรายงานฯ; 3-item checklist `ADMIN_DEFENSE_RESULT_CHECKS` (`THESIS_STEP.ADMIN_RESULT_CHECK`) |
+| 12 | ADMIN | Check the committee-signed ใบรายงานผลการสอบ + แบบรายงานฯ; 3-item checklist `ADMIN_DEFENSE_RESULT_CHECKS`; when the advisor picked ดีมาก (`defenseExamResult`), the task card shows a purple "ผลการสอบ ดีมาก" note asking the admin to also check แบบประเมินวิทยานิพนธ์ดีมาก (`THESIS_STEP.ADMIN_RESULT_CHECK`) |
 | 13 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs ใบรายงานผลการสอบ (download latest, upload signed); one-box own-signature checklist (`THESIS_STEP.DEPT_CHAIR_RESULT`) |
-| 14 | ADMIN | Upload a **new cover page** (`COVER_PAGE`, must be newer than step 13 — `freshUploadCutoff`; same upload box as PROPOSAL step 8, uploaded on อนุมัติ) and tick `ADMIN_DEFENSE_SEND_CHECKS` (cover page signed by the department chair; the result + cover page emailed to the Faculty); server-gated on the cover page (`THESIS_STEP.ADMIN_RESULT_SEND`) |
+| 14 | ADMIN | Upload a **new cover page** (`COVER_PAGE`) and a **new LessPaper receipt document** (`LESSPAPER_RECEIPT`, added 2026-10-06 — same box, wording and checklist item as step 4), both newer than step 13 (`freshUploadCutoff`) and uploaded on อนุมัติ; tick `ADMIN_DEFENSE_SEND_CHECKS` (cover page signed by the department chair; the result + cover page delivered to the Faculty; LessPaper document uploaded); server-gated on both files (`THESIS_STEP.ADMIN_RESULT_SEND`) |
 
 A defense has **one cover page** (`COVER_PAGE`), step 14's — steps 4 and 16 had one too until
 2026-10-06, when both were replaced by a **LessPaper receipt document** (`LESSPAPER_RECEIPT`).
 For THESIS_DEFENSE neither type is single-version (a defense built earlier keeps its older cover
-pages, and the two LessPaper documents share one slot — the step-4 copy moves under ประวัติ); the
+pages, and the three LessPaper documents — steps 4, 11 and 15 as shown — share one slot, older copies moving under ประวัติ); the
 upload route lets the ADMIN upload each only at its own steps.
 
 #### Phase 6 (Steps 15–20, shown as 12–17): Thesis submission to the Faculty + iThesis
 | Step | Role | Action |
 |------|------|--------|
-| 15 | STUDENT | Upload B4 + THESIS (from the iThesis system, with barcode, **already signed by the whole committee outside the system**) (`THESIS_STEP.STUDENT_THESIS`); 6-item checklist `DEFENSE_STEP15_CHECKS` — บ.4 filled in + signed by the student, iThesis file with barcode, committee signatures complete, program name + thesis title correct, confirmed with the advisor |
-| 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 4 items incl. the LessPaper document uploaded) and upload a **new LessPaper receipt document** (`LESSPAPER_RECEIPT`, newer than step 15 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated). No cover page (removed 2026-10-06) (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
-| 17 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs **both** B4 and THESIS (download latest, upload both signed); 2-item own-signature checklist (`SIGN_CHECKS.THESIS_DEFENSE`) (`THESIS_STEP.DEPT_CHAIR_THESIS`) |
-| 18 | ADMIN | Confirm only: emailed B4 + thesis to the Faculty (`ADMIN_DEFENSE_THESIS_SEND_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_SEND`) |
+| 15 | STUDENT | Upload B4 + THESIS — **only the first 5 pages** of the thesis downloaded from iThesis (ปกภาษาไทย, ปกภาษาอังกฤษ, หน้าลายมือชื่อคณะกรรมการสอบ, บทคัดย่อภาษาไทย, บทคัดย่อภาษาอังกฤษ; 2026-10-06), which must already carry the iThesis barcode and be **signed by the whole committee outside the system**; the thesis must not be edited in iThesis after downloading (`THESIS_STEP.STUDENT_THESIS`); 8-item checklist `DEFENSE_STEP15_CHECKS` — บ.4 filled in + signed by the student, only the 5 pages, barcode, not edited in iThesis since downloading, committee signatures complete, program name + thesis title correct, confirmed with the advisor. `FORM_LABELS.THESIS` is now "วิทยานิพนธ์ 5 หน้าแรก (จากระบบ iThesis)" |
+| 16 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`, 3 items). No upload — the LessPaper document moved to step 18 (shown 15) on 2026-10-06 (`THESIS_STEP.ADMIN_THESIS_CHECK`) |
+| 17 | DEPARTMENT_CHAIR | หัวหน้าภาควิชา signs **B4 only** — not the thesis (2026-10-06) (download latest, upload signed); 1-item own-signature checklist (`SIGN_CHECKS.THESIS_DEFENSE`) (`THESIS_STEP.DEPT_CHAIR_THESIS`) |
+| 18 | ADMIN | Deliver the chair-signed B4 + the thesis to the Faculty (both listed under ① download) and upload a **new LessPaper receipt document** (`LESSPAPER_RECEIPT`, newer than step 17 — `freshUploadCutoff`; uploaded on อนุมัติ, server-gated) — same box, wording and checklist item as steps 4 and 11 (`ADMIN_DEFENSE_THESIS_SEND_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_SEND`) |
 | 19 | ADMIN | Confirm only, when the Faculty replies: forwarded its documents — **signed by the Dean (คณบดี)** — to the student (`ADMIN_DEFENSE_THESIS_FORWARD_CHECKS`) (`THESIS_STEP.ADMIN_THESIS_FORWARD`) |
 | 20 | STUDENT | Confirm only, nothing uploaded: every required document has been submitted to the iThesis system (`DEFENSE_ITHESIS_CHECKS`, button "ยืนยัน") — the defense's last step (`THESIS_STEP.STUDENT_ITHESIS`) |
 
 The committee signs the thesis **outside the system** (the five in-system cover-signing steps were
-removed 2026-10-01), and the program chair no longer signs บ.4 — the department chair signs both
-documents at step 17.
+removed 2026-10-01), and the program chair no longer signs บ.4 — the department chair signs
+บ.4 only at step 17.
 
 **Per-member uploads** (`PER_MEMBER_FORMS` / `isPerMemberForm()` in `workflowSteps.ts` — only the
 defense's B3 so far): `POST /api/upload` requires a `memberId` that is on the submission's committee
@@ -1020,7 +1020,7 @@ If rejected, the step stays `REJECTED` (does not move) until the student resubmi
 
 ## UI conventions (recent)
 - **FileList** takes a `submissionType` prop and groups uploads into phase-aware sections. PROPOSAL: เอกสารหลัก (B1/B1A/B1B/B1C/B1D) / เอกสารการเงิน / เอกสารอื่นๆ. THESIS_DEFENSE: บ.2+บ.3 (B2/B3/FINANCE_ATTACH) / เอกสารการเงิน (FINANCE_DOC) / เอกสารจากคณะและผลการสอบ (SIGNED/EXAM_RESULT/INVITE_LETTER/VERY_GOOD_EVAL) / วิทยานิพนธ์ (B4/THESIS). See `FILE_GROUPS_PROPOSAL` / `FILE_GROUPS_THESIS` in `FileList.tsx`. Unknown types fall into the last section. Row labels are always Thai form names (FORM_SHORT primary, full FORM_LABELS as subtitle) — never raw filenames as titles. FileList shows its own file count in the header; callers must NOT add another count to the `title` prop.
-- **THESIS step 6 (student report)**: there is nothing to download — the student has แบบรายงานฯ and ใบรายงานผลการสอบ from the Faculty email the admin forwarded at step 5, and uploads both.
+- **THESIS step 6 (student report)**: there is nothing to download — the student has แบบรายงานฯ from the Faculty email the admin forwarded at step 5, signs and uploads it, uploads ใบรายงานผลการสอบ blank (the advisor fills it in at step 7), and uploads แบบประเมินวิทยานิพนธ์ดีมาก — filled in if the result is ดีมาก, blank otherwise. The advisor picks the result at step 7.
 - **FileUploader** slots always render a `SlotHeader`: form-code badge (FORM_SHORT) + description + status chip (อัปโหลดแล้ว / เลือกไฟล์แล้ว / ยังไม่ได้เลือกไฟล์). The uploaded file's name opens a preview.
 - **One action-card design for every role** (2026-10-01). The card a user acts in when it is their turn — `StudentSubmissionActions`' upload card and rejected-fix card, `SignatureButton`, `CommitteeSignPanel`, `AdminSubmissionPanel`'s action card and finance card — is built only from the shared pieces exported by `src/components/FileUploader.tsx`: `ACTION_CARD` (frame), `SectionLabel` (numbered heading), `DownloadRow`/`NoDownloads`, `UploadSlot`/`FileUploader`, `B1Checklist`, `NotesField` (`reject` / `sendBack` variants), `ActionError`, `PRIMARY_BUTTON` (the one green ✓ button), `REJECT_BUTTON` / `SEND_BACK_BUTTON` beside it, `CONFIRM_REJECT_BUTTON` / `CONFIRM_SEND_BACK_BUTTON` / `CANCEL_BUTTON` for the reject/send-back form, and `postUpload()` (throws the server's Thai error). Fixed order: ① download → ② sign/fill → ③ upload (sections a step doesn't have are left out and the rest renumber; a picker such as `ExamResultPicker` is a numbered section too) → checklist → notes → primary button with ปฏิเสธ beside it (the admin card has ส่งกลับ there instead). The admin's ① download lists the step's documents to check (`ADMIN_STEP_FORMS` in `AdminSubmissionPanel`). Anything else a role must see while acting (e.g. the advisor's view of the student's exam result) goes inside the card (`SignatureButton`'s `intro`), not in a separate card beside it, and a student's ขอยกเลิกคำร้องนี้ sits below the card. Files picked in a card are uploaded when its primary button is pressed — the only immediate-upload card is the finance card (generate / edit / replace). Errors are shown inline on the card, not as a toast. The reject action is labelled ปฏิเสธ everywhere (never ไม่อนุมัติ). Don't hand-roll a new card; compose these.
 - **Professor dashboard** shows the generic "อาจารย์" label on card badges (a professor can hold several roles per submission); other views keep specific role labels.

@@ -47,9 +47,9 @@ export const THESIS_ROLES = [
   "DEPARTMENT_CHAIR",      // 13 department chair signs ใบรายงานผล (its last signature)
   "ADMIN",                 // 14 upload the cover page + confirm the email to the Faculty was sent
   "STUDENT",               // 15 upload B4 + THESIS (already signed by the whole committee, outside the system)
-  "ADMIN",                 // 16 check the student's B4 + THESIS, upload the cover page
-  "DEPARTMENT_CHAIR",      // 17 department chair signs B4 + THESIS
-  "ADMIN",                 // 18 confirm the email to the Faculty was sent
+  "ADMIN",                 // 16 check the student's B4 + THESIS
+  "DEPARTMENT_CHAIR",      // 17 department chair signs B4 only
+  "ADMIN",                 // 18 deliver B4 + THESIS to the Faculty, upload a new LessPaper document
   "ADMIN",                 // 19 confirm the Faculty's feedback email was forwarded to the student
   "STUDENT",               // 20 confirm every required document was submitted to iThesis — last step
 ] as const;
@@ -62,15 +62,15 @@ export const THESIS_STEP = {
   CHAIR_B2:           3,  // last บ.2 signature → admins notified to send to the Faculty
   ADMIN_RELAY:        4,
   ADMIN_FORWARD:      5,  // confirm only: Faculty email forwarded to the student (no uploads)
-  STUDENT_REPORT:     6,  // student uploads แบบรายงานฯ (SIGNED) + ใบรายงานผลการสอบ (EXAM_RESULT)
-  ADVISOR_RESULT:     7,  // advisor picks the exam result
+  STUDENT_REPORT:     6,  // student uploads แบบรายงานฯ (SIGNED) + blank ใบรายงานผลการสอบ (EXAM_RESULT) + แบบประเมินดีมาก (VERY_GOOD_EVAL)
+  ADVISOR_RESULT:     7,  // advisor picks the exam result, signs แบบรายงานฯ, fills in + signs ใบรายงานผลการสอบ (EXAM_RESULT)
   ADMIN_RESULT_CHECK: 12, // ADMIN checks the committee-signed ใบรายงานผล + แบบรายงานฯ
   DEPT_CHAIR_RESULT:  13, // department chair signs ใบรายงานผล (role DEPARTMENT_CHAIR)
   ADMIN_RESULT_SEND:  14, // ADMIN uploads the cover page + confirms the email to the Faculty
   STUDENT_THESIS:     15, // B4 + THESIS
-  ADMIN_THESIS_CHECK: 16, // ADMIN checks B4 + THESIS, uploads the cover page (a new one)
-  DEPT_CHAIR_THESIS:  17, // department chair signs B4 + THESIS (role DEPARTMENT_CHAIR)
-  ADMIN_THESIS_SEND:  18, // ADMIN confirms the email to the Faculty was sent
+  ADMIN_THESIS_CHECK: 16, // ADMIN checks B4 + THESIS
+  DEPT_CHAIR_THESIS:  17, // department chair signs B4 only (role DEPARTMENT_CHAIR)
+  ADMIN_THESIS_SEND:  18, // ADMIN delivers B4 + THESIS to the Faculty, uploads a new LessPaper document
   ADMIN_THESIS_FORWARD: 19, // ADMIN confirms the Faculty's feedback was forwarded to the student
   STUDENT_ITHESIS:    20, // student confirms every required document is in iThesis (no upload)
 } as const;
