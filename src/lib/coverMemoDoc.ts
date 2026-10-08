@@ -3,51 +3,27 @@ import path from "path";
 import JSZip from "jszip";
 import { PROGRAM_LABELS } from "@/lib/utils";
 
-/**
- * Fills the department's บันทึกข้อความ "ขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์พร้อมรายชื่ออาจารย์ที่ปรึกษา
- * และคณะกรรมการสอบวิทยานิพนธ์" (templates/cover-memo-proposal.docx, a copy of the department's file)
- * for one PROPOSAL at its ADMIN step 8 (stepOrder 12). The ADMIN downloads it, converts it to PDF
- * and uploads that as the COVER_PAGE; the department chair signs it at the next step.
- *
- * Filled: student name (3 places), student code (2), หลักสูตร/สาขาวิชา, the thesis title, and the
- * proposal exam date (weekday, day, month, Buddhist-era year).
- *
- * The template's sample values are replaced by exact text match on its <w:t> runs. If the
- * department ships a new memo, replace the file and re-check SAMPLE below — every replacement
- * throws when its sample text isn't found the expected number of times, so a mismatched template
- * fails loudly instead of producing a wrong document.
- */
+// ─── Shared helpers ─────────────────────────────────────────────────────────────────────
 
-const TEMPLATE_PATH = path.join(process.cwd(), "templates", "cover-memo-proposal.docx");
-
-export type CoverMemoData = {
-  studentName: string;
-  studentCode: string;
-  program: string | null;
-  title: string;
-  /** "YYYY-MM-DD" — the proposal exam date */
-  examDate: string | null;
-};
-
-// The template's sample text, exactly as its runs hold it
-const SAMPLE = {
-  name: "สมชาย ใจดี",
-  code: "6970000021",
-  topic: "ชื่อหัวข้อในโครงร่างวิทยานิพนธ์",
-  // "นาย" is printed before the name in the template; the name we fill already carries its title
-  ofMr1: "ด้วยภาควิชาวิศวกรรมเครื่องกล คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย ได้กำหนดให้มีการสอบโครงร่างวิทยานิพนธ์ของ นาย ",
-  ofMr2: "ในการนี้ ภาควิชาฯ จึงใคร่ขอส่งขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์พร้อมรายชื่ออาจารย์ที่ปรึกษาและคณะกรรมการสอบวิทยานิพนธ์ของ นาย",
-  program: "  ซึ่งเป็นนิสิตระดับบัณฑิตศึกษา หลักสูตรวิศวกรรมศาสตรมหาบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล “",
-  weekday: "” ในวันอังคารที่",
-  day: " 1 ",
-  month: "มกราคม",
-  year: "2569",
-};
-
-const TH_WEEKDAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 const TH_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 const BLANK = "……";
+
+// Spelled out in full under a signature, as on the department's memos (NAME_TITLE_LABELS is abbreviated)
+const FULL_TITLES: Record<string, string> = {
+  PROF_DR:       "ศาสตราจารย์ ดร.",
+  ASSOC_PROF_DR: "รองศาสตราจารย์ ดร.",
+  ASST_PROF_DR:  "ผู้ช่วยศาสตราจารย์ ดร.",
+  ASST_PROF:     "ผู้ช่วยศาสตราจารย์ ",
+  LECTURER_DR:   "อาจารย์ ดร.",
+  DR:            "ดร.",
+  MR:            "นาย",
+  MISS:          "นางสาว",
+  MRS:           "นาง",
+};
+
+/** The department chair — signs both memos. Null when none is assigned. */
+type MemoSigner = { title: string | null; name: string } | null;
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -62,18 +38,74 @@ function setRunText(xml: string, from: string, to: string, count = 1): string {
     `${open.includes("xml:space") ? open : '<w:t xml:space="preserve">'}${esc(to)}</w:t>`);
 }
 
-function examDateParts(examDate: string | null): { weekday: string; day: string; month: string; year: string } {
-  const m = examDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return { weekday: BLANK, day: BLANK, month: BLANK, year: BLANK };
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const date = new Date(Date.UTC(y, mo - 1, d));
-  return {
-    weekday: TH_WEEKDAYS[date.getUTCDay()],
-    day: String(d),
-    month: TH_MONTHS[mo - 1] ?? BLANK,
-    year: String(y + 543),
-  };
+/** Day / month / Buddhist-era year of a date, in Thailand's time zone */
+function thaiDateParts(date: Date): { day: string; month: string; year: string } {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", year: "numeric", month: "numeric", day: "numeric" })
+    .formatToParts(date);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return { day: String(get("day")), month: TH_MONTHS[get("month") - 1] ?? BLANK, year: String(get("year") + 543) };
 }
+
+/** "(ศาสตราจารย์ ดร.ชื่อ นามสกุล)" — the signer's line under the signature */
+function signerLine(chair: MemoSigner): string {
+  return chair ? `(${(chair.title && FULL_TITLES[chair.title]) || ""}${chair.name})` : `(${BLANK})`;
+}
+
+/** A program's "หลักสูตร…" and its สาขาวิชา without the prefix — PROGRAM_LABELS reads "หลักสูตร… สาขาวิชา…" */
+function programParts(program: string | null): { degree: string | null; branch: string | null } {
+  const label = program ? PROGRAM_LABELS[program] : undefined;
+  if (!label) return { degree: null, branch: null };
+  const [degree, branch] = label.split(" สาขาวิชา");
+  return { degree, branch: branch ?? null };
+}
+
+// ─── PROPOSAL: บันทึกข้อความ "ขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์…" ─────────────────────────
+
+/**
+ * Fills the department's บันทึกข้อความ "ขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์พร้อมรายชื่ออาจารย์ที่ปรึกษา
+ * และคณะกรรมการสอบวิทยานิพนธ์" (templates/cover-memo-proposal.docx, a copy of the department's file)
+ * for one PROPOSAL at its ADMIN step 8 (stepOrder 12). The ADMIN downloads it, converts it to PDF
+ * and uploads that as the COVER_PAGE; the department chair signs it at the next step.
+ *
+ * Filled: the memo date (the day it is generated), student name (2 places), student code (2),
+ * หลักสูตร + สาขาวิชา, the thesis title, and the department chair's name under the signature line.
+ *
+ * The template's sample values are replaced by exact text match on its <w:t> runs. If the
+ * department ships a new memo, replace the file and re-check SAMPLE below — every replacement
+ * throws when its sample text isn't found the expected number of times, so a mismatched template
+ * fails loudly instead of producing a wrong document.
+ */
+
+const TEMPLATE_PATH = path.join(process.cwd(), "templates", "cover-memo-proposal.docx");
+
+export type CoverMemoData = {
+  studentName: string;
+  studentCode: string;
+  program: string | null;
+  title: string;
+  chair: MemoSigner;
+  /** The memo's date — normally now */
+  date: Date;
+};
+
+// The template's sample text, exactly as its runs hold it
+const SAMPLE = {
+  day: "2 ",
+  month: " มกราคม ",
+  year: "2569",
+  // "นาย" is printed before the name in the template; the name we fill already carries its title
+  mr1: "นาย",
+  name1: " สมชาย ใจดี",
+  mr2: "นาย ",
+  name2: "สมชาย ใจดี",
+  // the student code is split over these five runs, in both paragraphs
+  code: ["6", "9", "70", "0000", "21"],
+  degree: "ซึ่งเป็นนิสิตระดับบัณฑิตศึกษา หลักสูตรวิศวกรรมศาสตรมหาบัณฑิต ",
+  branch: "ระบบกายภาพที่เชื่อมประสานด้วยเครือข่ายไซเบอร์",
+  topic: "ชื่อหัวข้อโครงร่างวิทยานิพนธ์",
+  doubled: "ในการนี้ ภาควิชาฯ จึงใคร่ขอส่งขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์พร้อมรายชื่ออาจารย์ที่ปรึกษาและคณะกรรมการสอบวิทยานิพนธ์ของ ",
+  chair: "(ศาสตราจารย์ ดร.ไพโรจน์ สิงหถนัดกิจ)",
+};
 
 export async function buildCoverMemoDocx(data: CoverMemoData): Promise<Buffer> {
   const zip = await JSZip.loadAsync(await readFile(TEMPLATE_PATH));
@@ -81,20 +113,25 @@ export async function buildCoverMemoDocx(data: CoverMemoData): Promise<Buffer> {
   if (!doc) throw new Error("cover memo template: word/document.xml missing");
   let xml = await doc.async("string");
 
-  const date = examDateParts(data.examDate);
-  const programLabel = (data.program && PROGRAM_LABELS[data.program]) || "หลักสูตร" + BLANK;
+  const date = thaiDateParts(data.date);
+  const program = programParts(data.program);
+  const [codeHead, ...codeTail] = SAMPLE.code;
 
-  xml = setRunText(xml, SAMPLE.name, data.studentName || BLANK, 3);
-  xml = setRunText(xml, SAMPLE.code, data.studentCode || BLANK, 2);
-  xml = setRunText(xml, SAMPLE.topic, data.title || BLANK);
-  xml = setRunText(xml, SAMPLE.ofMr1, SAMPLE.ofMr1.replace(/ของ นาย $/, "ของ "));
-  // also drops the template's doubled "ขอส่งขอส่ง"
-  xml = setRunText(xml, SAMPLE.ofMr2, SAMPLE.ofMr2.replace("ขอส่งขอส่ง", "ขอส่ง").replace(/ของ นาย$/, "ของ "));
-  xml = setRunText(xml, SAMPLE.program, `  ซึ่งเป็นนิสิตระดับบัณฑิตศึกษา ${programLabel} “`);
-  xml = setRunText(xml, SAMPLE.weekday, `” ในวัน${date.weekday}ที่`);
-  xml = setRunText(xml, SAMPLE.day, ` ${date.day} `);
-  xml = setRunText(xml, SAMPLE.month, date.month);
+  xml = setRunText(xml, SAMPLE.day, `${date.day} `);
+  xml = setRunText(xml, SAMPLE.month, ` ${date.month} `);
   xml = setRunText(xml, SAMPLE.year, date.year);
+  xml = setRunText(xml, SAMPLE.mr1, "");
+  xml = setRunText(xml, SAMPLE.name1, ` ${data.studentName || BLANK}`);
+  xml = setRunText(xml, SAMPLE.mr2, "");
+  xml = setRunText(xml, SAMPLE.name2, data.studentName || BLANK);
+  xml = setRunText(xml, codeHead, data.studentCode || BLANK, 2);
+  for (const part of codeTail) xml = setRunText(xml, part, "", 2);
+  xml = setRunText(xml, SAMPLE.degree, `ซึ่งเป็นนิสิตระดับบัณฑิตศึกษา ${program.degree ?? "หลักสูตร" + BLANK} `);
+  xml = setRunText(xml, SAMPLE.branch, program.branch ?? BLANK);
+  xml = setRunText(xml, SAMPLE.topic, data.title || BLANK);
+  // drops the template's doubled "ขอส่งขอส่ง"
+  xml = setRunText(xml, SAMPLE.doubled, SAMPLE.doubled.replace("ขอส่งขอส่ง", "ขอส่ง"));
+  xml = setRunText(xml, SAMPLE.chair, signerLine(data.chair));
 
   zip.file("word/document.xml", xml);
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
@@ -114,16 +151,7 @@ export async function buildCoverMemoDocx(data: CoverMemoData): Promise<Buffer> {
  */
 const DEFENSE_RESULT_TEMPLATE_PATH = path.join(process.cwd(), "templates", "cover-memo-defense-result.docx");
 
-export type DefenseResultMemoData = {
-  studentName: string;
-  studentCode: string;
-  program: string | null;
-  title: string;
-  /** The department chair — signs the memo. Null when none is assigned. */
-  chair: { title: string | null; name: string } | null;
-  /** The memo's date — normally now */
-  date: Date;
-};
+export type DefenseResultMemoData = CoverMemoData;
 
 const DEFENSE_SAMPLE = {
   day: "11 ",
@@ -137,30 +165,9 @@ const DEFENSE_SAMPLE = {
   chair: "(ศาสตราจารย์ ดร.ไพโรจน์ สิงหถนัดกิจ)",
 };
 
-// Spelled out in full under a signature, as on the department's memo (NAME_TITLE_LABELS is abbreviated)
-const FULL_TITLES: Record<string, string> = {
-  PROF_DR:       "ศาสตราจารย์ ดร.",
-  ASSOC_PROF_DR: "รองศาสตราจารย์ ดร.",
-  ASST_PROF_DR:  "ผู้ช่วยศาสตราจารย์ ดร.",
-  ASST_PROF:     "ผู้ช่วยศาสตราจารย์ ",
-  LECTURER_DR:   "อาจารย์ ดร.",
-  DR:            "ดร.",
-  MR:            "นาย",
-  MISS:          "นางสาว",
-  MRS:           "นาง",
-};
-
 /** "6970000021" → "697 00000 21", as the department writes it; anything else unchanged */
 function spacedStudentCode(code: string): string {
   return /^\d{10}$/.test(code) ? `${code.slice(0, 3)} ${code.slice(3, 8)} ${code.slice(8)}` : code;
-}
-
-/** Day / month / Buddhist-era year of a date, in Thailand's time zone */
-function thaiDateParts(date: Date): { day: string; month: string; year: string } {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", year: "numeric", month: "numeric", day: "numeric" })
-    .formatToParts(date);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  return { day: String(get("day")), month: TH_MONTHS[get("month") - 1] ?? BLANK, year: String(get("year") + 543) };
 }
 
 export async function buildDefenseResultMemoDocx(data: DefenseResultMemoData): Promise<Buffer> {
@@ -171,11 +178,8 @@ export async function buildDefenseResultMemoDocx(data: DefenseResultMemoData): P
 
   const date = thaiDateParts(data.date);
   const degree = !data.program ? BLANK : data.program === "PHD" ? "ดุษฎีบัณฑิต" : "มหาบัณฑิต";
-  // PROGRAM_LABELS reads "หลักสูตร… สาขาวิชา…" — the memo only names the สาขาวิชา
-  const branch = (data.program && PROGRAM_LABELS[data.program]?.split(" สาขาวิชา")[1]) || BLANK;
-  const chair = data.chair
-    ? `(${(data.chair.title && FULL_TITLES[data.chair.title]) || ""}${data.chair.name})`
-    : `(${BLANK})`;
+  // the memo only names the สาขาวิชา
+  const branch = programParts(data.program).branch ?? BLANK;
 
   xml = setRunText(xml, DEFENSE_SAMPLE.day, `${date.day} `);
   xml = setRunText(xml, DEFENSE_SAMPLE.month, ` ${date.month}`);
@@ -185,7 +189,7 @@ export async function buildDefenseResultMemoDocx(data: DefenseResultMemoData): P
   xml = setRunText(xml, DEFENSE_SAMPLE.degree, `นิสิตระดับ${degree} `);
   xml = setRunText(xml, DEFENSE_SAMPLE.branch, `สาขาวิชา${branch}เรื่อง `);
   xml = setRunText(xml, DEFENSE_SAMPLE.topic, data.title || BLANK);
-  xml = setRunText(xml, DEFENSE_SAMPLE.chair, chair);
+  xml = setRunText(xml, DEFENSE_SAMPLE.chair, signerLine(data.chair));
 
   zip.file("word/document.xml", xml);
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });

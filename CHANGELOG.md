@@ -7,6 +7,12 @@ fixes; do write one for anything that changes behavior, permissions, routes, or 
 
 ## 2026-10-06
 
+- **PROPOSAL step 8: new cover-memo template.** `templates/cover-memo-proposal.docx` replaced with the
+  department's full letterhead memo ("บันทึกข้อความ เรื่อง ขออนุมัติโคร่งร่าง.docx"). `buildCoverMemoDocx`
+  now fills the memo date (the day it is generated), name ×2, code ×2, หลักสูตร + สาขาวิชา, title and the
+  department chair's name — same inputs as the defense memo, so the route builds one data object for
+  both; the exam date is no longer printed. The step-8 card shows วันที่/ผู้ลงนาม instead of วันสอบ.
+
 - **THESIS_DEFENSE step 9 (stepOrder 12): the system generates the result memo, and the department
   chair signs it in the system at step 10.** The admin's step-9 card gains the same
   "สร้างบันทึกข้อความ" → download (.docx) → upload PDF flow as PROPOSAL step 8:

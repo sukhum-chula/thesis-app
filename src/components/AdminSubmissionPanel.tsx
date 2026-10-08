@@ -1313,23 +1313,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                                 <dd className="text-gray-800">{(sub.program && PROGRAM_LABELS[sub.program]) || "—"}</dd>
                                 <dt className="text-gray-500">หัวข้อ</dt>
                                 <dd className="text-gray-800">{sub.title || "—"}</dd>
-                                {isThesisResultCheckStep ? (
-                                  <>
-                                    <dt className="text-gray-500">วันที่</dt>
-                                    <dd className="text-gray-800">{memo.at.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</dd>
-                                    <dt className="text-gray-500">ผู้ลงนาม</dt>
-                                    <dd className="text-gray-800">{deptChair ? formatUserName(deptChair) : "—"}</dd>
-                                  </>
-                                ) : (
-                                  <>
-                                    <dt className="text-gray-500">วันสอบ</dt>
-                                    <dd className="text-gray-800">
-                                      {sub.examDate
-                                        ? new Date(`${sub.examDate}T00:00:00`).toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-                                        : "—"}
-                                    </dd>
-                                  </>
-                                )}
+                                <dt className="text-gray-500">วันที่</dt>
+                                <dd className="text-gray-800">{memo.at.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</dd>
+                                <dt className="text-gray-500">ผู้ลงนาม</dt>
+                                <dd className="text-gray-800">{deptChair ? formatUserName(deptChair) : "—"}</dd>
                               </dl>
                               <a
                                 href={memo.url}

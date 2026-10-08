@@ -52,22 +52,17 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const studentName = sub.studentFullName ?? formatUserName(sub.student);
   let buffer: Buffer;
   try {
+    const memoData = {
+      studentName,
+      studentCode,
+      program: sub.program,
+      title: sub.title,
+      chair: await getDepartmentChairUser(),
+      date: new Date(),
+    };
     buffer = sub.submissionType === "THESIS_DEFENSE"
-      ? await buildDefenseResultMemoDocx({
-          studentName,
-          studentCode,
-          program: sub.program,
-          title: sub.title,
-          chair: await getDepartmentChairUser(),
-          date: new Date(),
-        })
-      : await buildCoverMemoDocx({
-          studentName,
-          studentCode,
-          program: sub.program,
-          title: sub.title,
-          examDate: sub.examDate,
-        });
+      ? await buildDefenseResultMemoDocx(memoData)
+      : await buildCoverMemoDocx(memoData);
   } catch (e) {
     console.error("[cover-memo/generate]", e);
     return NextResponse.json({ error: "สร้างบันทึกข้อความไม่สำเร็จ" }, { status: 500 });
