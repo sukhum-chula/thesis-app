@@ -216,7 +216,8 @@ before):
 
 ## Email
 
-`src/lib/email.ts` — step notifications, finance mail, exam reminders, via nodemailer.
+`src/lib/email.ts` — step notifications, finance mail and account mail, via nodemailer
+(exam reminders are in-app bell notifications only since 2026-10-08).
 `SMTP_USER`/`SMTP_PASS` (Office365, default `smtp.office365.com:587`) take priority over
 `GMAIL_USER`/`GMAIL_APP_PASSWORD` when both are set. Currently running on the Gmail path — see the
 quota warning above for why a Chula mailbox with Authenticated SMTP would be the more durable fix.

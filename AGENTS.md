@@ -35,7 +35,8 @@ SUPABASE_SERVICE_ROLE_KEY             # server-side only; storage admin ops + si
 FINANCE_EMAIL         # fallback recipient for finance notifications — only used when no ADMIN is
                       # designated as finance contact (SystemSetting key "financeContact", set via
                       # the "ตั้งค่าระบบ" tab); see "Program Chair & finance-contact assignment"
-CRON_SECRET           # guards /api/cron/exam-reminders; unset makes the endpoint publicly callable.
+CRON_SECRET           # guards /api/cron/exam-reminders (in-app bell reminders only — no email since
+                      # 2026-10-08); unset makes the endpoint publicly callable.
                       # Vercel's own Cron scheduler (see vercel.json) sends the matching Bearer header
                       # automatically when this is set in the project.
 NEXT_PUBLIC_DEMO_MODE # "true" enables the demo reset tools card in AdminUsersPanel; unset in production
@@ -140,7 +141,7 @@ record: all dashboards, `SubmissionInfoPanel`, `RoleSubmissionDetail`, `Workflow
 there writes `formatUserName(account)` into that row's `Person.name`, so the title is baked into
 `people[]`/the auto-injected `PROGRAM_CHAIR` entry exactly as it would have been
 before the split. It also covers every outgoing email (`src/lib/email.ts`'s recipient/greeting
-names, `sendWelcomeEmail`/`sendPasscodeResetEmail`/`sendFinanceEmail`/`sendExamReminderEmail`) and
+names, `sendWelcomeEmail`/`sendPasscodeResetEmail`/`sendFinanceEmail`) and
 `WorkflowStep.actedByName`/committee-sign-action snapshots taken at approve/reject time
 (`submissions/[id]/route.ts`, `submissions/[id]/sign/route.ts`). The logged-in user's own title
 flows through the same NextAuth session/JWT pipeline as `roles`/`studentId` (`src/lib/auth.ts`,

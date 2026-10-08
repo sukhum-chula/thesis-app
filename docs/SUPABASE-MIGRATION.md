@@ -102,9 +102,9 @@ In the Vercel project → **Settings → Environment Variables**, replace the sa
 - `AUTH_SECRET` — required in production.
 - `CRON_SECRET` — `vercel.json` schedules `/api/cron/exam-reminders` daily at 01:00 UTC. The guard
   is `if (secret && authHeader !== ...)`, so leaving it **unset makes the endpoint publicly
-  callable** — anyone can fire exam-reminder emails at will. Set it.
+  callable** — anyone can fire the exam-reminder bell notifications at will. Set it.
 - Email — two separate senders, both need credentials:
-  - `src/lib/email.ts` (step notifications, finance mail, exam reminders) uses nodemailer with
+  - `src/lib/email.ts` (step notifications, finance mail) uses nodemailer with
     `SMTP_USER`/`SMTP_PASS` (Office 365, default host `smtp.office365.com:587`) or
     `GMAIL_USER`/`GMAIL_APP_PASSWORD`. **None of these are in `.env.local`** — with no credentials
     `sendMail()` logs `[email] … skipping` and returns success, so the app silently sends nothing.

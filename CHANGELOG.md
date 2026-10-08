@@ -5,6 +5,13 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-10-08
+
+- **Exam-reminder emails removed.** The daily `/api/cron/exam-reminders` job no longer emails the
+  student 14 and 7 days before the exam; `sendExamReminderEmail` and its template are deleted from
+  `src/lib/email.ts`. The cron still creates the same in-app bell notifications (student, admins,
+  advisor, and at 7 days the current step's owner).
+
 ## 2026-10-06
 
 - **PROPOSAL step 8: new cover-memo template.** `templates/cover-memo-proposal.docx` replaced with the
