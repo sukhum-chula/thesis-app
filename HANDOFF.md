@@ -1,69 +1,49 @@
 # Handoff — for the next developer
 
-Read this **after** `AGENTS.md` (the behavioral spec — workflow rules, roles, conventions, file
-map). This file is not a spec and not a log — it's the state a new session needs to *pick up*
-current work: what's still open, what to watch out for operationally, and where things live.
+Read this **after** `AGENTS.md` (the behavioral spec). This file is not a spec and not a log — it's
+the state a new session needs to pick up current work: what to watch out for, what's still open,
+and where things live. Dated history goes in `CHANGELOG.md`; only touch this file when something
+changes what the *next* session needs to know or do. Keep it short.
 
-**For the full dated history of what shipped, see `CHANGELOG.md`.** This file used to accumulate a
-growing narrative of every session's work (with verification notes, concurrent-session
-coordination details, etc.) under a "§8 Active/in-progress development" section — that content has
-been moved into `CHANGELOG.md` and this file was rewritten to be short again. **Keep it that way**:
-when you finish and verify a piece of work, write one dated `CHANGELOG.md` entry for it (condensed —
-what changed and why, not a session narration) and only touch this file if something about it
-should change what the *next* session needs to know or do differently. Don't let this file regrow
-into a log; that's what silently happened for two days before this rewrite, and `CHANGELOG.md`
-stopped being updated as a result.
-
-The app is **live with real users** — treat data and email as production, on every environment
-(there is no email-redirect safety net — see below).
+The app is **live** — treat data and email as production on every environment (there is no
+email-redirect safety net).
 
 ---
 
 ## Read this before touching real accounts or sending email
 
-- **A defense built before a THESIS_ROLES change keeps its old step rows.** Steps are snapshotted
-  at creation, so every restructure needs existing defenses rebuilt by hand. On 2026-10-01 the test
-  defense `cmuoyo8l8001jgsv6qyypy0it` (นายสมชาย ตั้งใจดี) had its untouched stepOrders 12+ replaced
-  with the 21-step layout (steps 1–11 already matched and were kept), then followed every later
-  same-day change (cover-signing rows deleted, the thesis-to-Faculty tail rebuilt, the iThesis row
-  inserted) and now matches the current 20-step layout; the older pre-restructure
-  defense `cmune0rpg…` was cancelled. Pattern: keep the leading steps whose role already matches
-  `THESIS_ROLES`, refuse if any replaced step has been acted on, delete + `createMany` the rest from
-  `buildWorkflowSteps(...)` in one transaction (one-off script, deleted afterwards).
-- **The department chair (SystemSetting `departmentChair`) is set to what looks like a test account**
-  (ศ.ดร.ไพโรจน์ สิงหถนัดกิจ, `sukhum.s+pairod@…`, checked 2026-10-01). Since 2026-10-01 that holder is
-  the only one who can sign PROPOSAL stepOrder 13 (shown 9 — the cover memo) and THESIS_DEFENSE
-  stepOrders 13 and 17 (shown as 10 and 14 — ใบรายงานผล + the result memo, then บ.4) and can see
-  every submission — and their name is printed under the signature line of the generated defense
-  result memo. Set the real หัวหน้าภาควิชา in "ตั้งค่าระบบ" before a real submission reaches those steps.
-- **Only 2 `EXTERNAL` accounts exist** (checked 2026-10-05: 28 users — 1 SUPER_ADMIN, 2 ADMIN,
-  21 PROFESSOR, 2 EXTERNAL, 2 STUDENT). Every submission needs at least one for กรรมการภายนอก,
-  and a `PHD` one needs another to chair the exam committee (one person, one role) — see
-  "Committee composition by degree" in `AGENTS.md`. The only submission left is one `COMPLETED`
-  THESIS_DEFENSE (the test defense) — its source proposal is gone, deleted before 2026-10-05's
-  fix that now blocks deleting a proposal with any linked defense.
-- **⚠️ Every account's passcode is currently the shared value `A00a00`.** All live accounts —
-  real STUDENT/PROFESSOR/ADMIN/SUPER_ADMIN accounts, not just test ones — were bulk-reset to this
-  one known value for local testing convenience (see `CHANGELOG.md` 2026-09-07/09-09). Anyone who
-  knows this string can currently log in as **any** user. This is a genuine, unresolved security
-  issue on a live app. Fix: reset real users back to individually-random passcodes (an ADMIN's
-  per-user "รีเซ็ตรหัสเข้าใช้งาน" button already does this one at a time) and remove this warning
-  once done.
+Live DB state, checked 2026-10-10: 29 users (1 SUPER_ADMIN, 2 ADMIN, 21 PROFESSOR, 3 EXTERNAL,
+2 STUDENT) and 3 submissions, all `COMPLETED` (นางสาวสมร สะสมทรัพย์'s proposal + defense, นายสมชาย
+ตั้งใจดี's proposal).
+
+- **⚠️ 20 of the 29 accounts share the passcode `A00a00`**, from a bulk reset for testing
+  (`CHANGELOG.md` 2026-09-07). Anyone who knows it can log in as those users. Fix: reset each real
+  account to its own passcode (ADMIN's per-user "รีเซ็ตรหัสเข้าใช้งาน"), then remove this warning.
+- **Every workflow-role setting except finance points at a test account.** The department chair
+  (ศ.ดร.ไพโรจน์ สิงหถนัดกิจ) and all three program chairs (จิตติน แตงเที่ยง for ME_MECH and PHD,
+  ณัฐพล ดำรงค์พลาสิทธิ์ for ME_CPS) are `sukhum.s+…@cp.eng.chula.ac.th` accounts. These holders are
+  the only ones who can sign their steps, the department chair sees every submission, and their
+  names are printed on the generated memos. Set the real people in "ตั้งค่าระบบ" before real
+  submissions reach those steps. The finance contact is a real address.
+- **Every submission needs an EXTERNAL account** for กรรมการภายนอก, and a `PHD` one needs a second
+  to chair the exam committee (one person, one role) — see "Committee composition by degree" in
+  `AGENTS.md`. Only 3 exist.
 - **Never run `npm run db:seed` against the production database.** `prisma/seed.ts` creates
   accounts named after real faculty at real-looking `@eng.chula.ac.th` addresses, all with the
-  shared passcode `password123`. It is only safe on a throwaway local database; it should be
-  reworked to use obviously fake identities, or removed.
-- **No environment redirects outgoing email.** `EMAIL_OVERRIDE_TO` was removed entirely
-  (2026-09-07) — local dev, Preview, Development, and Production all send real email to whatever
-  address is on the account. Be careful triggering step approvals/rejections/passcode
-  resets/account creation against real accounts anywhere but a throwaway test account.
-- **The outgoing-mail Gmail account (`GMAIL_USER`) can hit Google's ~500/day sending-limit quota**
-  (confirmed live 2026-09-09: `550-5.4.5 Daily user sending limit exceeded`). Not a code bug — every
-  send path already creates/updates its DB record regardless of email outcome, and the UI now
-  correctly reports send failures (see `CHANGELOG.md` 2026-09-09) instead of claiming success. Fix
-  options, still undecided: wait for the daily reset, switch to the already-built Office365 SMTP
-  path (`SMTP_USER`/`SMTP_PASS`, needs a Chula mailbox with Authenticated SMTP enabled), or move to
-  a dedicated transactional-email provider.
+  passcode `password123`. Only safe on a throwaway local database; it should be reworked to use
+  obviously fake identities, or removed.
+- **No environment redirects outgoing email** — local dev, Preview and Production all send real
+  email to whatever address is on the account.
+- **The Gmail sender (`GMAIL_USER`) can hit Google's ~500/day limit** (seen 2026-09-09:
+  `550-5.4.5 Daily user sending limit exceeded`). DB writes happen regardless and the UI reports
+  the failed send. Options, undecided: live with it, switch to the built-in Office365 path
+  (`SMTP_USER`/`SMTP_PASS`, needs a Chula mailbox with Authenticated SMTP), or a transactional
+  email provider.
+- **Workflow restructures need in-flight submissions rebuilt.** Steps are snapshotted at creation
+  (see `AGENTS.md`). Pattern used so far: a one-off script that keeps the leading steps whose role
+  already matches the new `PROPOSAL_ROLES`/`THESIS_ROLES`, refuses if any step to be replaced has
+  been acted on, and in one transaction deletes the rest and `createMany`s them from
+  `buildWorkflowSteps(...)` — or, when steps are only appended, inserts the new PENDING rows.
 
 ---
 
@@ -71,157 +51,97 @@ The app is **live with real users** — treat data and email as production, on e
 
 | | |
 | --- | --- |
-| Local checkout | `C:\Users\lenovo\Desktop\Grad Tracking System\thesis-app` (moved from `C:\Users\ASUS\...` by 2026-10-05 — if `next dev` panics with "Next.js package not found" after a move, delete the copied `.next/` cache) |
+| Local checkout | `C:\Users\lenovo\Desktop\Grad Tracking System\thesis-app` (if `next dev` panics with "Next.js package not found" after moving the folder, delete the copied `.next/`) |
 | `origin` | `https://github.com/sukhum-chula/thesis-app` |
 | `upstream` | `https://github.com/Jukkruu/thesis-app` (original author, read-only reference) |
 | Vercel | `thesis-app` under account `sukhums-4319` — auto-deploys on push to `main` |
-| Supabase | `tluqclmgbnciymxzknhh` (region `ap-southeast-1`). The previous owner's project
-  (`jttfcoisygcqqshghkmn`) is still paused-not-deleted as a rollback window — **still needs
-  retiring**: revoke its service-role key once nobody needs the rollback option, then delete it. |
+| Supabase | `tluqclmgbnciymxzknhh` (`ap-southeast-1`). The previous owner's project `jttfcoisygcqqshghkmn` is paused, not deleted — **still needs retiring** (revoke its service-role key, then delete it). |
 
-Also present in the working folder but not part of the app: reference Thai PDF form templates one
-level up in `Grad Tracking System\` (`บ.วศ.1ก`, `บ.2`, `บ.3`, `บ.4`, exam-result form) — keep these,
-they're not scratch files.
+Not part of the app: the Thai PDF form templates one level up in `Grad Tracking System\` (`บ.วศ.1ก`,
+`บ.2`, `บ.3`, `บ.4`, exam-result form) and the git-ignored `dataset/` folder (source PDFs/XLSX with
+real student and faculty data) — keep both, never commit `dataset/`.
 
-### Environment variables (Vercel + `.env.local`)
+`scripts/` (committed): `migrate-supabase.mjs` (project-to-project copy, see
+`docs/SUPABASE-MIGRATION.md`); `make-wordlist.js` / `import-wordlist.js` (build the Thai→English word
+list `../thesis-wordlist.xlsx`, and regenerate `src/lib/translations.ts` from it — so edit the
+spreadsheet, not `translations.ts` directly); `mass-email-change.ts` — an already-run
+one-off that moved PROFESSOR/STUDENT emails to plus-tagged test addresses. It breaks the "one-off
+scripts are deleted after running" convention below; delete it once its `--revert` is no longer
+needed.
 
-See `AGENTS.md`'s "Required env vars" section for the full annotated list — it's kept current
-there, not duplicated here. Quick reminders specific to this deployment:
+### Environment variables
+The full annotated list is in `AGENTS.md` ("Required env vars"). Reminders for this deployment:
 - `AUTH_SECRET`, not `NEXTAUTH_SECRET`.
 - `NEXTAUTH_URL` is set for **Production only**; leave it unset on Preview/Development so the
-  `VERCEL_URL` fallback resolves correctly per-deployment.
-- `FINANCE_EMAIL` (`hare081987@gmail.com`) is the confirmed fallback recipient — the real primary
-  path is the ADMIN designated as finance contact via "ตั้งค่าระบบ" (see `AGENTS.md`).
-- Leave `NEXT_PUBLIC_DEMO_MODE` unset in production — it exposes the demo reset-tools card in
-  `AdminUsersPanel`. (`DEMO_MODE` and `/demo`/`/api/auth/demo`, an older passwordless per-role login
-  page, were removed entirely 2026-09-09 — see below.)
-- `NEXT_PUBLIC_*` values are inlined at build time — changing one needs a redeploy, not just a
-  restart.
+  `VERCEL_URL` fallback works per deployment.
+- `FINANCE_EMAIL` (`hare081987@gmail.com`) is only the fallback; the designated finance-contact
+  ADMIN is the primary recipient.
+- Leave `NEXT_PUBLIC_DEMO_MODE` unset in production (it shows the demo reset tools).
+- `NEXT_PUBLIC_*` values are inlined at build time — changing one needs a redeploy.
 
 ---
 
 ## Database/infra gotchas a new session will get wrong
 
-- **There is no `prisma/migrations/` directory.** The schema is managed with `prisma db push`, not
-  migrations — `prisma migrate deploy` finds nothing and silently leaves a database empty. To
-  create the schema on a fresh project: `npx prisma db push`.
-- **`prisma db push` needs the direct connection (port 5432), not the transaction pooler (port
-  6543).** Pgbouncer transaction mode doesn't support the prepared statements the migration engine
-  uses — it hangs. Use the pooler only for the app's runtime `DATABASE_URL`.
-- **`DATABASE_URL` must be the transaction-mode pooler on port 6543.** Session mode (`:5432`) has a
-  15-client cap and caused a real `EMAXCONNSESSION` incident under production traffic.
-- **After changing a Prisma schema field, restart `next dev` — don't just re-run `prisma
-  generate`.** A running Turbopack dev server keeps its old compiled Prisma client in memory even
-  after the client is regenerated on disk; it'll throw `PrismaClientKnownRequestError: column ...
-  does not exist` on the renamed/added field until you kill the process (clear `.next/` too if the
-  error persists) and restart. **This includes adding an enum value**: after `COVER_PAGE` was added
-  to `FormType` (2026-09-30), a dev server started the night before silently failed every cover-page
-  upload (the old client rejects the unknown value → 500 → the UI only says "อัปโหลดไม่สำเร็จ")
-  until it was restarted. Production is unaffected — every deploy rebuilds the client.
-- Storage bucket `thesis-files` is **private**. `FormUpload.fileUrl` stores a bare storage path,
-  never a public URL — previews/downloads always resolve a short-lived signed URL through `GET
-  /api/upload/[uploadId]/signed-url`. Don't reintroduce a public bucket or a stored public URL (it
-  was briefly public before 2026-09-04 — every uploaded document was reachable by anyone with the
-  link — that was a bug, not the design). Upload paths are `{submissionId}/...`, which
-  `deleteFolder()` relies on.
-- One-off DB migration scripts in this project's history were written to `scripts/`, run once via
-  `npx tsx`, then deleted (not committed) — that's the established convention when only the pooler
-  connection is available and a real Prisma migration isn't possible. Follow it: don't leave a
-  one-off migration script sitting in the repo (see the "stray scripts" item below).
+- **There is no `prisma/migrations/` directory.** The schema is managed with `prisma db push`;
+  `prisma migrate deploy` finds nothing and silently leaves a database empty.
+- **`prisma db push` needs the direct connection (port 5432)**, not the transaction pooler (6543) —
+  pgbouncer transaction mode doesn't support the migration engine's prepared statements; it hangs.
+- **`DATABASE_URL` must be the transaction-mode pooler on 6543.** Session mode (5432) has a
+  15-client cap and caused a real `EMAXCONNSESSION` incident.
+- **`prisma db push` won't drop the table of a model removed earlier** — a model deletion needs its
+  own deliberate `DROP TABLE`.
+- **After any Prisma schema change — including a new enum value — restart `next dev`.** A running
+  dev server keeps its old compiled client: a renamed/added column throws "column does not exist",
+  and an unknown enum value fails as a 500 (e.g. every `COVER_PAGE` upload showed only
+  "อัปโหลดไม่สำเร็จ" until a restart). Clear `.next/` if it persists. Production rebuilds the client
+  on every deploy.
+- Storage bucket `thesis-files` is **private**; `FormUpload.fileUrl` is a bare path served through
+  signed URLs. Never reintroduce a public bucket or stored public URL. Upload paths are
+  `{submissionId}/...`, which `deleteFolder()` relies on.
+- **One-off DB scripts** go in `scripts/`, run once with `npx tsx`, then get deleted (not
+  committed) — the convention when only the pooler connection is available.
 
 ---
 
-## Open items for whoever picks this up next
+## Open items
 
 Roughly in priority order:
 
-1. **A real human click-through smoke test has still never been done.** Every verification to date
-   has been `npm run build`/`tsc`/`eslint` plus scattered real-browser spot-checks per feature (see
-   `CHANGELOG.md` for which features have and haven't had one). Nobody has done one continuous
-   walkthrough of a full PROPOSAL and a full THESIS_DEFENSE submission end to end as real users.
-2. **Resolve the shared-passcode security issue** (see warning above) — reset every real account to
-   an individual passcode.
-3. **Retire the old Supabase project** (`jttfcoisygcqqshghkmn`) — pause window is long over.
-4. **Browser-verify recent features that have only been build/type/lint-checked so far** (per
-   `CHANGELOG.md` 2026-09-08/09-09 entries): multi-member `INVITED_EXAM_COMMITTEE` sequential
-   signing + emails; draft-save leniency round-trip (empty save, partial save, reload); the
-   responsive admin user-list header at `xl`+ desktop width and true mobile width; the
-   email-result-reporting fix's *failure* branch for passcode-reset/email-change and for the
-   `/super-dashboard` add-user form specifically; `/professor-dashboard`'s
-   rework as a real PROFESSOR account; the name-title split and editable-login-email features
-   end-to-end; the degree-dependent committee composition rules (2026-09-15) — confirm the
-   ประธานกรรมการสอบ dropdown really switches to externals-only when หลักสูตร is set to `PHD`,
-   and that a defense draft importing a now-invalid committee clears the bad row on re-open and
-   refuses BOTH save and confirm until it is re-picked (2026-09-15 rework — the earlier
-   still-saves-but-refuses-to-confirm behaviour was deliberately reversed).
-   **The 2026-09-29 PROPOSAL redesign has had no browser pass at all** (see `CHANGELOG.md`): the
-   single combined `B1` file through every step; the admin's step-2 finance-form generator
-   (generate → download → edit → re-upload with the content-differs warning, single version) and
-   the finance email now firing on the step-2 approval; the checklists at steps 1, 2, 3, 4 and
-   5.x; the 5.1–5.x / 6 / 7 numbering on every screen; and the student not seeing any finance
-   document. **Partly done 2026-09-30**: a test proposal for นายสมชาย ตั้งใจดี (6951234521) was
-   walked through steps 1–7 by real accounts on the local dev server, and the step-8 cover-page
-   upload was confirmed working (after the dev-server restart above). Still unverified: approving
-   step 8 (completion), the finance email firing on step 2's approval (this proposal's email went
-   out under the old step-3 rule), and a full run on the deployed site.
-   **The generated memos (2026-10-06) have had no browser pass either**: PROPOSAL step 8 → 9 → 10
-   and THESIS_DEFENSE step 9 (generate the ขอส่งผลสอบ memo, upload the PDF) → 10 (the department
-   chair signs ใบรายงานผล + the memo) → 11 (LessPaper only).
-5. **Fix the outgoing-mail quota problem** (see warning above) — pick one of the three options and
-   do it, rather than continuing to absorb Gmail's daily cap.
-6. **Decide the Vercel-deployed-URL lag.** Several recent changes have only been confirmed against
-   the local dev server (same production DB) — worth a quick pass on the actual deployed URL after
-   the next push.
-7. **Decide what deleting a user should do to their audit trail.** Only two FKs to `users(id)`
-   refuse a delete (`submissions.studentId`, `form_uploads.uploadedById` — `signatures.userId` was
-   the third until the dead `signatures` table was dropped 2026-09-15);
-   `submissions.advisorId` and `workflow_steps.actedById` are `SET NULL` — Prisma's default for an
-   *optional* relation — so deleting a professor succeeds and silently erases their advisor link
-   and their step-action attribution on existing submissions. The committee id columns
-   (`headCommitteeId`/`programChairId`/`committeeIds`/`coAdvisorIds`/`invitedCommitteeIds`) aren't
-   FKs at all, so the same delete leaves dangling ids there. Both contradict the stated intent that
-   deleting an account must never silently destroy thesis records; making those two relations
-   explicit `Restrict` would close the first half. Left as a deliberate decision, not a drive-by —
-   see `CHANGELOG.md` 2026-09-15.
-### Dead code/scripts removed 2026-09-09 (following the consistency pass above)
-
-All of the following were reported first, then removed the same day with the project owner's
-go-ahead (build/`tsc`/`eslint` re-verified clean after each step, same baseline lint count as
-before):
-
-- `scripts/assign-passcodes-no-email.ts` — untracked, already-run one-off passcode-reset script.
-- `src/lib/rateLimit.ts` + the `RateLimit` Prisma model (`rate_limits` table) — orphaned since
-  self-registration/forgot-password were removed. The schema model went first; the live
-  `rate_limits` table was dropped 2026-09-15, together with `magic_tokens` and `signatures`. The
-  live `public` schema now holds exactly the 7 tables the schema declares: `users`, `submissions`,
-  `workflow_steps`, `form_uploads`, `notifications`, `system_settings`,
-  `external_committee_requests`.
-- `src/lib/utils.ts`'s unused `STEP_NAMES` export.
-- **All 9 `/dashboard/<contextual-role>` route pairs** (`advisor`, `co-advisor`, `dept-staff`,
-  `exam-committee`, `faculty-dean`, `graduate-school`, `head-exam-committee`,
-  `invited-exam-committee`, `program-chair`) — leftovers from the pre-account-model 2026-06-02
-  mockup commit. Removed together with `/demo` and `/api/auth/demo` (the old passwordless per-role
-  test-login flow that kept 5 of the 9 technically reachable) in favor of the documented
-  `/demo-users` picker, and the now-orphaned `RolePendingList` component those routes used.
-- 5 unused npm dependencies: `zod`, `react-hook-form`, `@hookform/resolvers`, `@auth/prisma-adapter`,
-  `playwright` (removed from `package.json`, `npm install` re-run to sync the lockfile). `pg`/
-  `@types/pg` were deliberately left — redundant (already pulled in transitively by
-  `@prisma/adapter-pg`) but harmless, not worth the churn.
-
-**Still not removed, left for a deliberate later pass:**
-- `CLAUDE.md`'s architecture map is still missing several now-real files (`src/lib/accountScope.ts`,
-  `config.ts`, `fileStore.ts`, `translations.ts`; several `src/components/` entries; the
-  `api/admin/*`/`api/external-requests/*`/`api/super-admin/*`/`api/submissions/auto-draft-proposal`
-  route families) — a documentation refresh, not a code change.
-- `src/lib/workflow.ts` (dead mock-build stub) and `docs/ARCHITECTURE.md`/`docs/RECIPES.md`
-  (pre-database mockup docs) — confirmed still accurate/still stale respectively, left alone.
+1. **Reset the shared passcodes** (see the warning above).
+2. **Set the real department chair and program chairs** in "ตั้งค่าระบบ".
+3. **A full end-to-end click-through has never been done on the deployed site.** Proposals and a
+   defense have been completed on the local dev server against the production DB, but no one has
+   walked a whole PROPOSAL and THESIS_DEFENSE as real users on the Vercel URL. Features that have
+   only been build-checked and should be covered by that pass:
+   - the generated memos (2026-10-06): PROPOSAL steps 8 → 9 → 10; THESIS_DEFENSE step 9 (generate
+     the result memo, upload as PDF) → 10 (department chair signs ใบรายงานผล + the memo) → 11
+     (LessPaper);
+   - the admin's step-2 finance-form generator (download → edit → re-upload with the
+     content-differs warning) and the finance email on that approval;
+   - the 2026-10-10 signing order and the sent-back signer keeping their upload;
+   - multi-member กรรมการภายนอก signing in sequence, with emails;
+   - degree rules: the ประธานกรรมการสอบ picker switching to externals only for `PHD`, and a draft
+     whose committee became invalid clearing the bad row and refusing both save and confirm;
+   - the email-failure branches (passcode reset, login-email change, `/super-dashboard` add-user).
+4. **Retire the old Supabase project** (`jttfcoisygcqqshghkmn`).
+5. **Fix the outgoing-mail quota problem** — pick one of the options above.
+6. **Decide what deleting a user should do to their audit trail.** Only `submissions.studentId` and
+   `form_uploads.uploadedById` block a delete; `submissions.advisorId` and
+   `workflow_steps.actedById` are `SET NULL`, so deleting a professor silently erases their advisor
+   link and step attribution, and the committee id columns (not FKs) are left dangling. Making those
+   two relations `Restrict` would close the first half. A deliberate decision, not a drive-by.
+7. **Leftover cleanup**: `CLAUDE.md`'s file map lacks `src/lib/config.ts` and `src/lib/fileStore.ts`;
+   `src/lib/workflow.ts` is a dead stub; `docs/ARCHITECTURE.md`/`docs/RECIPES.md` are stale
+   pre-database docs; `src/components/DashboardHeader.tsx` is unused; the storage bucket held ~405
+   orphaned objects as of 2026-09-15 (worth a sweep); and the comment at `src/lib/utils.ts`
+   (`SINGLE_VERSION_FORMS`) still says a defense has two LessPaper documents (it has three).
 
 ---
 
 ## Email
 
-`src/lib/email.ts` — step notifications, finance mail and account mail, via nodemailer
-(exam reminders are in-app bell notifications only since 2026-10-08).
-`SMTP_USER`/`SMTP_PASS` (Office365, default `smtp.office365.com:587`) take priority over
-`GMAIL_USER`/`GMAIL_APP_PASSWORD` when both are set. Currently running on the Gmail path — see the
-quota warning above for why a Chula mailbox with Authenticated SMTP would be the more durable fix.
+`src/lib/email.ts` — step notifications, finance mail and account mail via nodemailer (exam
+reminders are in-app only). `SMTP_USER`/`SMTP_PASS` (Office365, default `smtp.office365.com:587`)
+take priority over `GMAIL_USER`/`GMAIL_APP_PASSWORD`. Currently running on Gmail — see the quota
+warning above.
