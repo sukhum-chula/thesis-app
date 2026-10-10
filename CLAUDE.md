@@ -16,123 +16,126 @@ npm run db:seed      # tsx prisma/seed.ts — NEVER against production (real fac
 npm run db:studio    # prisma studio
 ```
 
-There is no test runner configured (no Jest/Vitest, no test files under `src/`). Playwright is a
-devDependency but there is no `playwright.config.*` or `e2e/` directory in this repo — treat it as
-unused until one is added. Verify changes by running `npm run build` and exercising the flow
-manually (dev server + browser), not by writing/running automated tests.
+There is no test runner (no Jest/Vitest/Playwright, no test files). Verify changes by running
+`npm run build` and exercising the flow manually (dev server + browser), not by writing tests.
 
-**Migrations**: `prisma/migrations/` does not exist — the schema has always been managed with
-`prisma db push`, not `prisma migrate`. Running `npm run db:migrate` / `prisma migrate deploy`
-against a fresh database will not create any schema. Use `npx prisma db push` instead. See
-`docs/SUPABASE-MIGRATION.md` for the Supabase ownership-transfer procedure if you're touching
-database/env config.
+**Migrations**: `prisma/migrations/` does not exist — the schema is managed with `prisma db push`.
+`npm run db:migrate` / `prisma migrate deploy` against a fresh database creates nothing; use
+`npx prisma db push` (direct connection, port 5432). See `docs/SUPABASE-MIGRATION.md` for the
+project-to-project migration procedure if you're touching database/env config.
 
 ## Architecture
 
 Next.js 16 App Router, one Postgres database (Supabase), server-fetched state — **not** a SPA with
-client-only state. The full behavioral spec (workflow steps, roles, email rules, upload gating,
-UI conventions) lives in `AGENTS.md` (imported above); this section is only the map of *where*
-things live.
+client-only state. The behavioral spec (workflow steps, roles, email rules, upload gating, UI
+conventions) is `AGENTS.md` (imported above); this section is only the map of *where* things live.
 
 ```
-src/app/api/**              all business logic — route handlers are the source of truth
-  submissions/route.ts        POST create (proposal-first gate; unresolvable committee email → 400)
-  submissions/[id]/route.ts   PATCH actions — approve/reject/resubmit/return_to_prev/
-                               request_cancel/accept_cancel/decline_cancel/save_defense_draft/admin_*
-  submissions/auto-draft-defense/ POST — STUDENT-only, get-or-creates the DRAFT THESIS_DEFENSE
-                               imported from a completed proposal (see AGENTS.md)
-  users/route.ts               POST — the one route every account is created through, including
-                               approving a STUDENT's EXTERNAL-committee request (see AGENTS.md)
-src/app/dashboard/<role>/** thin pages per role, mostly wrapping shared components
-                             (admin/[id] and student/[id]/student/submit are now thin
-                             wrappers around AdminSubmissionPanel / StudentSubmissionActions /
-                             SubmissionForms, see AGENTS.md)
-src/app/student-dashboard/  STUDENT's real landing page (src/app/dashboard/student redirects here)
-src/app/professor-dashboard/ PROFESSOR's real landing page (src/app/dashboard/professor redirects
-                             here; submission detail stays at src/app/dashboard/professor/[id])
-src/components/**           RoleSubmissionDetail, SignatureButton, CommitteeSignPanel,
-                             WorkflowTimeline, FileList, FileUploader, SubmissionInfoPanel,
-                             StudentSubmissionActions, SubmissionForms, DefenseDraftReview,
-                             AdminSubmissionPanel, AdminUsersPanel, AdminSettingsPanel,
-                             B1Checklist (the บ.วศ.1 pre-submit/approve checklist) — the
-                             shared UI that every role dashboard is built from.
-                             FileUploader.tsx also exports the action-card building blocks
-                             (ACTION_CARD, SectionLabel, DownloadRow, NotesField, ActionError,
-                             PRIMARY_BUTTON, postUpload, …) every "your turn" card is made of
-src/context/AppContext.tsx  client state cache; polls the API, exposes actions
-                             (approveCurrentStep, committeeSign, adminOverrideStep, continueDraft,
-                             getOrCreateDefenseDraft, saveDefenseDraft, requestCancelSubmission,
-                             adminAcceptCancel, adminDeclineCancel, ...)
+src/app/api/                 all business logic — route handlers are the source of truth
+  submissions/route.ts         GET list (scoped to the caller's involvement), POST create
+                               (proposal-first gate; unresolvable committee email → 400)
+  submissions/[id]/route.ts    GET/DELETE; PATCH actions — approve/reject/resubmit/return_to_prev/
+                               request_cancel/accept_cancel/decline_cancel/save_proposal_draft/
+                               save_defense_draft/admin_update/admin_override_step/admin_reset
+  submissions/[id]/sign/       POST — sequential multi-member signing (CO_ADVISOR/EXAM_COMMITTEE/
+                               INVITED_EXAM_COMMITTEE)
+  submissions/[id]/finance-attach/  POST — ADMIN generates FINANCE_ATTACH at step 2
+  submissions/[id]/cover-memo/      POST — ADMIN generates the memo .docx (not stored)
+  submissions/auto-draft-proposal/  POST — STUDENT get-or-create of a blank DRAFT PROPOSAL
+  submissions/auto-draft-defense/   POST — STUDENT get-or-create of the DRAFT THESIS_DEFENSE
+                               imported from a completed proposal
+  upload/route.ts              POST — upload gate (who may upload which form at which step,
+                               file format, per-member B3); upload/[uploadId]/signed-url GET
+  users/route.ts, users/[id]/  account create (the one route every account goes through, incl.
+                               approving an EXTERNAL request) / edit / reset passcode / delete
+  admin/                       department-chair, program-chairs, finance-contact, users/reorder
+  external-requests/           STUDENT requests a new EXTERNAL account; ADMIN rejects via [id]
+  super-admin/                 users, submissions — read-only lists for SUPER_ADMIN
+  notifications/               bell notifications
+  cron/exam-reminders/         daily bell reminders (CRON_SECRET-guarded, see vercel.json)
+  auth/[...nextauth]/          NextAuth
+src/app/<role>-dashboard/    landing pages: admin-, super-, student-, professor-dashboard
+                             (src/lib/roleRoutes.ts maps each account role to one)
+src/app/dashboard/           layout.tsx is the shared top bar (re-exported by every landing page);
+                             old /dashboard/<role> paths redirect to the landing pages; detail pages
+                             are thin wrappers: admin/[id] → AdminSubmissionPanel,
+                             professor/[id] → RoleSubmissionDetail, student/[id] →
+                             StudentSubmissionActions, student/submit → SubmissionForms;
+                             admin/users (+ [uid]) → AdminUsersPanel / UserDetailPanel
+src/app/demo-users/          local-only account picker for testing (not in production)
+src/components/              the shared UI every dashboard is built from:
+  AdminSubmissionPanel         the ADMIN's whole per-submission surface (action card, override,
+                               edit form, cancel accept/decline, delete)
+  RoleSubmissionDetail         faculty view of a submission → SignatureButton / CommitteeSignPanel
+  StudentSubmissionActions     the student's whole per-submission surface
+  SubmissionForms              ProposalForm/DefenseForm + CommitteePeopleEditor, ExamLogisticsSection,
+                               ProgramChairAutoField, validators
+  ProposalDraftReview, DefenseDraftReview   the editable DRAFT forms
+  FileUploader                 upload slots + the action-card building blocks (ACTION_CARD,
+                               SectionLabel, DownloadRow, NotesField, ActionError, PRIMARY_BUTTON,
+                               postUpload, …) every "your turn" card is made of
+  B1Checklist, ExamResultPicker, FileList, WorkflowTimeline, SubmissionInfoPanel, StatusBadge
+  AdminUsersPanel, UserDetailPanel, UserProfileHeader, AdminSettingsPanel, PasscodeField
+  StudentExternalRequests, NotificationBell, LanguageToggle, Providers
+  DashboardHeader              unused — no page renders it
+src/context/AppContext.tsx   client state cache; polls the API, exposes actions (approveCurrentStep,
+                             committeeSign, adminOverrideStep, getOrCreateProposalDraft,
+                             saveProposalDraft, getOrCreateDefenseDraft, saveDefenseDraft,
+                             requestCancelSubmission, adminAcceptCancel, adminDeclineCancel, ...)
+src/context/ToastContext.tsx toasts
 src/lib/
-  prisma.ts                 Prisma singleton (globalThis-cached — see AGENTS.md, do not "fix")
-  auth.ts                   NextAuth v5 config (credentials + JWT session)
-  email.ts                  nodemailer step/finance notifications
-  supabase.ts               Storage helpers (private `thesis-files` bucket) — uploadFile/deleteFile
-                             use the service-role key; getSignedUrl mints 1h download URLs, served
-                             via GET /api/upload/[uploadId]/signed-url (gated by the same
-                             submission-involvement check as the rest of the API)
-  committee.ts               validatePeople/resolvePeople for submission committee people —
-                             account lookup only, never creates one; plus
-                             validateCommitteeAccountRoles(), the degree-dependent check of
-                             which account type may fill each role (the table itself lives in
-                             utils.ts as committeeRoleScope) (see AGENTS.md)
-  systemSettings.ts          getProgramChairUserId/getProgramChairsOfUser/setProgramChair,
-                             getFinanceContactUser/setFinanceContact,
-                             getDepartmentChairUser/setDepartmentChair,
-                             clearUserFromSystemSettings,
-                             attachSystemSettings — the only code that touches the SystemSetting
-                             table (see AGENTS.md, "Program Chair & finance contact assignment").
-                             NOTE: attachSystemSettings' computed flags only reach the client if
-                             they are also listed in the mapUser() whitelists in
-                             api/users/route.ts and api/users/[id]/route.ts
-  financeDoc.ts              buildProposalFinanceDocx() — fills templates/finance-attach-proposal.docx
-                             (the department's form) for POST /api/submissions/[id]/finance-attach
+  prisma.ts                  Prisma singleton (globalThis-cached — see AGENTS.md, do not "fix")
+  auth.ts                    NextAuth v5 config (credentials + JWT session)
+  accountScope.ts            account-management tiers — who may manage/grant which account type
+  email.ts                   nodemailer step/finance/account emails
+  supabase.ts                storage helpers (private `thesis-files` bucket, service-role key);
+                             getSignedUrl mints the 1h URLs served by upload/[uploadId]/signed-url
+  committee.ts               validatePeople/validatePeopleLenient/resolvePeople(Partial) — account
+                             lookup only, never creates one; validateCommitteeAccountRoles and the
+                             resolved-committee checks used by admin_update
+  systemSettings.ts          the only code touching the SystemSetting table (department chair,
+                             program chairs, finance contact). NOTE: attachSystemSettings' computed
+                             flags only reach the client if also listed in the mapUser() whitelists
+                             in api/users/route.ts and api/users/[id]/route.ts
+  workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES, PROPOSAL_STEP/THESIS_STEP (named
+                             stepOrders — branch on these, never bare numbers), financeStepOf,
+                             buildWorkflowSteps, committeeRoster/PER_MEMBER_FORMS,
+                             previousActiveStep, planCommitteeStepSync/currentTurn
+  stepNumbering.ts           stepNumbering() — the step numbers users SEE (PROPOSAL 5.x and
+                             THESIS 8.x sub-steps); never derive a displayed number from an index
+  financeDoc.ts              buildFinanceDocx() — fills templates/finance-attach-{proposal,thesis}.docx
   coverMemoDoc.ts            buildCoverMemoDocx() / buildDefenseResultMemoDocx() — fill
-                             templates/cover-memo-proposal.docx (PROPOSAL step 8) and
-                             templates/cover-memo-defense-result.docx (THESIS_DEFENSE step 9) for
-                             POST /api/submissions/[id]/cover-memo (download only)
-  stepNumbering.ts           stepNumbering() — the step numbers users SEE (PROPOSAL 5.1–5.x sub-steps,
-                             admin check = 6, chair = 7); internal stepOrder is unchanged. Never
-                             derive a displayed step number from an index — call this
-  uploadVersions.ts          keepOnlyLatestVersion() — single-version form types (PROPOSAL
-                             FINANCE_ATTACH): a new copy deletes the old row + storage object
+                             templates/cover-memo-proposal.docx and cover-memo-defense-result.docx
+  uploadVersions.ts          keepOnlyLatestVersion() — single-version form types delete the old
+                             row + storage object on a new copy
   docxText.ts                docxText() — body text of a .docx, for "did the content change" checks
-  workflowSteps.ts           PROPOSAL_ROLES/THESIS_ROLES + THESIS_STEP (named defense stepOrders —
-                             branch on these, never bare numbers) + committeeRoster/PER_MEMBER_FORMS
-                             (the defense's one-บ.3-per-member uploads) + buildWorkflowSteps(), shared by the
-                             initial-create path and the draft-confirm finalize path
-  utils.ts                  getStepName(), ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatDate, cn,
-                             degreeOfProgram/committeeRoleScope/accountFitsScope — the one
-                             definition of which account type may fill each committee role per
-                             degree, shared by the client editors and committee.ts; also the
-                             B1 checklists (B1_CHECKS, B1_STEP4_CHECKS, PROPOSAL_SIGN_CHECKS, …),
-                             formFileKind/checkFormFile (PDF vs .docx per form type),
-                             freshUploadCutoff, isHiddenFromStudent, isSingleVersionForm
-  workflow.ts                dead stub file left over from an earlier mock build — ignore it,
-                             real workflow logic is in src/app/api/submissions/**
-  roleRoutes.ts              maps the 4 account-level roles to dashboard paths (STUDENT →
-                             /student-dashboard)
+  utils.ts                   getStepName, ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatUserName,
+                             degreeOfProgram/committeeRoleScope/accountFitsScope, the checklists
+                             (B1_CHECKS, SIGN_CHECKS, …), formFileKind/checkFormFile,
+                             freshUploadCutoff, isHiddenFromStudent, isSingleVersionForm,
+                             previewFile/downloadFile, …
+  roleRoutes.ts              landing page per account role (EXTERNAL → /professor-dashboard)
+  translations.ts            Thai→English UI strings — GENERATED by scripts/import-wordlist.js from
+                             ../thesis-wordlist.xlsx; edit the spreadsheet, not this file
+  config.ts                  DEMO_MODE (NEXT_PUBLIC_DEMO_MODE)
+  workflow.ts, fileStore.ts  dead leftovers from the pre-database mock build — ignore them
 prisma/schema.prisma         DB schema — source of truth for models/enums
+templates/                   the department's .docx forms the generators fill
 ```
 
-**Files are never served by public URL** — `FormUpload.fileUrl` stores a bare storage path, not a
-public link (the bucket is private). Any preview/download must go through
-`GET /api/upload/[uploadId]/signed-url` to resolve a short-lived signed URL first; see
-`previewFile`/`downloadFile` in `src/lib/utils.ts` for the client-side pattern.
+**Files are never served by public URL** — `FormUpload.fileUrl` stores a bare storage path (the
+bucket is private). Any preview/download must go through `GET /api/upload/[uploadId]/signed-url`;
+see `previewFile`/`downloadFile` in `src/lib/utils.ts`.
 
 **Two role systems, don't conflate them**: `User.roles: Role[]` (`SUPER_ADMIN | ADMIN | STUDENT |
-PROFESSOR | EXTERNAL`) is the literal account type in the DB/session (`src/types/index.ts`,
-`roleRoutes.ts`). `EXTERNAL` (กรรมการภายนอก) accounts are functionally identical to `PROFESSOR` —
-same login, same ability to sign — tagged separately purely so committee-picker dropdowns can
-offer "internal faculty" vs "external examiner" as distinct lists (`FACULTY_ROLES` in
-`src/app/api/users/route.ts` includes both). A `PROFESSOR` or `EXTERNAL` account additionally
-plays *contextual* roles per submission (`ADVISOR`, `CO_ADVISOR`, `PROGRAM_CHAIR`,
-`HEAD_EXAM_COMMITTEE`, `EXAM_COMMITTEE`, `INVITED_EXAM_COMMITTEE`) — these are plain strings on
-`WorkflowStep.role` / submission fields (`advisorId`, `committeeIds`, etc.), not part of the
-`Role` enum. The workflow step sequences (`PROPOSAL_ROLES` / `THESIS_ROLES`) that define these
-contextual roles per step live in `src/lib/workflowSteps.ts`.
+PROFESSOR | EXTERNAL`) is the literal account type in the DB/session (`src/types/index.ts`).
+`EXTERNAL` (กรรมการภายนอก) accounts behave exactly like `PROFESSOR` — tagged separately so committee
+pickers can tell internal faculty from external examiners (`FACULTY_ROLES` in
+`src/app/api/users/route.ts` includes both). Per submission, accounts additionally play
+*contextual* roles (`ADVISOR`, `CO_ADVISOR`, `PROGRAM_CHAIR`, `HEAD_EXAM_COMMITTEE`,
+`EXAM_COMMITTEE`, `INVITED_EXAM_COMMITTEE`, `DEPARTMENT_CHAIR`) — plain strings on
+`WorkflowStep.role` / submission fields, not part of the `Role` enum. The step sequences that use
+them are `PROPOSAL_ROLES` / `THESIS_ROLES` in `src/lib/workflowSteps.ts`.
 
 **`docs/ARCHITECTURE.md` and `docs/RECIPES.md` are stale** — they describe a pre-database version
-of this app (all state in `AppContext` + `localStorage`, no Prisma/NextAuth/Supabase). That
-version no longer exists; don't follow their instructions. `AGENTS.md` is the accurate, current
-description of app behavior.
+(all state in `AppContext` + `localStorage`). Don't follow them; `AGENTS.md` is current.

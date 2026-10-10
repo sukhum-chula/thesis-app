@@ -131,9 +131,9 @@ Roughly in priority order:
    `workflow_steps.actedById` are `SET NULL`, so deleting a professor silently erases their advisor
    link and step attribution, and the committee id columns (not FKs) are left dangling. Making those
    two relations `Restrict` would close the first half. A deliberate decision, not a drive-by.
-7. **Leftover cleanup**: `CLAUDE.md`'s file map lacks `src/lib/config.ts` and `src/lib/fileStore.ts`;
-   `src/lib/workflow.ts` is a dead stub; `docs/ARCHITECTURE.md`/`docs/RECIPES.md` are stale
-   pre-database docs; `src/components/DashboardHeader.tsx` is unused; the storage bucket held ~405
+7. **Leftover cleanup**: dead files `src/lib/workflow.ts`, `src/lib/fileStore.ts` (imported
+   nowhere) and `src/components/DashboardHeader.tsx` (rendered nowhere) could be deleted;
+   `docs/ARCHITECTURE.md`/`docs/RECIPES.md` are stale pre-database docs; the storage bucket held ~405
    orphaned objects as of 2026-09-15 (worth a sweep); and the comment at `src/lib/utils.ts`
    (`SINGLE_VERSION_FORMS`) still says a defense has two LessPaper documents (it has three).
 
