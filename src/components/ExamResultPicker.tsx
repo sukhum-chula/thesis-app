@@ -15,7 +15,7 @@ const OPTION_CLASSES: Record<Result, { on: string; off: string }> = {
 
 /** Exam-result picker — a numbered section of an action card. THESIS_DEFENSE: the advisor picks it
  *  at THESIS_STEP.ADVISOR_RESULT (ดีมาก: the student's แบบประเมินวิทยานิพนธ์ดีมาก must be filled in).
- *  PROPOSAL step 5.1: the head of committee picks ผ่าน/ไม่ผ่าน (`options`). */
+ *  PROPOSAL step 5.x: the head of committee picks ผ่าน/ไม่ผ่าน (`options`). */
 export function ExamResultPicker({
   n,
   value,

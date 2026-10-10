@@ -387,8 +387,8 @@ longer shows the admin's finance row/status; the wait after submitting just read
 ### Step display numbering — sub-steps 5.1–5.x (2026-09-29)
 Internal `stepOrder` never changes (1–11 PROPOSAL / 1–22 THESIS_DEFENSE — every gate, email,
 `STEP_SIGN_FORMS` entry and DB row keys off it). **What users see** comes from `stepNumbering()`
-(`src/lib/stepNumbering.ts`): a PROPOSAL's committee-signing run, stepOrder 5–9 (head → advisor →
-co-advisors → external → exam committee), is shown as one step with sub-steps **5.1–5.x** — dense,
+(`src/lib/stepNumbering.ts`): a PROPOSAL's committee-signing run, stepOrder 5–9 (advisor → co-advisors →
+exam committee → head → external, since 2026-10-10), is shown as one step with sub-steps **5.1–5.x** — dense,
 since SKIPPED steps are hidden and never numbered — so the admin check (stepOrder 10) reads as
 **step 6**, the program chair's final signature (stepOrder 11) as **step 7**, and the admin's
 final recheck + cover memo (stepOrder 12) as **step 8**, the department chair's memo signature
@@ -398,8 +398,8 @@ approved). Used by `WorkflowTimeline`, `AdminSubmissionPanel` (step cards, statu
 `RoleSubmissionDetail`, `StudentSubmissionActions`, `/admin-dashboard`, `/student-dashboard`,
 `UserDetailPanel`, and the admin-override notification text. Never compute a displayed step
 number from a step's index — call `stepNumbering(...).label(stepOrder)`. THESIS_DEFENSE has one
-group: the committee's ใบรายงานผลการสอบ signatures after the advisor (stepOrder 8–11: co-advisors → head →
-exam committee → external) read as **8.1–8.x**, so the student's บ.4 + thesis upload
+group: the committee's ใบรายงานผลการสอบ signatures after the advisor (stepOrder 8–11: co-advisors → exam
+committee → head → external, since 2026-10-10) read as **8.1–8.x**, so the student's บ.4 + thesis upload
 (stepOrder 15) reads as **step 12** and the student's iThesis confirmation (stepOrder 20, the last
 step) as **step 17** — 17 top-level steps with or without a co-advisor (the co-advisor sits inside 8.x).
 
@@ -878,11 +878,13 @@ internal `stepOrder` every rule keys off.
 | Step | Shown as | Role | Action |
 |------|----------|------|--------|
 | 4  | 4   | STUDENT | **After the proposal exam** (the step name says so: "หลังสอบโครงร่างแล้ว — …"). Download the latest B1 (chair-signed), fill บ.วศ.1ค + 1ง, re-upload as a new B1 (must be newer than step 3's approval — `freshUploadCutoff`); 9-item checklist (see "Step 4 uses the same combined file"). No finance document. |
-| 5  | 5.1 | HEAD_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place); one checkbox |
-| 6  | 5.2 | ADVISOR | Sign บ.วศ.1ค (one place); one checkbox |
-| 7  | 5.x | CO_ADVISOR | Sign บ.วศ.1ค (one place each); one checkbox — **auto-SKIPPED (and not numbered) if no co-advisors assigned** |
-| 8  | 5.x | INVITED_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
-| 9  | 5.x | EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
+| 5  | 5.1 | ADVISOR | Sign บ.วศ.1ค (one place); one checkbox |
+| 6  | 5.x | CO_ADVISOR | Sign บ.วศ.1ค (one place each, sequential); one checkbox — **auto-SKIPPED (and not numbered) if no co-advisors assigned** |
+| 7  | 5.x | EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
+| 8  | 5.x | HEAD_EXAM_COMMITTEE | Pick the proposal exam result (ผ่าน/ไม่ผ่าน — the picker is keyed on the role, not the stepOrder) and sign บ.วศ.1ค (one place); one checkbox |
+| 9  | 5.x | INVITED_EXAM_COMMITTEE | Sign บ.วศ.1ค (one place each, sequential); one checkbox |
+
+Until 2026-10-10 the 5.x order was head → advisor → co-advisors → external → exam committee. Proposals created before then keep their old step rows; `getStepName` names steps by stepOrder, so an old proposal's 5.x names would no longer match its rows — the two existing ones (both COMPLETED) were left as they are.
 | 10 | 6   | ADMIN | Verify the fully-signed B1; 4-item checklist (committee signatures all on 1ค, 1ค/1ง complete, 1ง topic correct — it is registered in Chula's system, and **the submission's title renamed to match 1ง** via the panel's แก้ไข button) before approve (`ADMIN_STEP6_CHECKS`) |
 | 11 | 7   | PROGRAM_CHAIR | Sign บ.วศ.1ค + บ.วศ.1ง; two checkboxes (own signature on each) |
 | 12 | 8   | ADMIN | Final recheck + the **cover memo** (`COVER_PAGE`, บันทึกข้อความ "ขอส่งแบบอนุมัติโครงร่างวิทยานิพนธ์พร้อมรายชื่อ…"; `PROPOSAL_STEP.ADMIN_COVER`). The card's "สร้างบันทึกข้อความ" button calls `POST /api/submissions/[id]/cover-memo` (ADMIN-only, only while this step is current), which fills `templates/cover-memo-proposal.docx` (`src/lib/coverMemoDoc.ts`, the department's letterhead memo since 2026-10-06: memo date = the day it is generated, student name ×2, code ×2, หลักสูตร + สาขาวิชา, title, and the designated department chair's name with the title spelled out under the signature line; the template's doubled "ขอส่งขอส่ง" is dropped; the exam date is no longer printed) and returns the .docx; once it finishes, the card shows the filled-in values and a separate "ดาวน์โหลดบันทึกข้อความ (.docx)" button (a blob URL held in the page — **nothing is stored**; "สร้างใหม่จากข้อมูลในระบบ" regenerates it). The ADMIN converts it to PDF and picks it in the same card's upload box (unsigned; uploaded on อนุมัติ; single version). 3-item checklist `ADMIN_STEP8_CHECKS`. Approve is gated on a COVER_PAGE (server `REQUIRED_UPLOADS`) and notifies the department chair. |
@@ -927,11 +929,11 @@ Until 2026-10-01 step 5 had the ADMIN upload the 4 Faculty returns (SIGNED, EXAM
 | 6  | STUDENT | From the forwarded Faculty email: fill info and sign แบบรายงานการเสนอผลงานฯ and upload it (formType: SIGNED). The student also uploads ใบรายงานผลการสอบ (EXAM_RESULT) **blank** — nothing filled in, nothing signed — and **always** uploads แบบประเมินวิทยานิพนธ์ดีมาก (`VERY_GOOD_EVAL`): filled in when the result is ดีมาก, blank otherwise. 3-item checklist `DEFENSE_STEP6_CHECKS`. All three files are required client- and server-side (`THESIS_STEP.STUDENT_REPORT`; server `REQUIRED_UPLOADS`). **The student no longer picks the exam result** (moved to step 7, 2026-10-06). |
 | 7  | ADVISOR | **Picks the exam result** (`ExamResultPicker` as the card's lead section: ดีมาก/ดี/ผ่าน/ไม่ผ่าน, ผ่าน preselected), sent as the approval note's first line `ผลการสอบ: …` (server-required) and read back with `defenseExamResult()` (`src/lib/utils.ts`). Signs แบบรายงานฯ and **fills in + signs the blank ใบรายงานผลการสอบ (EXAM_RESULT)** the student uploaded — the advisor fills in all of its information (the card's ② section reads "กรอกข้อมูลและลงนามในเอกสาร", `SignatureButton`'s `signSection`, and a checklist box confirms it) — steps 8–13 sign from this copy; both files are server-gated and must be newer than step 6 (`REQUIRED_UPLOADS`, `freshUploadCutoff`). The student's แบบประเมินดีมาก is listed under download (`SignatureButton`'s `downloadOnly`). Checklist: the result matches ใบรายงานผลการสอบ, (ดีมาก only) the student filled in the evaluation form, the advisor filled in ใบรายงานผลการสอบ and signed both documents. If a student document is wrong the advisor rejects; the student re-uploads and resubmits (`resubmit` no longer takes an `examResult`) (`THESIS_STEP.ADVISOR_RESULT`) |
 | 8  | CO_ADVISOR | Sign ใบรายงานผลการสอบ — **auto-SKIPPED if no co-advisors assigned** |
-| 9  | HEAD_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
-| 10 | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
+| 9  | EXAM_COMMITTEE | All members sign ใบรายงานผลการสอบ (sequential) |
+| 10 | HEAD_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 | 11 | INVITED_EXAM_COMMITTEE | Sign ใบรายงานผลการสอบ |
 
-StepOrders 8–11 are shown as sub-steps 8.1–8.x; each signer ticks the one-box own-signature checklist `SIGN_RESULT_CHECKS` (also used at step 13). The program chair does **not** sign ใบรายงานผลการสอบ
+StepOrders 8–11 are shown as sub-steps 8.1–8.x (head and exam committee swapped 2026-10-10 — the head used to be stepOrder 9; defenses built earlier keep their old rows); each signer ticks the one-box own-signature checklist `SIGN_RESULT_CHECKS` (also used at step 13). The program chair does **not** sign ใบรายงานผลการสอบ
 (its step was removed 2026-10-01); the student doesn't either (step 6 uploads it blank; the advisor fills it in at step 7).
 
 #### Phase 5b (Steps 12–14, shown as 9–11): result to the Faculty

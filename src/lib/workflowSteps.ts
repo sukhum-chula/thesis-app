@@ -6,11 +6,11 @@ export const PROPOSAL_ROLES = [
   "ADMIN",                 // 2  approve
   "PROGRAM_CHAIR",         // 3  sign บ.วศ.1ก in B1 → finance email
   "STUDENT",               // 4  upload B1C + B1D
-  "HEAD_EXAM_COMMITTEE",   // 5  sign B1C
-  "ADVISOR",               // 6  sign B1C
-  "CO_ADVISOR",            // 7  sign B1C (sequential, skipped if no co-advisors)
-  "INVITED_EXAM_COMMITTEE",// 8  sign B1C
-  "EXAM_COMMITTEE",        // 9  sign B1C + B1D (all members)
+  "ADVISOR",               // 5  sign B1C
+  "CO_ADVISOR",            // 6  sign B1C (sequential, skipped if no co-advisors)
+  "EXAM_COMMITTEE",        // 7  sign B1C (sequential, all members)
+  "HEAD_EXAM_COMMITTEE",   // 8  sign B1C + pick the proposal exam result (ผ่าน/ไม่ผ่าน)
+  "INVITED_EXAM_COMMITTEE",// 9  sign B1C (sequential)
   "ADMIN",                 // 10 approve
   "PROGRAM_CHAIR",         // 11 sign B1C + B1D
   "ADMIN",                 // 12 recheck everything + generate the cover memo (.docx) → upload it as PDF (COVER_PAGE)
@@ -49,8 +49,8 @@ export const THESIS_ROLES = [
   "STUDENT",               // 6  fill + sign แบบรายงานฯ; upload it + ใบรายงานผลการสอบ (from the Faculty email)
   "ADVISOR",               // 7  sign แบบรายงาน + ใบรายงานผล (แบบรายงานฯ: student + advisor only)
   "CO_ADVISOR",            // 8  sign ใบรายงานผล (sequential, skipped if none)
-  "HEAD_EXAM_COMMITTEE",   // 9  sign ใบรายงานผล
-  "EXAM_COMMITTEE",        // 10 sign ใบรายงานผล (sequential)
+  "EXAM_COMMITTEE",        // 9  sign ใบรายงานผล (sequential)
+  "HEAD_EXAM_COMMITTEE",   // 10 sign ใบรายงานผล
   "INVITED_EXAM_COMMITTEE",// 11 sign ใบรายงานผล
   "ADMIN",                 // 12 check the signed ใบรายงานผล + แบบรายงานฯ; generate the ขอส่งผลสอบ memo (.docx) → upload it as PDF (COVER_PAGE)
   "DEPARTMENT_CHAIR",      // 13 department chair signs ใบรายงานผล (its last signature) + the memo

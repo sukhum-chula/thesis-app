@@ -95,7 +95,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
 
   const isProposalHeadResultStep =
     sub.submissionType === "PROPOSAL" &&
-    currentStep?.stepOrder === 5 &&
+    currentStep?.role === "HEAD_EXAM_COMMITTEE" &&
     (sub as any).headCommitteeId === user?.id &&
     isMyTurn;
 
@@ -106,11 +106,11 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       3:  ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ก inside the combined บ.วศ.1 file
       // Steps 5–9 (shown as 5.1–5.x): every committee member signs one place on บ.วศ.1ค, inside the
       // same combined B1 the student re-uploaded at step 4; step 11 (shown as 7) is the chair
-      5:  ["B1"],            // HEAD_EXAM_COMMITTEE signs บ.วศ.1ค
-      6:  ["B1"],            // ADVISOR signs บ.วศ.1ค
-      7:  ["B1"],            // CO_ADVISOR signs บ.วศ.1ค
-      8:  ["B1"],            // INVITED_EXAM_COMMITTEE signs บ.วศ.1ค
-      9:  ["B1"],            // EXAM_COMMITTEE — each member signs บ.วศ.1ค
+      5:  ["B1"],            // ADVISOR signs บ.วศ.1ค
+      6:  ["B1"],            // CO_ADVISOR — each signs บ.วศ.1ค
+      7:  ["B1"],            // EXAM_COMMITTEE — each member signs บ.วศ.1ค
+      8:  ["B1"],            // HEAD_EXAM_COMMITTEE signs บ.วศ.1ค
+      9:  ["B1"],            // INVITED_EXAM_COMMITTEE — each signs บ.วศ.1ค
       11: ["B1"],            // PROGRAM_CHAIR signs บ.วศ.1ค + 1ง
       // Step 12 (shown 8, ADMIN generates + uploads the cover memo) and 14 (shown 10, ADMIN sends) — admin page
       [PROPOSAL_STEP.DEPT_CHAIR_COVER]: ["COVER_PAGE"], // DEPARTMENT_CHAIR signs the cover memo
@@ -122,8 +122,8 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       3:  ["B2"],            // PROGRAM_CHAIR signs B2 (after the admin check at step 2)
       7:  ["SIGNED", "EXAM_RESULT"], // ADVISOR signs แบบรายงานฯ (student + advisor only) fills in + signs the blank ใบรายงานผล the student uploaded
       8:  ["EXAM_RESULT"],           // CO_ADVISOR signs ใบรายงานผล
-      9:  ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
-      10: ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
+      9:  ["EXAM_RESULT"],           // EXAM_COMMITTEE signs ใบรายงานผล
+      10: ["EXAM_RESULT"],           // HEAD_EXAM_COMMITTEE signs ใบรายงานผล
       11: ["EXAM_RESULT"],           // INVITED_EXAM_COMMITTEE signs ใบรายงานผล
       // Steps 12 (ADMIN check + result memo) and 14 (ADMIN send to the Faculty) — admin page
       13: ["EXAM_RESULT", "COVER_PAGE"], // DEPARTMENT_CHAIR signs ใบรายงานผล + the result memo
@@ -320,7 +320,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
                 // Exam result — picked by the advisor (ผ่าน preselected); stored as this step's approval note
                 <ExamResultPicker n={n} value={defenseResult} onChange={setDefenseResult} />
               ) : isProposalHeadResultStep ? (n) => (
-                // Pass/fail — HEAD_EXAM_COMMITTEE at PROPOSAL step 5.1
+                // Pass/fail — HEAD_EXAM_COMMITTEE's PROPOSAL signing step (5.x)
                 <ExamResultPicker n={n} value={thesisResult} onChange={setThesisResult}
                   options={["ผ่าน", "ไม่ผ่าน"]} title="เลือกผลการสอบโครงร่างวิทยานิพนธ์" hint="กรุณาเลือกผลการสอบก่อนลงนาม" />
               ) : undefined}

@@ -5,6 +5,20 @@ This starts from 2026-09-06 — for anything earlier, see `git log` and `SESSION
 (the ownership-transfer session). Not every commit needs an entry here — skip pure typo/formatting
 fixes; do write one for anything that changes behavior, permissions, routes, or schema.
 
+## 2026-10-10
+
+- **PROPOSAL committee signing order changed.** Step 5.x (stepOrder 5–9) now runs advisor →
+  co-advisors → exam committee → head of exam committee → external (was head → advisor →
+  co-advisors → external → exam committee). `PROPOSAL_ROLES` and `PROPOSAL_STEP_NAMES` reordered;
+  the head's ผ่าน/ไม่ผ่าน picker in `RoleSubmissionDetail` is now keyed on the step's role instead of
+  stepOrder 5. Only new proposals get the new order (steps are snapshotted at creation); both
+  existing proposals are COMPLETED and were not touched.
+- **THESIS_DEFENSE committee signing order changed to match.** Step 8.x (stepOrder 8–11) now runs
+  co-advisors → exam committee → head → external (head and exam committee swapped: stepOrder 9 is
+  now EXAM_COMMITTEE, 10 HEAD_EXAM_COMMITTEE). Step 7 (advisor picks the result) is unchanged.
+  `THESIS_ROLES` and `THESIS_STEP_NAMES` reordered; nothing else keys on stepOrder 9/10. New
+  defenses only.
+
 ## 2026-10-08
 
 - **Exam-reminder emails removed.** The daily `/api/cron/exam-reminders` job no longer emails the
