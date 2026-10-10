@@ -6,11 +6,13 @@ import { useToast } from "@/context/ToastContext";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toUserErrorMessage } from "@/lib/utils";
 import {
-  UploadSlot, SectionLabel, DownloadRow, NoDownloads, NotesField, ActionError, postUpload,
+  FileUploader, UploadSlot, SectionLabel, DownloadRow, NoDownloads, NotesField, ActionError, postUpload,
   ACTION_CARD, PRIMARY_BUTTON, REJECT_BUTTON, CONFIRM_REJECT_BUTTON, CANCEL_BUTTON,
 } from "@/components/FileUploader";
 import { B1Checklist, allChecked } from "@/components/B1Checklist";
 import type { B1Check } from "@/lib/utils";
+import type { FormType } from "@/types";
+import { previousActiveStep } from "@/lib/workflowSteps";
 
 interface ExtraSlot {
   slotKey: string;
@@ -66,8 +68,23 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
     ...(formsToShow?.length ? formsToShow : (extraSlots?.length ? [] : ["SIGNED"])),
     ...(extraSlots ?? []).map((s) => s.slotKey),
   ];
-  // Ready when every slot is either already uploaded or has a file selected
-  const allFormsReady = uploadTargets.every((ft) => uploadedForms.has(ft) || !!fileByForm[ft]);
+  const formTypeOf = (ft: string) => extraSlots?.find((s) => s.slotKey === ft)?.formType ?? ft;
+
+  // A copy uploaded after the previous step was approved is this step's own upload from an earlier
+  // pass — the step was sent back to its signer (ส่งกลับ) after they had already uploaded and
+  // approved. It still satisfies the slot (the server gate counts it too), so show it instead of
+  // asking for the same file again; "เปลี่ยนไฟล์" replaces it.
+  const currentStep = sub?.workflowSteps
+    .filter((s) => s.status === "PENDING")
+    .sort((a, b) => a.stepOrder - b.stepOrder)[0];
+  const prevStep = sub && currentStep ? previousActiveStep(sub.workflowSteps, currentStep) : undefined;
+  const ownSince = prevStep?.status === "APPROVED" && prevStep.actedAt ? new Date(prevStep.actedAt).getTime() : null;
+  const existingFor = (ft: string) => ownSince === null ? null : (sub?.uploads ?? [])
+    .filter((u) => u.formType === formTypeOf(ft) && new Date(u.uploadedAt).getTime() > ownSince)
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0] ?? null;
+
+  // Ready when every slot is either already uploaded, has a file selected, or keeps its earlier copy
+  const allFormsReady = uploadTargets.every((ft) => uploadedForms.has(ft) || !!fileByForm[ft] || !!existingFor(ft));
 
   // Latest version of each form this step signs
   const downloads = (() => {
@@ -97,7 +114,7 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
       // Upload any pending files first, then approve in one action
       for (const ft of uploadTargets) {
         if (!uploadedForms.has(ft) && fileByForm[ft]) {
-          const actualFormType = extraSlots?.find((s) => s.slotKey === ft)?.formType ?? ft;
+          const actualFormType = formTypeOf(ft);
           await postUpload(submissionId, actualFormType, fileByForm[ft]!);
           setUploadedForms((prev) => new Set([...prev, ft]));
         }
@@ -157,6 +174,18 @@ export function SignatureButton({ submissionId, label = "ส่งต่อ", on
             <div className="space-y-3">
               {uploadTargets.map((ft) => {
                 const extraSlot = extraSlots?.find((s) => s.slotKey === ft);
+                const existing = uploadedForms.has(ft) ? null : existingFor(ft);
+                if (existing) return (
+                  <FileUploader
+                    key={ft}
+                    submissionId={submissionId}
+                    formType={formTypeOf(ft) as FormType}
+                    slotLabel={extraSlot?.label}
+                    existingUpload={existing}
+                    selectedFile={fileByForm[ft] ?? null}
+                    onFileSelect={(f) => { setFileByForm((prev) => ({ ...prev, [ft]: f })); setError(null); }}
+                  />
+                );
                 return (
                   <UploadSlot
                     key={ft}

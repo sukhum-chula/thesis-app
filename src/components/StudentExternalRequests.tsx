@@ -5,7 +5,7 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { toUserErrorMessage, isValidEmail, isValidThaiPhone, formatDate, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
 import { Section, Field, INPUT } from "@/components/SubmissionForms";
-import { UserPlus, Clock, CheckCircle2, XCircle, Info } from "lucide-react";
+import { UserPlus, Clock, CheckCircle2, XCircle, Info, AlertTriangle } from "lucide-react";
 import type { NameTitle } from "@/types";
 
 const STATUS_STYLE: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
@@ -73,6 +73,14 @@ export function StudentExternalRequests() {
 
       <Section icon={<UserPlus className="w-4 h-4" />} title="ยื่นคำขอใหม่">
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">
+              กรรมการภายนอกต้องได้รับการอนุมัติในระบบ iThesis ก่อน จึงจะยื่นคำขอเพิ่มบัญชีได้
+              หากต้องการความช่วยเหลือ กรุณาติดต่อเจ้าหน้าที่ภาควิชา
+            </p>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="คำนำหน้าชื่อ">
               <select value={title} onChange={(e) => setTitle(e.target.value as NameTitle | "")} className={INPUT}>

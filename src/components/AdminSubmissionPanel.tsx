@@ -47,6 +47,7 @@ const ADMIN_STEP_FORMS: Record<string, Record<number, string[]>> = {
     [THESIS_STEP.ADMIN_RELAY]:        ["B2", "B3"],
     [THESIS_STEP.ADMIN_RESULT_CHECK]: ["EXAM_RESULT", "SIGNED", "VERY_GOOD_EVAL"],
     [THESIS_STEP.ADMIN_RESULT_SEND]:  ["EXAM_RESULT", "COVER_PAGE"], // both signed by the department chair, to deliver
+    [THESIS_STEP.ADMIN_THESIS_CHECK]: ["B4", "THESIS"], // the student's บ.4 + thesis, to check
     [THESIS_STEP.ADMIN_THESIS_SEND]:  ["B4", "THESIS"], // the chair-signed บ.4 + the thesis, to deliver
   },
 };
