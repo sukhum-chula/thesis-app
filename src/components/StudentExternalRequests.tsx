@@ -126,8 +126,8 @@ export function StudentExternalRequests() {
               return (
                 <div key={r.id} className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 bg-gray-50">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-800 text-sm truncate">{formatUserName(r)}</p>
-                    <p className="text-xs text-gray-400 truncate">{r.email}{r.affiliation ? ` — ${r.affiliation}` : ""}</p>
+                    <p className="font-medium text-gray-800 text-sm truncate" translate="no">{formatUserName(r)}</p>
+                    <p className="text-xs text-gray-400 truncate" translate="no">{r.email}{r.affiliation ? ` — ${r.affiliation}` : ""}</p>
                     {r.status === "REJECTED" && r.reviewNote && (
                       <p className="text-xs text-red-600 mt-0.5">เหตุผล: {r.reviewNote}</p>
                     )}

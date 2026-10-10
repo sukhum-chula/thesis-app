@@ -204,7 +204,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           [THESIS_STEP.DEPT_CHAIR_RESULT]:  ["COVER_PAGE"],      // the department chair's signed copy (freshUploadCutoff)
           [THESIS_STEP.ADMIN_RESULT_SEND]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — the result's package
           [THESIS_STEP.ADMIN_THESIS_SEND]: ["LESSPAPER_RECEIPT"], // a new one (freshUploadCutoff) — for the thesis
-          [THESIS_STEP.STUDENT_THESIS]: ["B4", "THESIS"],
+          [THESIS_STEP.STUDENT_THESIS]: ["B4"], // one PDF: บ.4 + the thesis's first 5 pages + iThesis's DOCUMENTS FOR SUBMISSION
         },
       };
       const subType = sub.submissionType ?? "PROPOSAL";

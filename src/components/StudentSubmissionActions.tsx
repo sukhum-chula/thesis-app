@@ -17,7 +17,7 @@ import Link from "next/link";
 import {
   Loader2,
   AlertCircle, Clock, CheckCircle2, RefreshCw, StickyNote, XCircle, Trash2, TriangleAlert,
-  ArrowLeft, ArrowRight, ExternalLink,
+  ArrowLeft, ArrowRight, ExternalLink, Info,
 } from "lucide-react";
 import { FileList } from "@/components/FileList";
 import { SubmissionInfoPanel } from "@/components/SubmissionInfoPanel";
@@ -52,7 +52,15 @@ const SUGGESTED_BY_STEP: Record<string, Record<number, StepSuggestion>> = {
         VERY_GOOD_EVAL: "แบบประเมินวิทยานิพนธ์ดีมาก (ไฟล์ PDF) — อัปโหลดทุกกรณี: หากผลการสอบเป็น ดีมาก ให้กรอกข้อมูลให้ครบถ้วน หากไม่ใช่ ให้อัปโหลดฉบับว่าง อาจารย์ที่ปรึกษาจะเลือกผลการสอบในขั้นตอนถัดไป",
       },
     },
-    [THESIS_STEP.STUDENT_THESIS]: { forms: ["B4", "THESIS"], label: "บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ 5 หน้าแรกจากระบบ iThesis (มีบาร์โค้ดและลายมือชื่อคณะกรรมการครบ)" },
+    // One combined PDF (stored as B4): บ.4 → the thesis's first 5 pages → iThesis's 2-page
+    // DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS. The department chair signs its บ.4 page at
+    // THESIS_STEP.DEPT_CHAIR_THESIS and uploads it back as a new B4 version.
+    [THESIS_STEP.STUDENT_THESIS]: {
+      forms: ["B4"], label: "บ.4 + วิทยานิพนธ์ 5 หน้าแรก + เอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS จากระบบ iThesis (รวมเป็น PDF ไฟล์เดียว)",
+      warnings: {
+        B4: "ไฟล์ PDF ไฟล์เดียว เรียงตามลำดับ: (1) บ.4 ที่กรอกครบถ้วนและนิสิตลงนามแล้ว (2) วิทยานิพนธ์ 5 หน้าแรกจากระบบ iThesis: ปกภาษาไทย ปกภาษาอังกฤษ หน้าลายมือชื่อคณะกรรมการสอบ บทคัดย่อภาษาไทย บทคัดย่อภาษาอังกฤษ — มีบาร์โค้ด และคณะกรรมการสอบลงนามครบทุกท่านแล้ว (3) เอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS จากระบบ iThesis (2 หน้า) ที่นิสิตและอาจารย์ที่ปรึกษาลงนามแล้ว — หลังดาวน์โหลดแล้ว ห้ามแก้ไขวิทยานิพนธ์ในระบบ iThesis อีก",
+      },
+    },
   },
 };
 
@@ -86,7 +94,7 @@ const CHECKLIST_TITLE: Record<string, Record<number, string>> = {
   THESIS_DEFENSE: {
     [THESIS_STEP.STUDENT_B2_B3]:   "กรุณาตรวจสอบ บ.2 และ บ.3 ก่อนส่ง",
     [THESIS_STEP.STUDENT_REPORT]:  "กรุณาตรวจสอบแบบรายงานการเสนอผลงานฯ ก่อนส่ง",
-    [THESIS_STEP.STUDENT_THESIS]:  "กรุณาตรวจสอบ บ.4 และวิทยานิพนธ์ก่อนส่ง",
+    [THESIS_STEP.STUDENT_THESIS]:  "กรุณาตรวจสอบไฟล์ บ.4 และวิทยานิพนธ์ก่อนส่ง",
     [THESIS_STEP.STUDENT_ITHESIS]: "กรุณาตรวจสอบก่อนยืนยัน",
   },
 };
@@ -94,7 +102,7 @@ const CHECKLIST_TITLE: Record<string, Record<number, string>> = {
 // Every form the student uploads over a submission's life — fallback re-upload list after a rejection
 const ALL_STUDENT_FORMS: Record<string, FormType[]> = {
   PROPOSAL:       ["B1"],
-  THESIS_DEFENSE: ["B2", "B3", "B4", "THESIS"],
+  THESIS_DEFENSE: ["B2", "B3", "B4"],
 };
 
 // Blank forms are published on the department site, not served by this app — the uploader
@@ -391,10 +399,10 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1 flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug" translate="no">{sub.title}</h1>
           {advisor && (
             <p className="text-gray-500 text-sm">
-              อาจารย์ที่ปรึกษา: <span className="font-medium text-gray-700">{formatUserName(advisor)}</span>
+              อาจารย์ที่ปรึกษา: <span className="font-medium text-gray-700" translate="no">{formatUserName(advisor)}</span>
             </p>
           )}
           <p className="text-sm text-gray-400">{formatDate(sub.createdAt)}</p>
@@ -406,12 +414,12 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
       {linkedProposal && (
         <Link href={`/dashboard/student/${linkedProposal.id}`} className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
           <ArrowLeft className="w-3.5 h-3.5" />
-          มาจากคำร้องโครงร่าง: {linkedProposal.title}
+          มาจากคำร้องโครงร่าง: <span translate="no">{linkedProposal.title}</span>
         </Link>
       )}
       {linkedDefense && (
         <Link href={`/dashboard/student/${linkedDefense.id}`} className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
-          ดูคำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้อง: {linkedDefense.title}
+          ดูคำร้องขอสอบวิทยานิพนธ์ที่เกี่ยวข้อง: <span translate="no">{linkedDefense.title}</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       )}
@@ -669,6 +677,16 @@ export function StudentSubmissionActions({ submissionId }: { submissionId: strin
                   value={b1Checks}
                   onChange={setB1Checks}
                 />
+              )}
+
+              {/* Why ส่งต่อ is disabled — a faded button alone reads as "no response" */}
+              {!allRequiredUploaded && (
+                <p className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <Info className="w-3.5 h-3.5 shrink-0" />
+                  {!studentUploaded
+                    ? "กรุณาเลือกไฟล์ให้ครบทุกรายการก่อนส่ง"
+                    : "กรุณาตรวจสอบและทำเครื่องหมายให้ครบทุกข้อก่อนส่ง"}
+                </p>
               )}
 
               <ActionError message={actionError} />

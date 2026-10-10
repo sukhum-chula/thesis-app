@@ -139,10 +139,10 @@ Committee signatures on ใบรายงานผลการสอบ (stepOr
 | 12 | 9 | ADMIN | Check results; generate the **result memo** (`COVER_PAGE`), upload as PDF; `ADMIN_DEFENSE_RESULT_CHECKS`; a ดีมาก result shows a note to check VERY_GOOD_EVAL (`ADMIN_RESULT_CHECK`) |
 | 13 | 10 | DEPARTMENT_CHAIR | Sign EXAM_RESULT + the memo (memo newer than step 12) (`DEPT_CHAIR_RESULT`) |
 | 14 | 11 | ADMIN | Deliver to the Faculty, upload a new LESSPAPER_RECEIPT (newer than step 13); `ADMIN_DEFENSE_SEND_CHECKS` (`ADMIN_RESULT_SEND`) |
-| 15 | 12 | STUDENT | Upload `B4` + `THESIS` = **first 5 pages** from iThesis (covers TH/EN, committee signature page, abstracts TH/EN), with barcode, signed by the whole committee outside the system; `DEFENSE_STEP15_CHECKS` (`STUDENT_THESIS`) |
-| 16 | 13 | ADMIN | Check B4 + THESIS (`ADMIN_DEFENSE_THESIS_CHECKS`) (`ADMIN_THESIS_CHECK`) |
-| 17 | 14 | DEPARTMENT_CHAIR | Sign **B4 only** (`DEPT_CHAIR_THESIS`) |
-| 18 | 15 | ADMIN | Deliver B4 + thesis, upload a new LESSPAPER_RECEIPT (newer than step 17) (`ADMIN_THESIS_SEND`) |
+| 15 | 12 | STUDENT | Upload **one combined PDF** as `B4`, in order: บ.4 (filled, student-signed) → the **first 5 pages** from iThesis (covers TH/EN, committee signature page, abstracts TH/EN; barcoded, signed by the whole committee outside the system) → iThesis's 2-page **DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS** (student + advisor signed); `DEFENSE_STEP15_CHECKS` (`STUDENT_THESIS`). `THESIS` is no longer uploaded (older submissions keep theirs) |
+| 16 | 13 | ADMIN | Check the combined B4 file (`ADMIN_DEFENSE_THESIS_CHECKS`) (`ADMIN_THESIS_CHECK`) |
+| 17 | 14 | DEPARTMENT_CHAIR | Sign **the บ.4 page only**, upload the whole file back as a new `B4` version (`DEPT_CHAIR_THESIS`) |
+| 18 | 15 | ADMIN | Deliver the B4 file, upload a new LESSPAPER_RECEIPT (newer than step 17) (`ADMIN_THESIS_SEND`) |
 | 19 | 16 | ADMIN | Confirm only: forwarded the Faculty's Dean-signed documents to the student (`ADMIN_THESIS_FORWARD`) |
 | 20 | 17 | STUDENT | Confirm only: everything submitted to iThesis (`DEFENSE_ITHESIS_CHECKS`) (`STUDENT_ITHESIS`) |
 
@@ -155,7 +155,7 @@ PROPOSAL:       1 → B1 · 2 → FINANCE_ATTACH · 4 → B1 (newer than step 3)
 THESIS_DEFENSE: 1 → B2 + one B3 per member · 2 → FINANCE_ATTACH · 4 → LESSPAPER_RECEIPT
                 6 → SIGNED, EXAM_RESULT, VERY_GOOD_EVAL · 7 → SIGNED, EXAM_RESULT (newer than step 6)
                 12 → COVER_PAGE · 13 → COVER_PAGE (newer than 12) · 14 → LESSPAPER_RECEIPT (newer than 13)
-                15 → B4, THESIS · 18 → LESSPAPER_RECEIPT (newer than 17)
+                15 → B4 (the combined file) · 18 → LESSPAPER_RECEIPT (newer than 17)
 ```
 "Newer than step N" is `freshUploadCutoff()` (`utils.ts`), the one rule for both server and client.
 
@@ -280,6 +280,20 @@ Every signing step has an own-signature checklist (`SIGN_CHECKS`, `PROPOSAL_SIGN
 
 ### Dashboard shell
 `src/app/dashboard/layout.tsx` is the one top bar, re-exported by each landing page's `layout.tsx`: system name + date left, user name + email center, `LanguageToggle` (shows the current language) + `NotificationBell` + "Logout" right. No nav links, no per-role branching. Landing pages have no width cap and no header card (`DashboardHeader.tsx` is unused).
+
+### English toggle (`LanguageToggle`)
+There is no i18n framework: EN mode walks the DOM (MutationObserver) and rewrites Thai text through
+the `TH_EN` dictionary in `src/lib/translations.ts`; switching back to TH reloads the page.
+- Longest key wins (sorted at load, so file order doesn't matter). Keys under 8 characters match
+  only as a standalone token — no Thai character touching either end — so ท่าน never hits เท่านั้น
+  and ดี never hits a name like ตั้งใจดี.
+- Add a key per DOM text node: the whole sentence, or for a template string each static piece
+  around its `${…}` values. A sentence with no key comes out half-Thai.
+- **User data is wrapped in `translate="no"`** (names, thesis titles, plates — `ReadOnlyField` /
+  `InfoField` / `InfoRow` take a `data` prop for this) and is never rewritten. Do the same for
+  any new place that renders a name or title.
+- `formatDate()` switches locale itself. Only text nodes, `placeholder` and `title` are translated
+  (not `aria-label` or input values).
 
 ### Admin dashboard (`/admin-dashboard`; `/dashboard/admin` redirects here)
 Three equal-width tabs in one scroll-contained frame (`max-h-[75vh] overflow-y-auto`):

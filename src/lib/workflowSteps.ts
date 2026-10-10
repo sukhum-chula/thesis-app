@@ -76,10 +76,10 @@ export const THESIS_STEP = {
   ADMIN_RESULT_CHECK: 12, // ADMIN checks the committee-signed ใบรายงานผล + แบบรายงานฯ, generates the result memo (COVER_PAGE)
   DEPT_CHAIR_RESULT:  13, // department chair signs ใบรายงานผล + the result memo (role DEPARTMENT_CHAIR)
   ADMIN_RESULT_SEND:  14, // ADMIN delivers both to the Faculty + uploads the LessPaper document
-  STUDENT_THESIS:     15, // B4 + THESIS
-  ADMIN_THESIS_CHECK: 16, // ADMIN checks B4 + THESIS
-  DEPT_CHAIR_THESIS:  17, // department chair signs B4 only (role DEPARTMENT_CHAIR)
-  ADMIN_THESIS_SEND:  18, // ADMIN delivers B4 + THESIS to the Faculty, uploads a new LessPaper document
+  STUDENT_THESIS:     15, // one combined PDF as B4: บ.4 + thesis first 5 pages + iThesis DOCUMENTS FOR SUBMISSION (2 pages)
+  ADMIN_THESIS_CHECK: 16, // ADMIN checks that B4 file
+  DEPT_CHAIR_THESIS:  17, // department chair signs its บ.4 page, uploads a new B4 version (role DEPARTMENT_CHAIR)
+  ADMIN_THESIS_SEND:  18, // ADMIN delivers the B4 file to the Faculty, uploads a new LessPaper document
   ADMIN_THESIS_FORWARD: 19, // ADMIN confirms the Faculty's feedback was forwarded to the student
   STUDENT_ITHESIS:    20, // student confirms every required document is in iThesis (no upload)
 } as const;

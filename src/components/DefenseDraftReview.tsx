@@ -148,7 +148,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
 
         <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต (นำเข้าจากคำร้องโครงร่าง)">
           <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
-            <ReadOnlyField label="ชื่อ-นามสกุล" value={sub.studentFullName} />
+            <ReadOnlyField label="ชื่อ-นามสกุล" value={sub.studentFullName} data />
             <ReadOnlyField label="รหัสนิสิต"     value={sub.studentCode} />
             <ReadOnlyField label="หลักสูตร"      value={sub.program ? PROGRAM_LABELS[sub.program] : undefined} />
             <ReadOnlyField label="อีเมล"          value={sub.studentEmail} />

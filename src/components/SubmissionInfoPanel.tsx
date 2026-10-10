@@ -2,20 +2,21 @@ import { PROGRAM_LABELS, formatUserName } from "@/lib/utils";
 import { User, Users, CalendarDays } from "lucide-react";
 import type { MockSubmission, MockUser } from "@/types";
 
-function InfoField({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+// `data` marks a value that is user data (a name, a plate) — the EN toggle must leave it as typed.
+function InfoField({ label, value, wide, data }: { label: string; value: string; wide?: boolean; data?: boolean }) {
   return (
     <div className={wide ? "sm:col-span-2" : ""}>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className="text-sm text-gray-800">{value}</p>
+      <p className="text-sm text-gray-800" translate={data ? "no" : undefined}>{value}</p>
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, data }: { label: string; value: string; data?: boolean }) {
   return (
     <div className="flex gap-3">
       <p className="text-xs text-gray-400 w-24 sm:w-32 shrink-0 pt-0.5">{label}</p>
-      <p className="text-sm text-gray-800 flex-1 break-all">{value}</p>
+      <p className="text-sm text-gray-800 flex-1 break-all" translate={data ? "no" : undefined}>{value}</p>
     </div>
   );
 }
@@ -43,7 +44,7 @@ export function SubmissionInfoPanel({
         <div className="space-y-3">
           <div className="flex items-center gap-1.5 text-sm text-gray-400"><User className="w-3.5 h-3.5" />ข้อมูลนิสิต</div>
           <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
-            {sub.studentFullName && <InfoField label="ชื่อ-นามสกุล" value={sub.studentFullName} />}
+            {sub.studentFullName && <InfoField label="ชื่อ-นามสกุล" value={sub.studentFullName} data />}
             {sub.studentCode && <InfoField label="รหัสนิสิต" value={sub.studentCode} />}
             {sub.program && <InfoField label="หลักสูตร" value={PROGRAM_LABELS[sub.program] ?? sub.program} wide />}
             {sub.studentEmail && <InfoField label="อีเมล" value={sub.studentEmail} />}
@@ -58,21 +59,22 @@ export function SubmissionInfoPanel({
           <div className="flex items-center gap-1.5 text-sm text-gray-400"><Users className="w-3.5 h-3.5" />คณะกรรมการ</div>
           <div className="space-y-2">
             {advisor && (
-              <InfoRow label="อาจารย์ที่ปรึกษา" value={formatUserName(advisor)} />
+              <InfoRow label="อาจารย์ที่ปรึกษา" value={formatUserName(advisor)} data />
             )}
             {sub.headCommitteeId && (
-              <InfoRow label="ประธานกรรมการสอบ" value={(() => { const u = users.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : sub.headCommitteeId!; })()} />
+              <InfoRow label="ประธานกรรมการสอบ" value={(() => { const u = users.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : sub.headCommitteeId!; })()} data />
             )}
             {(sub.coAdvisorIds?.length ?? 0) > 0 && (
               <InfoRow
                 label="อาจารย์ที่ปรึกษาร่วม"
                 value={(sub.coAdvisorIds ?? []).map((uid) => { const u = users.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ")}
+                data
               />
             )}
             {(sub.committeeIds?.length ?? 0) > 0 && (
               <div className="flex gap-4">
                 <p className="text-xs text-gray-400 w-32 shrink-0 pt-0.5">กรรมการสอบ</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5" translate="no">
                   {(sub.committeeIds ?? []).map((uid) => {
                     const u = users.find((u) => u.id === uid);
                     return (
@@ -88,6 +90,7 @@ export function SubmissionInfoPanel({
               <InfoRow
                 label="กรรมการภายนอก"
                 value={(sub.invitedCommitteeIds ?? []).map((uid) => { const u = users.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ")}
+                data
               />
             )}
           </div>
@@ -106,7 +109,7 @@ export function SubmissionInfoPanel({
               />
             )}
             {sub.roomNeeded && <InfoRow label="ห้องประชุม" value="ต้องการ" />}
-            {sub.parkingNeeded && sub.carPlate && <InfoRow label="ทะเบียนรถ" value={sub.carPlate} />}
+            {sub.parkingNeeded && sub.carPlate && <InfoRow label="ทะเบียนรถ" value={sub.carPlate} data />}
           </div>
         </div>
       )}

@@ -80,7 +80,7 @@ export const FORM_LABELS: Record<FormType, string> = {
   B1D:           "บ.วศ.1ง — รายงานความก้าวหน้า (2)",
   B2:            "บ.2 — ออกหนังสือเชิญกรรมการ",
   B3:            "บ.3 — ประเมินวิทยานิพนธ์ก่อนสอบ",
-  B4:            "บ.4 — ลงนามอนุมัติวิทยานิพนธ์",
+  B4:            "บ.4 + วิทยานิพนธ์ 5 หน้าแรก + เอกสารจากระบบ iThesis",
   THESIS:        "วิทยานิพนธ์ 5 หน้าแรก (จากระบบ iThesis)",
   SIGNED:        "แบบรายงานการเสนอผลงานทางวิชาการของนิสิต",
   FINANCE_DOC:    "เอกสารการเงิน",
@@ -466,6 +466,8 @@ export const B1_CHECK_GROUPS = [
   { key: "b3",        title: "บ.3" },
   { key: "b4",        title: "บ.4" },
   { key: "thesis",    title: "วิทยานิพนธ์ 5 หน้าแรก (จากระบบ iThesis)" },
+  { key: "ithesisDocs", title: "เอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS (จากระบบ iThesis)" },
+  { key: "packet",    title: "ไฟล์ที่อัปโหลด" },
   { key: "report",    title: "แบบรายงานการเสนอผลงานฯ" },
 ] as const;
 export type B1Check = { key: string; group: (typeof B1_CHECK_GROUPS)[number]["key"]; label: string };
@@ -558,16 +560,20 @@ export const DEFENSE_STEP6_CHECKS: B1Check[] = [
   { key: "blankResult", group: "report", label: "ใบรายงานผลการสอบที่อัปโหลดเป็นฉบับว่าง ไม่ได้กรอกข้อมูลหรือลงนามใดๆ แล้ว" },
   { key: "veryGoodEval", group: "report", label: "แบบประเมินวิทยานิพนธ์ดีมากกรอกข้อมูลครบถ้วนแล้วหากผลการสอบเป็น ดีมาก หรือเป็นฉบับว่างหากไม่ใช่" },
 ];
-/** THESIS_DEFENSE step 12 (stepOrder 15, THESIS_STEP.STUDENT_THESIS) — บ.4 + the first 5 pages of the
- *  iThesis file (covers TH/EN, committee signatures, abstracts TH/EN), barcoded and not edited in iThesis since */
+/** THESIS_DEFENSE step 12 (stepOrder 15, THESIS_STEP.STUDENT_THESIS) — one combined PDF (stored as B4):
+ *  บ.4, the first 5 pages of the iThesis file (covers TH/EN, committee signatures, abstracts TH/EN —
+ *  barcoded, not edited in iThesis since), then iThesis's 2-page DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS */
 export const DEFENSE_STEP15_CHECKS: B1Check[] = [
   { key: "fillB4",    group: "b4",      label: "กรอกข้อมูลใน บ.4 ครบถ้วนแล้ว" },
   { key: "signB4",    group: "b4",      label: "นิสิตลงนามใน บ.4 แล้ว (1 ตำแหน่ง)" },
-  { key: "fivePages", group: "thesis",  label: "ไฟล์วิทยานิพนธ์มีเฉพาะ 5 หน้าแรกจากระบบ iThesis (ปกภาษาไทย ปกภาษาอังกฤษ หน้าลายมือชื่อคณะกรรมการสอบ บทคัดย่อภาษาไทย บทคัดย่อภาษาอังกฤษ) แล้ว" },
+  { key: "fivePages", group: "thesis",  label: "วิทยานิพนธ์มีเฉพาะ 5 หน้าแรกจากระบบ iThesis (ปกภาษาไทย ปกภาษาอังกฤษ หน้าลายมือชื่อคณะกรรมการสอบ บทคัดย่อภาษาไทย บทคัดย่อภาษาอังกฤษ) แล้ว" },
   { key: "eThesis",   group: "thesis",  label: "วิทยานิพนธ์มีบาร์โค้ดจากระบบ iThesis แล้ว" },
   { key: "noEdit",    group: "thesis",  label: "ไม่ได้แก้ไขวิทยานิพนธ์ในระบบ iThesis หลังดาวน์โหลดแล้ว" },
   { key: "committeeSigned", group: "thesis", label: "คณะกรรมการสอบลงนามในวิทยานิพนธ์ครบทุกท่านแล้ว" },
-  { key: "namesOk",   group: "thesis",  label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
+  { key: "ithesisDocs", group: "ithesisDocs", label: "แนบเอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS จากระบบ iThesis ครบ 2 หน้าแล้ว" },
+  { key: "ithesisDocsSigned", group: "ithesisDocs", label: "นิสิตและอาจารย์ที่ปรึกษาลงนามในเอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS แล้ว (2 ตำแหน่ง)" },
+  { key: "oneFile",   group: "packet",  label: "รวม บ.4 วิทยานิพนธ์ 5 หน้าแรก และเอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS เป็นไฟล์ PDF ไฟล์เดียวตามลำดับแล้ว" },
+  { key: "namesOk",   group: "packet",  label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
   { key: "advisorOk", group: "confirm", label: "ข้อมูลทั้งหมดได้รับการยืนยันจากอาจารย์ที่ปรึกษาแล้ว" },
 ];
 /** THESIS_DEFENSE step 2 (financeStepOf) — the ADMIN checks the student's บ.2/บ.3 and the committee before
@@ -685,11 +691,12 @@ export const ADMIN_DEFENSE_SEND_CHECKS: B1Check[] = [
   { key: "emailSent", group: "confirm", label: "นำส่งใบรายงานผลการสอบ (หัวหน้าภาควิชาลงนามแล้ว) พร้อมบันทึกข้อความไปยังคณะฯ แล้ว" },
   LESSPAPER_CHECK,
 ];
-/** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_CHECK — the ADMIN checks the student's บ.4 + thesis
- *  before the department chair signs them */
+/** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_CHECK — the ADMIN checks the student's combined file
+ *  (บ.4 + thesis 5 pages + iThesis's DOCUMENTS FOR SUBMISSION) before the department chair signs its บ.4 */
 export const ADMIN_DEFENSE_THESIS_CHECKS: B1Check[] = [
   { key: "b4Ok",     group: "verify", label: "บ.4 กรอกข้อมูลครบถ้วน และนิสิตลงนามแล้ว" },
   { key: "thesisOk", group: "verify", label: "วิทยานิพนธ์เป็น 5 หน้าแรกจากระบบ iThesis ครบถ้วน มีบาร์โค้ด และคณะกรรมการสอบลงนามครบทุกท่านแล้ว" },
+  { key: "ithesisDocsOk", group: "verify", label: "เอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS ครบ 2 หน้า และนิสิตและอาจารย์ที่ปรึกษาลงนามแล้ว" },
   { key: "namesOk",  group: "verify", label: "ชื่อหลักสูตรและหัวข้อวิทยานิพนธ์ในเอกสารถูกต้องแล้ว" },
 ];
 /** THESIS_DEFENSE THESIS_STEP.ADMIN_THESIS_SEND — the ADMIN delivers the signed documents to the
@@ -723,8 +730,8 @@ export const THESIS_STEP_NAMES: Record<number, string> = {
   12: "เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ และอัปโหลดบันทึกข้อความขอส่งผลสอบ",
   13: "หัวหน้าภาควิชาลงนาม ใบรายงานผล + บันทึกข้อความ",
   14: "เจ้าหน้าที่นำส่งใบรายงานผลการสอบพร้อมบันทึกข้อความไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper",
-  15: "นิสิตอัปโหลด บ.4 (กรอกครบถ้วน) + วิทยานิพนธ์ 5 หน้าแรกจากระบบ iThesis",
-  16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์",
+  15: "นิสิตอัปโหลด บ.4 + วิทยานิพนธ์ 5 หน้าแรก + เอกสารจากระบบ iThesis (ไฟล์เดียว)",
+  16: "เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์ + เอกสารจากระบบ iThesis",
   17: "หัวหน้าภาควิชาลงนาม บ.4",
   18: "เจ้าหน้าที่นำส่ง บ.4 + วิทยานิพนธ์ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper",
   19: "เจ้าหน้าที่ส่งต่อเอกสารจากคณะ (คณบดีลงนามแล้ว) ให้นิสิต",

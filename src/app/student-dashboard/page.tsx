@@ -274,12 +274,12 @@ export default function StudentDashboard() {
                         <GraduationCap className="w-3 h-3" />สอบวิทยานิพนธ์
                       </span>
                     )}
-                    <p className={`font-semibold truncate text-lg leading-snug ${cancelled ? "text-gray-500" : "text-gray-900"}`}>{sub.title}</p>
+                    <p className={`font-semibold truncate text-lg leading-snug ${cancelled ? "text-gray-500" : "text-gray-900"}`} translate="no">{sub.title}</p>
                   </div>
 
                   {advisor && (
                     <p className="text-sm text-gray-500">
-                      ที่ปรึกษา: {formatUserName(advisor)}
+                      ที่ปรึกษา: <span translate="no">{formatUserName(advisor)}</span>
                     </p>
                   )}
 
@@ -298,7 +298,7 @@ export default function StudentDashboard() {
                     )}
                     {!isMyTurn && sub.status === "IN_PROGRESS" && currentStep && (
                       <span className="text-sm text-gray-500">
-                        รอ: {pendingName ?? ROLE_LABELS[currentStep.role]}
+                        รอ: {pendingName ? <span translate="no">{pendingName}</span> : ROLE_LABELS[currentStep.role]}
                       </span>
                     )}
                     {stuckDays > 7 && (

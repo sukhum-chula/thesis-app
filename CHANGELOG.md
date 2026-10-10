@@ -13,6 +13,22 @@ than leaving both.
 
 ## 2026-10-10
 
+- **Defense step 12 (stepOrder 15) is one combined PDF.** The student uploads a single `B4` file:
+  บ.4 → the thesis's first 5 iThesis pages → iThesis's 2-page "DOCUMENTS FOR SUBMISSION OF
+  COMPLETE THESIS" (student + advisor signed), instead of separate `B4` + `THESIS` files. New
+  checklist items for the iThesis pages and the file order; the admin check (step 13) adds one; the
+  department chair (step 14) is told to sign only the บ.4 page and upload the whole file back.
+  `THESIS` is no longer required or offered; older submissions keep theirs. No step rows changed.
+- **The student's action card says why ส่งต่อ is disabled** (missing file vs. unticked checklist) —
+  the faded button alone looked like it didn't respond.
+- **English (EN) version fixed, student screens first.** About 46% of student-facing Thai strings
+  came out untranslated or half-translated (`สอบProposal`, `ถึงคิวของmember(s)`), and short
+  dictionary words were replaced inside other words and inside names (`เท่านั้น` → `เmember(s)ั้น`,
+  `ตั้งใจดี` → `ตั้งใจGood`). Now: ~280 new dictionary entries (student UI, checklists, API errors
+  and notifications); the toggle sorts keys longest-first and lets keys under 8 characters match only
+  as standalone tokens; user data is marked `translate="no"`; and text nodes React adds later are
+  translated too (a TreeWalker never visits its own root, so an added text node used to stay Thai).
+  Admin/professor screens also improved (379 → 463 of 649 strings fully English).
 - **Committee signing order changed (new submissions only).** PROPOSAL 5.x (stepOrder 5–9) is now
   advisor → co-advisors → exam committee → head → external; THESIS_DEFENSE 8.x (stepOrder 8–11)
   is co-advisors → exam committee → head → external. The proposal head's ผ่าน/ไม่ผ่าน picker is keyed

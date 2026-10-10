@@ -213,7 +213,7 @@ export function WorkflowTimeline({
                             done     ? "text-green-700 font-medium" :
                             rejected ? "text-red-700 font-medium"   :
                                        "text-gray-600"
-                          )}>
+                          )} translate="no">
                             {name}
                           </span>
                           {actedAt && (

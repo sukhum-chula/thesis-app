@@ -99,7 +99,7 @@ export function ProgramChairAutoField({ program, users }: {
         {!program
           ? "— กรุณาเลือกหลักสูตรก่อน —"
           : chair
-          ? formatUserName(chair)
+          ? <span translate="no">{formatUserName(chair)}</span>
           : "— ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา —"}
       </div>
       <p className="text-xs text-gray-400 mt-1">กำหนดตามหลักสูตรโดยอัตโนมัติ — ไม่สามารถเปลี่ยนแปลงได้</p>
@@ -344,7 +344,7 @@ export function ProposalForm({
 
           <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
             <div className="grid sm:grid-cols-2 gap-4">
-              <ReadOnlyField label="ชื่อ-นามสกุล" value={user ? formatUserName(user) : undefined} />
+              <ReadOnlyField label="ชื่อ-นามสกุล" value={user ? formatUserName(user) : undefined} data />
               <ReadOnlyField label="รหัสนิสิต"     value={user?.studentId} />
               <Field label="หลักสูตร" required>
                 <select value={program} onChange={(e) => { setProgram(e.target.value as ProgramType | ""); setError(null); }} className={INPUT + " bg-white"}>
@@ -577,7 +577,7 @@ export function DefenseForm({
                   className="mt-1 w-4 h-4 accent-indigo-600 shrink-0"
                 />
                 <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 text-sm truncate">{p.title}</p>
+                  <p className="font-semibold text-gray-900 text-sm truncate" translate="no">{p.title}</p>
                   <p className="text-xs text-gray-400 mt-0.5">ยื่นเมื่อ {formatDate(p.createdAt)}</p>
                 </div>
               </label>
@@ -600,7 +600,7 @@ export function DefenseForm({
 
             <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต (นำเข้าจากคำร้องโครงร่าง)">
               <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
-                <ReadOnlyField label="ชื่อ-นามสกุล" value={selected.studentFullName} />
+                <ReadOnlyField label="ชื่อ-นามสกุล" value={selected.studentFullName} data />
                 <ReadOnlyField label="รหัสนิสิต"     value={selected.studentCode} />
                 <ReadOnlyField label="หลักสูตร"      value={selected.program ? PROGRAM_LABELS[selected.program] : undefined} />
                 <ReadOnlyField label="อีเมล"          value={selected.studentEmail} />
@@ -817,11 +817,12 @@ export function Field({ label, required, children }: { label: string; required?:
   );
 }
 
-export function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
+// `data` marks a value that is user data (a name) — the EN toggle must leave it as typed.
+export function ReadOnlyField({ label, value, data }: { label: string; value?: string | null; data?: boolean }) {
   return (
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className="text-sm text-gray-800">{value || "—"}</p>
+      <p className="text-sm text-gray-800" translate={data ? "no" : undefined}>{value || "—"}</p>
     </div>
   );
 }
@@ -983,7 +984,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                       <option value={stillSelected.id}>{formatUserName(stillSelected)} (ไม่ตรงตามเงื่อนไข)</option>
                     )}
                     {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>{formatUserName(a)}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
+                      <option key={a.id} value={a.id} translate="no">{formatUserName(a)}{a.affiliation ? ` (${a.affiliation})` : ""}</option>
                     ))}
                   </select>
                 </div>

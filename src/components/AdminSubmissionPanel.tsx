@@ -47,8 +47,8 @@ const ADMIN_STEP_FORMS: Record<string, Record<number, string[]>> = {
     [THESIS_STEP.ADMIN_RELAY]:        ["B2", "B3"],
     [THESIS_STEP.ADMIN_RESULT_CHECK]: ["EXAM_RESULT", "SIGNED", "VERY_GOOD_EVAL"],
     [THESIS_STEP.ADMIN_RESULT_SEND]:  ["EXAM_RESULT", "COVER_PAGE"], // both signed by the department chair, to deliver
-    [THESIS_STEP.ADMIN_THESIS_CHECK]: ["B4", "THESIS"], // the student's บ.4 + thesis, to check
-    [THESIS_STEP.ADMIN_THESIS_SEND]:  ["B4", "THESIS"], // the chair-signed บ.4 + the thesis, to deliver
+    [THESIS_STEP.ADMIN_THESIS_CHECK]: ["B4"], // the student's combined file (บ.4 + thesis 5 pages + iThesis documents), to check
+    [THESIS_STEP.ADMIN_THESIS_SEND]:  ["B4"], // the same file with the chair-signed บ.4, to deliver
   },
 };
 
@@ -1233,7 +1233,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 </ol>
               ) : isThesisDocCheckStep ? (
                 <ol className="list-decimal list-inside space-y-1.5 pl-1 text-sm text-gray-700">
-                  <li>ตรวจสอบ บ.4 และวิทยานิพนธ์ 5 หน้าแรกที่นิสิตอัปโหลด</li>
+                  <li>ตรวจสอบไฟล์ที่นิสิตอัปโหลด (บ.4 + วิทยานิพนธ์ 5 หน้าแรก + เอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS)</li>
                   <li>ทำเครื่องหมายรายการตรวจสอบ แล้วกดอนุมัติ — ระบบจะแจ้งหัวหน้าภาควิชาให้ลงนาม บ.4</li>
                 </ol>
               ) : isThesisDocSendStep ? (

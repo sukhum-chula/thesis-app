@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex-1 min-w-0 text-center hidden sm:block">
-            <p className="text-sm font-semibold text-gray-800 truncate">{formatUserName(user)}</p>
+            <p className="text-sm font-semibold text-gray-800 truncate" translate="no">{formatUserName(user)}</p>
             <p className="text-xs text-gray-400 truncate">{user.email}</p>
           </div>
 

@@ -165,7 +165,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
 
         <Section icon={<User className="w-4 h-4" />} title="ข้อมูลนิสิต">
           <div className="grid sm:grid-cols-2 gap-4">
-            <ReadOnlyField label="ชื่อ-นามสกุล" value={sub.studentFullName} />
+            <ReadOnlyField label="ชื่อ-นามสกุล" value={sub.studentFullName} data />
             <ReadOnlyField label="รหัสนิสิต"     value={sub.studentCode} />
             <Field label="หลักสูตร" required>
               <select

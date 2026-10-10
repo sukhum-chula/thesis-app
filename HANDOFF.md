@@ -62,9 +62,10 @@ Not part of the app: the Thai PDF form templates one level up in `Grad Tracking 
 real student and faculty data) — keep both, never commit `dataset/`.
 
 `scripts/` (committed): `migrate-supabase.mjs` (project-to-project copy, see
-`docs/SUPABASE-MIGRATION.md`); `make-wordlist.js` / `import-wordlist.js` (build the Thai→English word
-list `../thesis-wordlist.xlsx`, and regenerate `src/lib/translations.ts` from it — so edit the
-spreadsheet, not `translations.ts` directly); `mass-email-change.ts` — an already-run
+`docs/SUPABASE-MIGRATION.md`); `make-wordlist.js` / `import-wordlist.js` — **obsolete**: they built and
+read `../thesis-wordlist.xlsx`, which no longer exists, and `translations.ts` has been hand-edited
+since; running `import-wordlist.js` against a recreated spreadsheet would overwrite it. Delete them;
+`mass-email-change.ts` — an already-run
 one-off that moved PROFESSOR/STUDENT emails to plus-tagged test addresses. It breaks the "one-off
 scripts are deleted after running" convention below; delete it once its `--revert` is no longer
 needed.

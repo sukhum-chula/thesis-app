@@ -93,6 +93,12 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
     (sub as any).advisorId === user?.id &&
     isMyTurn;
 
+  // The department chair signs the บ.4 page of the student's combined file (THESIS_STEP.STUDENT_THESIS)
+  const isThesisDeptChairB4Step =
+    sub.submissionType === "THESIS_DEFENSE" &&
+    currentStep?.stepOrder === THESIS_STEP.DEPT_CHAIR_THESIS &&
+    isMyTurn;
+
   const isProposalHeadResultStep =
     sub.submissionType === "PROPOSAL" &&
     currentStep?.role === "HEAD_EXAM_COMMITTEE" &&
@@ -128,7 +134,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       // Steps 12 (ADMIN check + result memo) and 14 (ADMIN send to the Faculty) — admin page
       13: ["EXAM_RESULT", "COVER_PAGE"], // DEPARTMENT_CHAIR signs ใบรายงานผล + the result memo
       // Step 16 (ADMIN check + cover page), 18 and 19 (ADMIN confirmations) — admin page
-      17: ["B4"],            // DEPARTMENT_CHAIR signs B4 only (the thesis arrives committee-signed at step 15)
+      17: ["B4"],            // DEPARTMENT_CHAIR signs the บ.4 page of the combined B4 file (the thesis pages arrive committee-signed at step 15)
     },
   };
   const formsToShow = currentStep
@@ -314,6 +320,10 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
                 <p className="text-sm text-gray-600 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                   ใบรายงานผลการสอบที่นิสิตอัปโหลดเป็นฉบับว่าง — ท่านเป็นผู้กรอกข้อมูลทั้งหมดในใบรายงานผลการสอบและลงนาม แล้วอัปโหลดในขั้นตอนนี้ คณะกรรมการสอบและหัวหน้าภาควิชาจะลงนามต่อจากไฟล์นี้
                   แบบประเมินวิทยานิพนธ์ดีมากที่นิสิตอัปโหลดจะมีข้อมูลเฉพาะเมื่อผลการสอบเป็น ดีมาก
+                </p>
+              ) : isThesisDeptChairB4Step ? (
+                <p className="text-sm text-gray-600 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  ไฟล์นี้รวม บ.4 (หน้าแรก) วิทยานิพนธ์ 5 หน้าแรก และเอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS ไว้ในไฟล์เดียว — ท่านลงนามเฉพาะใน บ.4 แล้วอัปโหลดทั้งไฟล์กลับมา
                 </p>
               ) : undefined}
               leadSection={isThesisAdvisorResultStep ? (n) => (
