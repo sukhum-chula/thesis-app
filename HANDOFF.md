@@ -49,6 +49,10 @@ The app is **live with real users** — treat data and email as production, on e
   issue on a live app. Fix: reset real users back to individually-random passcodes (an ADMIN's
   per-user "รีเซ็ตรหัสเข้าใช้งาน" button already does this one at a time) and remove this warning
   once done.
+- **Never run `npm run db:seed` against the production database.** `prisma/seed.ts` creates
+  accounts named after real faculty at real-looking `@eng.chula.ac.th` addresses, all with the
+  shared passcode `password123`. It is only safe on a throwaway local database; it should be
+  reworked to use obviously fake identities, or removed.
 - **No environment redirects outgoing email.** `EMAIL_OVERRIDE_TO` was removed entirely
   (2026-09-07) — local dev, Preview, Development, and Production all send real email to whatever
   address is on the account. Be careful triggering step approvals/rejections/passcode

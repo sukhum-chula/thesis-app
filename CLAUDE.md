@@ -12,7 +12,7 @@ npm run dev          # dev server (localhost:3000)
 npm run build        # prisma generate && next build — run before committing non-trivial changes
 npm run lint         # eslint (flat config, eslint-config-next core-web-vitals + typescript)
 npm run db:migrate   # prisma migrate dev (see note below — this repo has no migrations dir)
-npm run db:seed      # tsx prisma/seed.ts
+npm run db:seed      # tsx prisma/seed.ts — NEVER against production (real faculty names, shared passcode; see HANDOFF.md)
 npm run db:studio    # prisma studio
 ```
 
