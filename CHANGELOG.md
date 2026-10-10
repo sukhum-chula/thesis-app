@@ -13,6 +13,10 @@ than leaving both.
 
 ## 2026-10-10
 
+- **A committee member's rejection reason now shows on the progress cards.** `POST /sign` with
+  `REJECTED` stored the note only in `committeeActions`, so the admin's step card, the timeline and
+  the student's rejected box (all read `step.notes`) showed no reason. It now also sets `step.notes`
+  (cleared on `resubmit`, as before).
 - **Defense step 12 (stepOrder 15) is one combined PDF.** The student uploads a single `B4` file:
   บ.4 → the thesis's first 5 iThesis pages → iThesis's 2-page "DOCUMENTS FOR SUBMISSION OF
   COMPLETE THESIS" (student + advisor signed), instead of separate `B4` + `THESIS` files. New

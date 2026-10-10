@@ -105,6 +105,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             actedAt: now,
             actedByName: userName,
             actedById: userId,
+            // Also on the step (not only in committeeActions) so the progress cards show it.
+            notes: typeof notes === "string" ? notes.trim() || null : null,
           },
         });
         await tx.submission.update({ where: { id: submissionId }, data: { status: "REJECTED" } });
