@@ -42,6 +42,11 @@ enum NameTitle {
   MRS           @map("นาง")
 }
 
+enum ProfessorType {
+  ME
+  CU
+}
+
 enum FormType {
   B1   // combined บ.วศ.1ก–ง document (one PDF)
   B1A
@@ -101,6 +106,10 @@ model User {
   // a submission displays its invited committee member. Harmless/unused for other roles.
   affiliation String?
   phone       String?
+  // PROFESSOR accounts only: ME = this department's own faculty, CU = Chula faculty from another
+  // department. Set on create (default CU), editable by ADMIN; display only — no workflow rule
+  // reads it. Null for every other role.
+  professorType ProfessorType?
   // Admin-settable display-order within this user's role group (ADMIN/PROFESSOR/EXTERNAL/
   // STUDENT) — used to compute the "A001"/"B002"/"C003"/"D004" rank code shown only to ADMIN
   // viewers (see computeRankCodes() in src/lib/utils.ts). Null means "not yet ranked" — sorts

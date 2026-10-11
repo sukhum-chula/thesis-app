@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canGrantRole } from "@/lib/accountScope";
-import { generatePassword, isValidPasscode, isValidThaiPhone, NAME_TITLES, formatUserName, computeRankCodes } from "@/lib/utils";
+import { generatePassword, isValidPasscode, isValidThaiPhone, NAME_TITLES, formatUserName, computeRankCodes, PROFESSOR_TYPES, DEFAULT_PROFESSOR_TYPE } from "@/lib/utils";
 import { sendWelcomeEmail } from "@/lib/email";
 import { attachSystemSettings } from "@/lib/systemSettings";
 
@@ -17,6 +17,7 @@ function mapUser(u: any) {
     isDepartmentChair: u.isDepartmentChair ?? false,
     affiliation: u.affiliation ?? null,
     phone: u.phone ?? null,
+    professorType: u.professorType ?? null,
     rankCode: u.rankCode ?? null,
   };
 }
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   const {
     title, name, email, role, studentId, passcode: requestedPasscode,
-    affiliation, phone, externalRequestId,
+    affiliation, phone, externalRequestId, professorType,
   } = await req.json();
 
   if (!name?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อ-นามสกุล" }, { status: 400 });
@@ -92,6 +93,8 @@ export async function POST(req: NextRequest) {
   if (title !== undefined && title !== null && !NAME_TITLES.includes(title))
     return NextResponse.json({ error: "คำนำหน้าชื่อไม่ถูกต้อง" }, { status: 400 });
   if (!role)          return NextResponse.json({ error: "กรุณาเลือกบทบาท" }, { status: 400 });
+  if (professorType !== undefined && professorType !== null && !PROFESSOR_TYPES.includes(professorType))
+    return NextResponse.json({ error: "ประเภทอาจารย์ไม่ถูกต้อง" }, { status: 400 });
   if (phone?.trim() && !isValidThaiPhone(phone))
     return NextResponse.json({ error: "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)" }, { status: 400 });
   // SUPER_ADMIN may only create SUPER_ADMIN/ADMIN accounts; ADMIN may only create
@@ -141,6 +144,7 @@ export async function POST(req: NextRequest) {
       studentId: studentId?.trim() || null,
       affiliation: affiliation?.trim() || null,
       phone: phone?.trim() || null,
+      professorType: role === "PROFESSOR" ? (professorType || DEFAULT_PROFESSOR_TYPE) : null,
       passcodeHash,
     },
   });

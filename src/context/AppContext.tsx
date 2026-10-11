@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
-  MockUser, MockSubmission, MockNotification, MockExternalRequest, Role, FormType, ProgramType, NameTitle,
+  MockUser, MockSubmission, MockNotification, MockExternalRequest, Role, FormType, ProgramType, NameTitle, ProfessorType,
 } from "@/types";
 
 export interface SubmissionFormData {
@@ -108,7 +108,7 @@ interface AppContextType {
     externalRequestId?: string;
   }) => Promise<{ emailSent: boolean }>;
   superAdminResetPasscode: (userId: string, passcode?: string) => Promise<{ emailSent: boolean }>;
-  adminUpdateUserInfo: (userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) => Promise<{ emailChangeNoticesSent?: boolean }>;
+  adminUpdateUserInfo: (userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string; professorType?: ProfessorType }) => Promise<{ emailChangeNoticesSent?: boolean }>;
   // Persists a full drag-and-drop reorder of one role group (ADMIN/PROFESSOR/EXTERNAL/STUDENT) —
   // orderedIds must be exactly that group's current members, in the new order. Recomputes every
   // affected user's rank code (A001/B002/...) server-side; see "add some string to rank the user"
@@ -446,7 +446,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { emailSent: updated.passcodeEmailSent ?? false };
   }
 
-  async function adminUpdateUserInfo(userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string }) {
+  async function adminUpdateUserInfo(userId: string, updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string; professorType?: ProfessorType }) {
     const updated = await api<MockUser & { emailChangeNoticesSent?: boolean }>(`/api/users/${userId}`, "PATCH", updates);
     setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
     return { emailChangeNoticesSent: updated.emailChangeNoticesSent };

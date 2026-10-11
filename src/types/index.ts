@@ -1,6 +1,8 @@
 export type Role = "SUPER_ADMIN" | "ADMIN" | "STUDENT" | "PROFESSOR" | "EXTERNAL";
 export type ExternalRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
-export type NameTitle = "PROF_DR" | "ASSOC_PROF_DR" | "ASST_PROF_DR" | "ASST_PROF" | "LECTURER_DR" | "DR" | "MR" | "MISS" | "MRS";
+// PROFESSOR accounts only — ME = this department's faculty, CU = Chula faculty from another department.
+export type ProfessorType = "ME" | "CU";
+export type NameTitle ="PROF_DR" | "ASSOC_PROF_DR" | "ASST_PROF_DR" | "ASST_PROF" | "LECTURER_DR" | "DR" | "MR" | "MISS" | "MRS";
 
 export type FormType = "B1" | "B1A" | "B1B" | "B1C" | "B1D" | "B2" | "B3" | "B4" | "THESIS" | "SIGNED" | "FINANCE_DOC" | "FINANCE_ATTACH" | "EXAM_RESULT" | "INVITE_LETTER" | "VERY_GOOD_EVAL" | "COVER_PAGE" | "LESSPAPER_RECEIPT";
 export type ProgramType = "PHD" | "ME_MECH" | "ME_CPS";
@@ -24,6 +26,7 @@ export interface MockUser {
   isDepartmentChair?: boolean;
   affiliation?: string | null;
   phone?: string | null;
+  professorType?: ProfessorType | null;
   // Admin-only display order code ("A001"/"B002"/"C003"/"D004") — only present when the viewer
   // is ADMIN (see GET /api/users). Never sent to any other viewer, never directly editable —
   // changed only by an ADMIN dragging a row in AdminUsersPanel's user list.

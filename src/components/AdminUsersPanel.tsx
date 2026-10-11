@@ -3,13 +3,13 @@
 import { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, splitNameTitle, RANK_ROLES, rankCodeNumber } from "@/lib/utils";
+import { ROLE_LABELS, sortUsersByRole, generatePassword, isValidPasscode, toUserErrorMessage, formatDate, formatUserName, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, splitNameTitle, RANK_ROLES, rankCodeNumber, PROFESSOR_TYPES, PROFESSOR_TYPE_LABELS, DEFAULT_PROFESSOR_TYPE } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { UserDetailPanel } from "@/components/UserDetailPanel";
 import { UserProfileHeader } from "@/components/UserProfileHeader";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Role } from "@/types";
-import type { MockUser, NameTitle } from "@/types";
+import type { MockUser, NameTitle, ProfessorType } from "@/types";
 import {
   Users, RotateCcw, Search,
   UserPlus, X, Loader2, Mail, UserCheck, ThumbsDown, GripVertical, ArrowUpDown,
@@ -49,6 +49,7 @@ export function AdminUsersPanel() {
   const [form, setForm] = useState({
     title: "", name: "", email: "", role: "STUDENT" as Role, studentId: "",
     affiliation: "", phone: "", externalRequestId: undefined as string | undefined,
+    professorType: DEFAULT_PROFESSOR_TYPE as ProfessorType,
     passcode: generatePassword(),
   });
   const [saving, setSaving] = useState(false);
@@ -137,7 +138,7 @@ export function AdminUsersPanel() {
 
   function closeModal() {
     setShowModal(false);
-    setForm({ title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() });
+    setForm({ title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, professorType: DEFAULT_PROFESSOR_TYPE, passcode: generatePassword() });
   }
 
   // Opens the same "เพิ่มผู้ใช้" modal used for any new account. Approving an
@@ -155,9 +156,10 @@ export function AdminUsersPanel() {
             name: split ? split.name : prefill.name,
             email: prefill.email, role: prefill.role ?? "PROFESSOR", studentId: "",
             affiliation: prefill.affiliation ?? "", phone: prefill.phone ?? "", externalRequestId: prefill.externalRequestId,
+            professorType: DEFAULT_PROFESSOR_TYPE,
             passcode: generatePassword(),
           }
-        : { title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, passcode: generatePassword() }
+        : { title: "", name: "", email: "", role: "STUDENT", studentId: "", affiliation: "", phone: "", externalRequestId: undefined, professorType: DEFAULT_PROFESSOR_TYPE, passcode: generatePassword() }
     );
     setShowModal(true);
   }
@@ -180,6 +182,7 @@ export function AdminUsersPanel() {
         affiliation: form.role === "EXTERNAL" && form.affiliation.trim() ? form.affiliation.trim() : undefined,
         phone: form.role === "EXTERNAL" && form.phone.trim() ? form.phone.trim() : undefined,
         externalRequestId: form.externalRequestId,
+        professorType: form.role === "PROFESSOR" ? form.professorType : undefined,
         passcode: form.passcode.trim(),
       });
       showToast(
@@ -528,6 +531,20 @@ export function AdminUsersPanel() {
                     placeholder="เช่น 6570123456"
                     className={INPUT_CLS}
                   />
+                </FormField>
+              )}
+
+              {form.role === "PROFESSOR" && (
+                <FormField label="ประเภทอาจารย์">
+                  <select
+                    value={form.professorType}
+                    onChange={(e) => setForm({ ...form, professorType: e.target.value as ProfessorType })}
+                    className={INPUT_CLS}
+                  >
+                    {PROFESSOR_TYPES.map((t) => (
+                      <option key={t} value={t}>{PROFESSOR_TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
                 </FormField>
               )}
 

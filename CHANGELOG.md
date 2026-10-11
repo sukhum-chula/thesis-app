@@ -13,6 +13,11 @@ than leaving both.
 
 ## 2026-10-11
 
+- **Professor type (ME / CU).** New `User.professorType` (`ProfessorType` enum, nullable): ME =
+  this department's faculty, CU = Chula faculty from another department. Set when creating a
+  PROFESSOR account (default CU), editable by ADMIN, shown as a chip on the profile; display only.
+  Schema change applied with a one-off SQL script (column + enum, not `db push`), which also marked
+  all 21 existing PROFESSOR accounts ME.
 - **The two open submissions were moved onto the 2026-10-10 signing order** (one-off script, not
   committed). Proposal `cmuz9mkj…`'s untouched rows 5–9 were rewritten; in defense `cmuwf68l…`
   rows 9/10 swapped contents (exam committee REJECTED at 9, head APPROVED at 10), keeping every

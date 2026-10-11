@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { FormType, MockSubmission, NameTitle, Role, StepStatus, SubmissionStatus } from "@/types";
+import { FormType, MockSubmission, NameTitle, ProfessorType, Role, StepStatus, SubmissionStatus } from "@/types";
 import { THESIS_STEP, PROPOSAL_STEP } from "@/lib/workflowSteps";
 
 export function cn(...inputs: ClassValue[]) {
@@ -23,6 +23,15 @@ export const NAME_TITLE_LABELS: Record<NameTitle, string> = {
 };
 
 export const NAME_TITLES = Object.keys(NAME_TITLE_LABELS) as NameTitle[];
+
+// PROFESSOR accounts only (User.professorType) — display only, no workflow rule reads it.
+// Dropdown order; a new PROFESSOR account defaults to CU.
+export const PROFESSOR_TYPE_LABELS: Record<ProfessorType, string> = {
+  CU: "CU — อาจารย์จุฬาฯ จากภาควิชาอื่น",
+  ME: "ME — อาจารย์ภาควิชาวิศวกรรมเครื่องกล",
+};
+export const PROFESSOR_TYPES = Object.keys(PROFESSOR_TYPE_LABELS) as ProfessorType[];
+export const DEFAULT_PROFESSOR_TYPE: ProfessorType = "CU";
 
 // Longest label first, so "ผศ.ดร." is tried before "ผศ." — otherwise the shorter title would
 // match first and leave "ดร." stuck on the front of the remaining name.

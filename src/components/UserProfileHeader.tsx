@@ -3,11 +3,11 @@
 import { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { ROLE_LABELS, ROLE_DESC, generatePassword, isValidPasscode, isValidEmail, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, formatUserName } from "@/lib/utils";
+import { ROLE_LABELS, ROLE_DESC, generatePassword, isValidPasscode, isValidEmail, getRelatedSubmissions, NAME_TITLES, NAME_TITLE_LABELS, formatUserName, PROFESSOR_TYPES, PROFESSOR_TYPE_LABELS, DEFAULT_PROFESSOR_TYPE } from "@/lib/utils";
 import { canManageAccount } from "@/lib/accountScope";
 import { PasscodeField } from "@/components/PasscodeField";
 import { Pencil, X, Loader2, Trash2, KeyRound, ChevronDown } from "lucide-react";
-import type { NameTitle } from "@/types";
+import type { NameTitle, ProfessorType } from "@/types";
 
 const INPUT_CLS = "w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-gray-300";
 
@@ -38,6 +38,7 @@ export function UserProfileHeader({
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editStudentId, setEditStudentId] = useState("");
+  const [editProfessorType, setEditProfessorType] = useState<ProfessorType>(DEFAULT_PROFESSOR_TYPE);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
@@ -65,6 +66,7 @@ export function UserProfileHeader({
     setEditName(user?.name ?? "");
     setEditEmail(user?.email ?? "");
     setEditStudentId(user?.studentId ?? "");
+    setEditProfessorType(user?.professorType ?? DEFAULT_PROFESSOR_TYPE);
     setEditOpen(true);
   }
 
@@ -77,11 +79,12 @@ export function UserProfileHeader({
     }
     setSaving(true);
     try {
-      const updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string } = {};
+      const updates: { title?: NameTitle | null; name?: string; studentId?: string; email?: string; professorType?: ProfessorType } = {};
       if ((editTitle || null) !== (user?.title ?? null)) updates.title = editTitle || null;
       if (editName.trim() !== user?.name) updates.name = editName.trim();
       if (editStudentId.trim() !== (user?.studentId ?? "")) updates.studentId = editStudentId.trim();
       if (emailChanged) updates.email = editEmail.trim().toLowerCase();
+      if (user?.roles.includes("PROFESSOR") && editProfessorType !== user.professorType) updates.professorType = editProfessorType;
       if (Object.keys(updates).length === 0) { setEditOpen(false); return; }
       const { emailChangeNoticesSent } = await adminUpdateUserInfo(uid, updates);
       if (!emailChanged) {
@@ -157,6 +160,14 @@ export function UserProfileHeader({
               <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full whitespace-nowrap">
                 {user.roles.map((r) => ROLE_LABELS[r]).join(" / ")}
               </span>
+              {user.roles.includes("PROFESSOR") && user.professorType && (
+                <span
+                  title={PROFESSOR_TYPE_LABELS[user.professorType]}
+                  className="text-sm font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-3 py-1 rounded-full whitespace-nowrap"
+                >
+                  {user.professorType}
+                </span>
+              )}
               {/* Admin-only rank code (A001/B002/...) — see RANK_PREFIX in src/lib/utils.ts.
                   Display only: never editable here, only via drag-reorder in AdminUsersPanel. */}
               {viewer.roles.includes("ADMIN") && user.rankCode && (
@@ -329,6 +340,21 @@ export function UserProfileHeader({
                     maxLength={10}
                     className={INPUT_CLS}
                   />
+                </div>
+              )}
+
+              {canManageTarget && user.roles.includes("PROFESSOR") && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1.5 block">ประเภทอาจารย์</label>
+                  <select
+                    value={editProfessorType}
+                    onChange={(e) => setEditProfessorType(e.target.value as ProfessorType)}
+                    className={INPUT_CLS}
+                  >
+                    {PROFESSOR_TYPES.map((t) => (
+                      <option key={t} value={t}>{PROFESSOR_TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 

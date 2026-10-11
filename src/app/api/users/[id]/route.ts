@@ -4,13 +4,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { canManageAccount, canGrantRole } from "@/lib/accountScope";
-import { generatePassword, isValidPasscode, isValidEmail, NAME_TITLES, formatUserName, STATUS_LABELS } from "@/lib/utils";
+import { generatePassword, isValidPasscode, isValidEmail, NAME_TITLES, formatUserName, STATUS_LABELS, PROFESSOR_TYPES, DEFAULT_PROFESSOR_TYPE } from "@/lib/utils";
 import { sendPasscodeResetEmail, sendEmailChangedNotice } from "@/lib/email";
 import { attachSystemSettings, clearUserFromSystemSettings } from "@/lib/systemSettings";
 
 function mapUser(u: any) {
   const roles: string[] = u.roles ?? (u.role ? [u.role] : []);
-  return { id: u.id, title: u.title ?? null, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false, isDepartmentChair: u.isDepartmentChair ?? false };
+  return { id: u.id, title: u.title ?? null, name: u.name, email: u.email, roles, role: roles[0] ?? "", studentId: u.studentId ?? undefined, programChairFor: u.programChairFor ?? [], isFinanceContact: u.isFinanceContact ?? false, isDepartmentChair: u.isDepartmentChair ?? false, professorType: u.professorType ?? null };
 }
 
 function sessionRoles(session: any): string[] {
@@ -62,6 +62,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.title !== null && !NAME_TITLES.includes(body.title))
       return NextResponse.json({ error: "คำนำหน้าชื่อไม่ถูกต้อง" }, { status: 400 });
     data.title = body.title || null;
+  }
+
+  // PROFESSOR accounts only. An account that becomes a PROFESSOR without one gets the default.
+  const finalRoles: string[] = data.roles ?? target.roles;
+  if (body.professorType !== undefined) {
+    if (!finalRoles.includes("PROFESSOR") || !PROFESSOR_TYPES.includes(body.professorType))
+      return NextResponse.json({ error: "ประเภทอาจารย์ไม่ถูกต้อง" }, { status: 400 });
+    data.professorType = body.professorType;
+  } else if (finalRoles.includes("PROFESSOR") && !target.professorType) {
+    data.professorType = DEFAULT_PROFESSOR_TYPE;
   }
 
   if (body.studentId !== undefined) {
