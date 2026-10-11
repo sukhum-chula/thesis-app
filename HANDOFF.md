@@ -61,6 +61,9 @@ Not part of the app: the Thai PDF form templates one level up in `Grad Tracking 
 `บ.2`, `บ.3`, `บ.4`, exam-result form) and the git-ignored `dataset/` folder (source PDFs/XLSX with
 real student and faculty data) — keep both, never commit `dataset/`.
 
+`docs/user-manual-th.pdf` is built from `docs/manual/` (paged.js HTML + screenshots, `npm run build`
+there; see its README). Update it when a workflow change alters what users see.
+
 `scripts/` (committed): `migrate-supabase.mjs` (project-to-project copy, see
 `docs/SUPABASE-MIGRATION.md`); `make-wordlist.js` / `import-wordlist.js` — **obsolete**: they built and
 read `../thesis-wordlist.xlsx`, which no longer exists, and `translations.ts` has been hand-edited

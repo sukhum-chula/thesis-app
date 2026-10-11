@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>คู่มือระบบวิทยานิพนธ์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1b2230; --muted:#5b6475; --faint:#8a93a3; --line:#dfe3ea; --soft:#f4f6f9;
+  --navy:#16284f; --accent:#1f5fd6; --accent-soft:#eaf1fd;
+  --student:#1f5fd6; --student-bg:#e8f0fd; --admin:#b45200; --admin-bg:#fff0e0;
+  --chair:#6f36bd; --chair-bg:#f1e9fc; --committee:#0d7a6f; --committee-bg:#e1f4f1;
+  --dept:#ad1f4b; --dept-bg:#fce7ee; --note-bg:#fff7df; --note-line:#ecca6a;
+}
+
+/* ---------- page model ---------- */
+@page{
+  size:A4; margin:19.4mm 16.1mm 20mm 16.1mm;
+  @top-left{content:string(part); font:600 8.5pt "Sarabun"; color:#8a93a3; vertical-align:bottom; padding-bottom:3mm}
+  @top-right{content:"คู่มือระบบจัดการวิทยานิพนธ์"; font:400 8.5pt "Sarabun"; color:#8a93a3; vertical-align:bottom; padding-bottom:3mm}
+  @bottom-left{content:"ภาควิชาวิศวกรรมเครื่องกล จุฬาลงกรณ์มหาวิทยาลัย"; font:400 8pt "Sarabun"; color:#8a93a3}
+  @bottom-right{content:counter(page); font:600 9pt "Sarabun"; color:#1b2230}
+}
+@page cover{ margin:0; @top-left{content:none} @top-right{content:none} @bottom-left{content:none} @bottom-right{content:none} }
+@page front{ @top-left{content:none} @top-right{content:none} }
+
+html{font-family:"Sarabun",sans-serif;font-size:10.5pt;line-height:1.55;color:var(--ink);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0}
+p{margin:0 0 2.2mm}
+ul,ol{margin:0 0 2.5mm;padding-left:6mm}
+li{margin:0 0 1mm}
+a{color:inherit;text-decoration:none}
+b{font-weight:700}
+
+/* ---------- cover ---------- */
+.cover{page:cover;height:297mm;position:relative;overflow:hidden;background:#fff}
+.cover .band{background:var(--navy);color:#fff;padding:34mm 20mm 16mm;height:150mm;box-sizing:border-box;position:relative}
+.cover .band .kicker{font-size:11pt;letter-spacing:.12em;color:#9fb4e8;font-weight:600}
+.cover .band h1{font-size:34pt;line-height:1.2;margin:6mm 0 4mm;font-weight:800}
+.cover .band .sub{font-size:13pt;color:#d5def5;max-width:150mm}
+.cover .flows{position:absolute;left:20mm;right:20mm;top:128mm;display:grid;grid-template-columns:1fr 1fr;gap:8mm}
+.cover .flow{background:#fff;border:0.3mm solid #d5dbe6;border-radius:4mm;padding:8mm 8mm 9mm;box-shadow:0 3mm 10mm rgba(15,25,50,.18)}
+.cover .flow .n{font-size:48pt;font-weight:800;line-height:1;color:var(--navy)}
+.cover .flow .lbl{font-size:10pt;color:var(--muted);margin:1mm 0 5mm}
+.cover .flow .name{font-size:15pt;font-weight:700;color:var(--navy);margin-bottom:2mm}
+.cover .flow .desc{font-size:9.5pt;color:var(--muted)}
+.cover .shot-unused{position:absolute;left:20mm;right:20mm;top:118mm;height:118mm;overflow:hidden;border-radius:4mm;
+  box-shadow:0 4mm 12mm rgba(15,25,50,.28);border:0.3mm solid #cfd6e3;background:#fff}
+.cover .shot img{width:100%;display:block}
+.cover .meta{position:absolute;left:20mm;right:20mm;bottom:20mm;display:flex;justify-content:space-between;align-items:flex-end;font-size:10pt;color:var(--muted)}
+.cover .meta b{display:block;color:var(--ink);font-size:11.5pt}
+.cover .roles{display:flex;flex-wrap:wrap;gap:2mm;margin-top:3mm}
+
+/* ---------- contents ---------- */
+.toc{page:front;break-after:page}
+.toc h2{font-size:22pt;margin:0 0 5mm;color:var(--navy)}
+.toc ol{list-style:none;margin:0;padding:0}
+.toc li{margin:0}
+.toc a{display:flex;align-items:baseline;gap:2mm;padding:0.55mm 0}
+.toc a .dots{flex:1;border-bottom:0.3mm dotted #b9c0cc;transform:translateY(-1mm)}
+.toc a::after{content:target-counter(attr(href url), page);font-weight:600;min-width:7mm;text-align:right}
+.toc li.part>a{font-weight:700;font-size:12pt;color:var(--navy);margin-top:3.5mm;padding-bottom:1mm;border-bottom:0.4mm solid var(--navy)}
+.toc li.part>a .dots{border:0}
+.toc li.sub>a{padding-left:6mm;color:#2c3445}
+.howto{margin-top:7mm;background:var(--soft);border-radius:3mm;padding:5mm 6mm;font-size:9.5pt}
+.howto h3{font-size:11pt;margin:0 0 2mm;color:var(--navy)}
+.legend{display:flex;flex-wrap:wrap;gap:2mm;margin:2mm 0}
+
+/* ---------- part openers ---------- */
+h2.part{break-before:page;margin:0 0 6mm;padding:0 0 5mm;border-bottom:0.8mm solid var(--navy)}
+h2.part .kicker{display:block;font-size:11pt;font-weight:700;letter-spacing:.1em;color:var(--accent);margin-bottom:2mm}
+h2.part .ttl{display:block;font-size:24pt;line-height:1.25;color:var(--navy);string-set:part content(text)}
+.lead{font-size:11.5pt;color:#3a4253;margin-bottom:5mm}
+
+/* ---------- headings ---------- */
+h3{font-size:14pt;color:var(--navy);margin:7mm 0 3mm;break-after:avoid}
+h3[id]{padding-top:2mm;border-top:0.3mm solid var(--line)}
+h4{font-size:11pt;margin:4mm 0 1.5mm;break-after:avoid}
+
+/* ---------- tables ---------- */
+.tablewrap{margin:2mm 0 4mm}
+table{border-collapse:collapse;width:100%;font-size:9.5pt}
+th,td{border:0.25mm solid var(--line);padding:1.4mm 2.2mm;text-align:left;vertical-align:top}
+th{background:var(--accent-soft);font-weight:600}
+tr{break-inside:avoid}
+
+/* ---------- role chips ---------- */
+.role{display:inline-block;font-size:8.5pt;font-weight:600;padding:0.2mm 2.4mm;border-radius:10mm;white-space:nowrap}
+.r-student{color:var(--student);background:var(--student-bg)}
+.r-admin{color:var(--admin);background:var(--admin-bg)}
+.r-chair{color:var(--chair);background:var(--chair-bg)}
+.r-committee{color:var(--committee);background:var(--committee-bg)}
+.r-dept{color:var(--dept);background:var(--dept-bg)}
+
+/* ---------- steps ---------- */
+.step{margin:0 0 5mm;padding:4mm 0 0;border-top:0.3mm solid var(--line)}
+.step::after{content:"";display:block;clear:both}
+.step-head{display:flex;align-items:center;gap:2.5mm;flex-wrap:wrap;margin-bottom:1mm;break-after:avoid}
+.step-head h3{margin:0;padding:0;border:0;font-size:13pt}
+.num{display:inline-flex;align-items:center;justify-content:center;min-width:10mm;height:10mm;padding:0 1.5mm;box-sizing:border-box;
+  border-radius:2.5mm;background:var(--navy);color:#fff;font-weight:800;font-size:12pt}
+.thname{color:var(--muted);font-size:9.5pt;margin-bottom:2.5mm}
+dl{margin:0 0 2.5mm}
+dt{font-weight:700;color:var(--navy)}
+dd{margin:0 0 1.5mm}
+.note{background:var(--note-bg);border-left:1mm solid var(--note-line);padding:2mm 3mm;margin:2.5mm 0;font-size:9.8pt;break-inside:avoid}
+.note b{display:block}
+.others{border-left:1mm solid var(--line);padding:0.5mm 0 0.5mm 3mm;margin:2.5mm 0;font-size:9.8pt;color:var(--muted);break-inside:avoid}
+.others b{color:var(--ink)}
+.card{background:var(--soft);border-radius:3mm;padding:4mm 5mm;margin:3mm 0}
+
+/* ---------- figures ---------- */
+figure{margin:0;break-inside:avoid}
+figure img{display:block;border:0.3mm solid #cfd6e3;border-radius:1.5mm;background:#fff}
+figcaption{font-size:8.5pt;color:var(--muted);margin-top:1.5mm;line-height:1.4}
+.step.has-side{display:grid;grid-template-columns:minmax(0,1fr) 80mm;column-gap:7mm;break-inside:avoid}
+.step.has-side::after{display:none}
+figure.side img{max-width:100%;max-height:178mm;width:auto;height:auto;margin-left:auto}
+figure.block{margin:3mm 0 5mm}
+figure.block img{max-width:100%;max-height:105mm;width:auto;height:auto;margin:0}
+figure.block.narrow img{max-width:88mm}
+figure.block.page img{width:100%;max-width:none;height:92mm;max-height:none;object-fit:cover;object-position:top}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin:3mm 0 5mm;align-items:start}
+.shots figure img{width:100%;height:auto;max-height:110mm;object-fit:contain;object-position:top left}
+
+/* ---------- Q&A ---------- */
+.qa-group{margin-top:4mm}
+.qa{break-inside:avoid;margin:0 0 3.5mm;padding:2.5mm 0 0 4mm;border-left:1mm solid var(--accent)}
+.qa .q{font-weight:700;font-size:10.8pt;color:var(--navy);margin-bottom:1mm}
+.qa .shots, .qa figure.block{break-inside:auto}
+/* full-window captures: always the full text width; very tall pages are cropped at the bottom, never shrunk */
+figure.fullw img{width:90%!important;margin-left:auto!important;margin-right:auto!important;max-width:none!important;height:auto!important;max-height:175mm!important;object-fit:cover!important;object-position:top!important}
+/* step 5: 5.1+5.2 share a page, 5.3+5.4+5.5 share the next */
+figure.fit-draft img{max-height:165mm!important}
+.step:has(> figure.fit-draft){break-inside:avoid}
+/* defense: step 1 card larger; 2+3 share a page; 4+5 share a page */
+.d-brk{break-before:page}
+.d1 figure.side img{max-height:230mm}
+.d2 figure.side img{max-height:125mm}
+.d3 figure.side img{max-height:100mm}
+.d4 figure.side img{max-height:160mm}
+.d5 figure.side img{max-height:75mm}
+/* defense 7, 8.1/8.4 and 9: larger cards */
+.d7 figure.side img{max-height:235mm}
+.shots.d8grid figure img{max-height:120mm}
+.d9 figure.side img{max-height:225mm}
+#p1-card,#p1-dash,#p1-dash-prof,#p2-s5,.s5b-start,#p2-s6,.p9-start{break-before:page}
+/* proposal 6+7 share a page, 8 gets a larger screenshot, 9+10 share a page */
+.p6a figure.side img{max-height:100mm}
+.p8 figure.side img{max-height:205mm}
+.p9a figure.side img{max-height:100mm}
+.qa#qa-reject{break-inside:auto}
+.s5a figure.side img{max-height:84mm}
+.s5b figure.side img{max-height:112mm}
+.shots.s5b figure img{max-height:120mm}
+.fullstack{margin:3mm 0 5mm}
+.fullstack figure{margin:0 0 5mm}
+figure.fullw{break-inside:avoid;page-break-inside:avoid;display:block}
+figure.fullw img{display:block}
+.fullstack figure:not(.fullw) img{max-width:88mm;height:auto}
+</style>
+<script>
+window.PagedConfig = { auto: false };
+document.addEventListener("DOMContentLoaded", async () => {
+  // Wait for every screenshot so its shape is known
+  await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+
+  // Part headings: split kicker / title (title feeds the running header)
+  document.querySelectorAll("h2.part").forEach(h => {
+    const k = h.querySelector("small"); const kick = k ? k.textContent : ""; if (k) k.remove();
+    h.innerHTML = '<span class="kicker">' + kick + '</span><span class="ttl">' + h.textContent.trim() + '</span>';
+  });
+
+  // Steps: portrait screenshots float right of the text; landscape ones sit below it
+  document.querySelectorAll(".step").forEach(step => {
+    const fig = step.querySelector(":scope > figure"); if (!fig) return;
+    const img = fig.querySelector("img");
+    const tall = !step.classList.contains("wide") && +img.getAttribute("width") < 600;
+    if (tall) { fig.classList.add("side"); step.classList.add("has-side"); step.appendChild(fig); }
+    else { fig.classList.add("block"); step.appendChild(fig); }
+  });
+  document.querySelectorAll(".full > figure").forEach(f => f.classList.add("block"));
+  // Tall full-page captures: show the top of the page at full width; short cards: cap the width
+  document.querySelectorAll("figure.block").forEach(f => {
+    const img = f.querySelector("img"); const tall = img.naturalHeight / img.naturalWidth > 0.85;
+    const card = +img.getAttribute("width") < 600;
+    if (tall && !card) f.classList.add("page"); else if (card) f.classList.add("narrow");
+  });
+
+  // Q&A: fold-out boxes become plain question/answer blocks
+  document.querySelectorAll("details.qa").forEach(d => {
+    const div = document.createElement("div"); div.className = "qa"; if (d.id) div.id = d.id;
+    const q = document.createElement("div"); q.className = "q"; q.textContent = d.querySelector("summary").textContent;
+    div.appendChild(q); d.querySelector("summary").remove();
+    while (d.firstChild) div.appendChild(d.firstChild);
+    d.replaceWith(div);
+  });
+  document.querySelectorAll(".qa figure").forEach(f => { if (!f.closest(".shots")) f.classList.add("block"); });
+
+  // Full-window captures (rendered 950px wide) always use the full text width
+  document.querySelectorAll('main img[width="950"]').forEach(img => {
+    const f = img.closest("figure"); if (!f) return; f.classList.add("fullw");
+    if (f.parentElement.classList.contains("shots")) f.style.gridColumn = "1 / -1";
+  });
+
+  // Contents with page numbers
+  const ol = document.querySelector(".toc ol");
+  document.querySelectorAll("main h2.part[id], main h3[id]").forEach(h => {
+    const li = document.createElement("li"); li.className = h.tagName === "H2" ? "part" : "sub";
+    const title = h.tagName === "H2" ? h.querySelector(".kicker").textContent + " · " + h.querySelector(".ttl").textContent : h.childNodes[0].textContent.trim();
+    li.innerHTML = '<a href="#' + h.id + '"><span class="t"></span><span class="dots"></span></a>';
+    li.querySelector(".t").textContent = title; ol.appendChild(li);
+  });
+
+  await document.fonts.ready;
+  await window.PagedPolyfill.preview();
+  window.pagedDone = true;
+});
+</script>
+<script src="./node_modules/pagedjs/dist/paged.polyfill.js"></script>
+</head>
+<body>
+<section class="cover">
+  <div class="band">
+    <div class="kicker">คู่มือการใช้งาน · USER MANUAL</div>
+    <h1>ระบบจัดการวิทยานิพนธ์</h1>
+    <div class="sub">ขั้นตอนการสอบโครงร่างวิทยานิพนธ์และการสอบวิทยานิพนธ์ ตั้งแต่ยื่นคำร้องจนเสร็จสิ้น สำหรับผู้ใช้งานทุกบทบาท</div>
+  </div>
+  <div class="flows">
+    <div class="flow"><div class="n">10</div><div class="lbl">ขั้นตอน</div><div class="name">สอบโครงร่างวิทยานิพนธ์</div><div class="desc">บ.วศ.1 · ลงนามคณะกรรมการ · บันทึกข้อความส่งคณะฯ</div></div>
+    <div class="flow"><div class="n">17</div><div class="lbl">ขั้นตอน</div><div class="name">สอบวิทยานิพนธ์</div><div class="desc">บ.2 + บ.3 · ใบรายงานผลการสอบ · บ.4 · iThesis</div></div>
+  </div>
+  <div class="meta">
+    <div><b>ภาควิชาวิศวกรรมเครื่องกล</b>คณะวิศวกรรมศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย
+      <div class="roles"><span class="role r-student">นิสิต</span><span class="role r-committee">คณะกรรมการ</span><span class="role r-chair">ประธานหลักสูตร</span><span class="role r-dept">หัวหน้าภาควิชา</span><span class="role r-admin">เจ้าหน้าที่</span></div>
+    </div>
+    <div style="text-align:right"><b>ฉบับเดือนตุลาคม 2569</b>ภาพหน้าจอจากระบบจริง</div>
+  </div>
+</section>
+
+<section class="toc">
+  <h2>สารบัญ</h2>
+  <ol></ol>
+  <div class="howto">
+    <h3>วิธีอ่านคู่มือนี้</h3>
+    <p>ส่วนที่ 1 อธิบายภาพรวมที่ทุกบทบาทควรรู้ ส่วนที่ 2 และ 3 อธิบายทีละขั้นตอน โดยแต่ละขั้นบอกว่าใครเป็นผู้ดำเนินการ
+    ต้องทำอะไร และผู้อื่นเห็นอะไรในระหว่างนั้น พร้อมภาพหน้าจอการ์ดดำเนินการของขั้นนั้น ส่วนที่ 4 รวมคำถามที่พบบ่อย</p>
+    <p>สีของป้ายบอกบทบาทของผู้ดำเนินการ:</p>
+    <div class="legend"><span class="role r-student">นิสิต</span><span class="role r-admin">เจ้าหน้าที่</span><span class="role r-chair">ประธานหลักสูตร</span><span class="role r-committee">คณะกรรมการ</span><span class="role r-dept">หัวหน้าภาควิชา</span></div>
+  </div>
+</section>
+<main>
+
+
+<!-- ============================ PART 1 ============================ -->
+<h2 class="part" id="part1"><small>ส่วนที่ 1</small>ภาพรวมของระบบ</h2>
+
+<h3 id="p1-what">ระบบนี้ทำอะไร</h3>
+<p>ระบบนี้ใช้ติดตามคำร้องของนิสิต — เริ่มจาก
+<b>การสอบโครงร่างวิทยานิพนธ์</b> แล้วจึงเป็น<b>การสอบวิทยานิพนธ์</b> — จะเดินไปตามลำดับขั้นตอนที่กำหนดไว้
+ในแต่ละขั้นจะมีผู้ดำเนินการเพียงหนึ่งคน (หรือหนึ่งกลุ่ม เรียงตามลำดับ) ซึ่งต้องดาวน์โหลดเอกสารฉบับล่าสุด ลงนาม
+อัปโหลดฉบับที่ลงนามแล้ว ทำเครื่องหมายในรายการตรวจสอบสั้น ๆ แล้วกดปุ่ม จากนั้นระบบจะแจ้งผู้ดำเนินการคนถัดไปทั้งทางอีเมลและการแจ้งเตือนในระบบ</p>
+<ul>
+  <li><b>มีคำร้องสอบโครงร่างได้ครั้งละหนึ่งฉบับ</b> นิสิตต้องเริ่มจากการสอบโครงร่างเสมอ คำร้องสอบวิทยานิพนธ์จะสร้างได้
+  เมื่อการสอบโครงร่างเสร็จสมบูรณ์แล้ว และจะนำรายชื่อคณะกรรมการมาจากคำร้องสอบโครงร่างโดยอัตโนมัติ</li>
+  <li><b>การลงนามยังทำบนเอกสาร</b> ระบบไม่ได้สร้างลายมือชื่อให้ ผู้ลงนามแต่ละท่านลงนามในไฟล์ PDF
+  (แบบอิเล็กทรอนิกส์ หรือพิมพ์ลงนามแล้วสแกน) แล้วอัปโหลด ทุกการอัปโหลดจะกลายเป็นฉบับใหม่</li>
+  <li><b>ทุกคนเห็นลำดับขั้นตอนเดียวกัน</b> นิสิต คณะกรรมการแต่ละท่าน และเจ้าหน้าที่ เห็นได้ว่าคำร้องอยู่ที่ขั้นใด
+  และกำลังรอใครอยู่</li>
+</ul>
+
+<h3 id="p1-roles">ผู้ใช้งานในระบบ</h3>
+<p>ทุกคนเข้าสู่ระบบด้วยบัญชีของตนเอง บัญชีเดียวอาจมีบทบาทต่างกันในแต่ละคำร้อง เช่น
+อาจารย์ท่านหนึ่งอาจเป็นอาจารย์ที่ปรึกษาในวิทยานิพนธ์หนึ่ง และเป็นกรรมการสอบในอีกวิทยานิพนธ์หนึ่ง</p>
+<div class="tablewrap"><table>
+<tr><th>บทบาท</th><th>หน้าที่ในระบบ</th></tr>
+<tr><td><span class="role r-student">นิสิต</span></td><td>สร้างคำร้อง เลือกคณะกรรมการ อัปโหลดแบบฟอร์ม และติดตามความคืบหน้า</td></tr>
+<tr><td><span class="role r-committee">อาจารย์ที่ปรึกษา</span></td><td>ลงนามในแบบฟอร์ม ในการสอบวิทยานิพนธ์เป็นผู้บันทึกผลการสอบและกรอกใบรายงานผลการสอบ</td></tr>
+<tr><td><span class="role r-committee">อาจารย์ที่ปรึกษาร่วม</span></td><td>ไม่บังคับ และมีได้หลายท่าน ลงนามต่อจากอาจารย์ที่ปรึกษาตามลำดับในรายชื่อ</td></tr>
+<tr><td><span class="role r-committee">ประธานกรรมการสอบ</span></td><td>ลงนาม และในการสอบโครงร่างเป็นผู้บันทึกผล ผ่าน / ไม่ผ่าน ก่อนกรรมการภายนอก</td></tr>
+<tr><td><span class="role r-committee">กรรมการสอบ</span></td><td>อาจารย์ภายในตั้งแต่หนึ่งท่านขึ้นไป ลงนามทีละท่านตามลำดับ</td></tr>
+<tr><td><span class="role r-committee">กรรมการภายนอก</span></td><td>ผู้ทรงคุณวุฒิจากภายนอกภาควิชาตั้งแต่หนึ่งท่านขึ้นไป มีบัญชีผู้ใช้ของตนเอง</td></tr>
+<tr><td><span class="role r-chair">ประธานหลักสูตร</span></td><td>ลงนามใน บ.วศ.1 และ บ.2 ระบบกำหนดให้อัตโนมัติตามหลักสูตรของนิสิต</td></tr>
+<tr><td><span class="role r-dept">หัวหน้าภาควิชา</span></td><td>ลงนามในบันทึกข้อความส่งคณะฯ ใบรายงานผลการสอบวิทยานิพนธ์ และ บ.4</td></tr>
+<tr><td><span class="role r-admin">เจ้าหน้าที่ภาควิชา</span></td><td>ตรวจเอกสารทุกชุด สร้างเอกสารการเงินและบันทึกข้อความ นำส่งเอกสารไปคณะฯ จัดการบัญชีผู้ใช้และการตั้งค่าระบบ</td></tr>
+</table></div>
+<p>หน่วยงานภายนอกระบบ — คณะวิศวกรรมศาสตร์ (คณะฯ) คณบดี ฝ่ายการเงิน และบัณฑิตวิทยาลัย —
+รับเอกสารทางอีเมลหรือผ่านระบบ LessPaper ของคณะฯ โดยไม่ต้องเข้าสู่ระบบนี้</p>
+
+<h3 id="p1-login">การเข้าสู่ระบบ</h3>
+<div class="step wide">
+  <div>
+    <p>เปิดหน้าเว็บของระบบ แล้วเข้าสู่ระบบด้วย<b>อีเมล</b>และ<b>รหัสเข้าใช้งาน</b> ระบบจะพาไปยังหน้าแรกของท่านทันที</p>
+    <ul>
+      <li>ไม่มีการสมัครสมาชิกด้วยตนเอง เจ้าหน้าที่ภาควิชาเป็นผู้สร้างบัญชีทุกบัญชี และระบบจะส่งรหัสเข้าใช้งานไปทางอีเมล</li>
+      <li>ไม่มีลิงก์ "ลืมรหัส" หากลืมรหัสเข้าใช้งาน กรุณาติดต่อเจ้าหน้าที่ภาควิชาเพื่อรีเซ็ต ระบบจะส่งรหัสใหม่ไปทางอีเมล</li>
+      <li>อีเมลแจ้งเตือนมีลิงก์ไปยังหน้าเข้าสู่ระบบเท่านั้น ต้องเข้าสู่ระบบด้วยอีเมลและรหัสเข้าใช้งานทุกครั้ง ไม่มีลิงก์เข้าสู่ระบบอัตโนมัติ</li>
+    </ul>
+  </div>
+  <figure><img width="950" src="img/00.jpg" alt="หน้าเข้าสู่ระบบ"><figcaption>หน้าเข้าสู่ระบบ</figcaption></figure>
+</div>
+
+<h3 id="p1-screen">หน้าจอหลัก</h3>
+<p>ทุกบทบาทเห็นแถบด้านบนแบบเดียวกัน คือ ชื่อระบบและวันที่ปัจจุบันทางซ้าย ชื่อและอีเมลของท่านตรงกลาง
+และทางขวาเป็นปุ่มเปลี่ยนภาษา (<b>TH</b>/<b>EN</b>) กระดิ่งแจ้งเตือน และปุ่ม <b>Logout</b></p>
+<div class="step wide">
+  <div>
+    <h4>กระดิ่งแจ้งเตือน</h4>
+    <p>ตัวเลขสีแดงคือจำนวนการแจ้งเตือนที่ยังไม่ได้อ่าน กดที่กระดิ่งเพื่อดูความเคลื่อนไหวของคำร้องที่เกี่ยวข้อง
+    รายการ "ถึงคิวของท่าน" จะแสดงเป็นสีส้ม กดที่รายการใดเพื่อไปยังคำร้องนั้นทันที ปุ่ม <b>อ่านทั้งหมด</b>
+    ใช้ทำเครื่องหมายว่าอ่านแล้วทั้งหมด</p>
+    <p>ทุกครั้งที่ถึงคิวของท่าน ระบบจะส่งอีเมลแจ้งด้วย</p>
+    <h4>ภาษา</h4>
+    <p>ปุ่ม <b>TH</b> แสดงภาษาที่ใช้อยู่ กดเพื่อสลับหน้าจอเป็นภาษาอังกฤษ รวมถึงชื่อแบบฟอร์ม ส่วนข้อมูลที่ผู้ใช้กรอก — ชื่อบุคคล หัวข้อวิทยานิพนธ์ และเลขทะเบียนรถ — ยังคงเป็นภาษาไทย</p>
+  </div>
+  <figure><img width="950" src="img/01.jpg" alt="หน้าต่างการแจ้งเตือน"><figcaption>หน้าต่างการแจ้งเตือน เปิดจากกระดิ่ง</figcaption></figure>
+</div>
+
+<h4>สถานะของคำร้อง</h4>
+<div class="tablewrap"><table>
+<tr><th>สถานะ</th><th>ความหมาย</th></tr>
+<tr><td>ฉบับร่าง</td><td>นิสิตยังกรอกคำร้องไม่เสร็จ ยังไม่มีผู้อื่นเกี่ยวข้อง</td></tr>
+<tr><td>กำลังดำเนินการ</td><td>คำร้องกำลังเดินตามขั้นตอน</td></tr>
+<tr><td>ถูกปฏิเสธ</td><td>ผู้พิจารณาปฏิเสธขั้นตอนปัจจุบัน รอให้นิสิตแก้ไขและยื่นใหม่ (ดู <a href="#qa-reject">ถาม–ตอบ</a>)</td></tr>
+<tr><td>เสร็จสิ้น</td><td>ดำเนินการครบทุกขั้นตอนแล้ว</td></tr>
+<tr><td>ยกเลิกแล้ว</td><td>เจ้าหน้าที่ยกเลิกตามคำขอของนิสิต (คำร้องสอบวิทยานิพนธ์ที่ยังไม่เสร็จจะถูกยกเลิกด้วยเมื่อคำร้องสอบโครงร่างที่เป็นต้นทางถูกยกเลิก)</td></tr>
+</table></div>
+<div class="step">
+  <div>
+<p>รายการ "ขั้นตอนทั้งหมด" แสดงทุกขั้นพร้อมสถานะ: เครื่องหมายถูกสีเขียวคืออนุมัติแล้ว นาฬิกาสีน้ำเงินคือขั้นปัจจุบัน
+สีแดงคือถูกปฏิเสธ และสีเทาคือยังไม่ถึง ขั้นที่มีผู้ลงนามหลายท่าน (เช่น 5.3 กรรมการสอบ) จะแสดงรายชื่อแต่ละท่านและสถานะการลงนาม</p>
+  </div>
+  <figure><img width="500" src="img/02.jpg" alt="รายการขั้นตอนทั้งหมด"><figcaption>รายการขั้นตอนทั้งหมดของคำร้องที่ถูกปฏิเสธในขั้นที่ 5.1: ขั้นที่อนุมัติแล้ว (สีเขียว) ขั้นที่ถูกปฏิเสธพร้อมเหตุผล (สีแดง) และขั้นที่ยังไม่ถึง (สีเทา) พร้อมรายชื่อผู้ลงนามแต่ละท่าน</figcaption></figure>
+</div>
+
+<h3 id="p1-card">การ์ดดำเนินการ — สิ่งที่ต้องทำเมื่อถึงคิวของท่าน</h3>
+<p>เมื่อคำร้องรอการดำเนินการจากท่าน จะมีการ์ดกรอบสีน้ำเงินชื่อ <b>ดำเนินการ</b> (หรือชื่อบทบาทของท่าน)
+ปรากฏทางขวาของหน้าคำร้อง การ์ดของทุกบทบาทมีรูปแบบเดียวกัน จากบนลงล่าง:</p>
+<div class="step">
+  <div>
+    <ol>
+      <li><b>ดาวน์โหลดเอกสาร</b> — ดาวน์โหลดเอกสารฉบับล่าสุดของขั้นนี้</li>
+      <li><b>ลงนามในเอกสาร</b> — ลงนามในไฟล์ที่ดาวน์โหลด แล้วบันทึกเป็นไฟล์ PDF</li>
+      <li><b>อัปโหลดเอกสาร</b> — เลือกไฟล์ PDF ที่ลงนามแล้ว กล่องจะเปลี่ยนเป็นสีน้ำเงินและแสดง "✓ เลือกไฟล์แล้ว" ในขั้นนี้ยังไม่มีการอัปโหลด</li>
+      <li><b>รายการตรวจสอบ</b> (กล่องสีเหลือง) — ทำเครื่องหมายทุกข้อเพื่อยืนยันสิ่งที่ท่านทำ ปุ่มหลักจะกดไม่ได้จนกว่าจะทำเครื่องหมายครบและเลือกไฟล์ที่ต้องใช้ครบ</li>
+      <li><b>หมายเหตุ</b> — ไม่บังคับ ผู้เกี่ยวข้องจะเห็นในลำดับขั้นตอน</li>
+      <li><b>ส่งต่อ</b> (สีเขียว) — อัปโหลดไฟล์และส่งคำร้องให้ผู้ดำเนินการคนถัดไป<br>
+      <b>ปฏิเสธ</b> (สีแดง) — ปฏิเสธพร้อมระบุเหตุผล นิสิตต้องแก้ไขและยื่นใหม่</li>
+    </ol>
+    <p>เจ้าหน้าที่ภาควิชาจะเห็นปุ่ม <b>อนุมัติ</b> และ <b>ส่งกลับ</b> (ย้อนกลับหนึ่งขั้น) แทน ขั้นของเจ้าหน้าที่ไม่มีปุ่มปฏิเสธ</p>
+    <p>ส่วนที่ขั้นนั้นไม่ต้องใช้จะไม่แสดง และส่วนที่เหลือจะเรียงลำดับเลขใหม่ เช่น ขั้นตรวจสอบของเจ้าหน้าที่มีเพียง
+    ดาวน์โหลด → รายการตรวจสอบ → อนุมัติ</p>
+  </div>
+  <figure><img width="522" src="img/03.jpg" alt="การ์ดดำเนินการ"><figcaption>ตัวอย่างการ์ดดำเนินการที่ครบถ้วน (ประธานหลักสูตร ขั้นที่ 3 ของการสอบโครงร่าง) พร้อมกดส่งต่อ</figcaption></figure>
+</div>
+
+<h3 id="p1-dash">หน้าแรกของแต่ละบทบาท</h3>
+<h4>นิสิต</h4>
+<p>มีสามแท็บ คือ <b>สอบโครงร่าง</b> <b>สอบวิทยานิพนธ์</b> และ <b>กรรมการภายนอก</b> (ขอเพิ่มบัญชีกรรมการภายนอก)
+เมื่อมีคำร้องสอบวิทยานิพนธ์แล้ว หน้าแรกจะเปิดที่แท็บสอบวิทยานิพนธ์ แต่ละแท็บแสดงรายละเอียดคำร้อง ลำดับขั้นตอน
+และการ์ดดำเนินการเมื่อถึงคิวของนิสิต ทุกอย่างทำได้ในหน้านี้หน้าเดียว</p>
+<div class="full"><figure><img width="950" src="img/04.jpg" alt="หน้าแรกของนิสิต"><figcaption>หน้าแรกของนิสิต แท็บสอบโครงร่าง (คำร้องที่เสร็จสิ้นแล้ว)</figcaption></figure></div>
+
+<h4 id="p1-dash-prof">อาจารย์และกรรมการภายนอก</h4>
+<p>แสดงรายการคำร้องทั้งหมดที่ท่านเกี่ยวข้องไม่ว่าในบทบาทใด พร้อมตัวกรองสถานะ
+(ทั้งหมด / ฉบับร่าง / กำลังดำเนินการ / เสร็จสิ้น / ถูกปฏิเสธ / ยกเลิกแล้ว) คำร้องที่รอท่านจะอยู่ด้านบนสุด
+พร้อมป้ายสีส้มระบุชื่อขั้น เมื่อดำเนินการแล้ว ป้ายจะเปลี่ยนเป็น "ท่านอนุมัติแล้ว" กดที่การ์ดเพื่อเปิดคำร้องและการ์ดดำเนินการ</p>
+<div class="full"><figure><img width="950" src="img/05.jpg" alt="หน้าแรกของอาจารย์"><figcaption>หน้าแรกของอาจารย์ (มุมมองของประธานหลักสูตร)</figcaption></figure></div>
+
+<h4>เจ้าหน้าที่ภาควิชา</h4>
+<p>มีสามแท็บ แท็บ <b>จัดการคำร้อง</b> เริ่มด้วยกล่องสีส้ม "งานที่ต้องดำเนินการ" ซึ่งรวมทุกงานที่รอเจ้าหน้าที่
+ตามด้วยรายการคำร้องทั้งหมดพร้อมช่องค้นหาและตัวกรองสถานะ กดที่คำร้องเพื่อขยายดูในหน้าเดิม
+แท็บ <b>จัดการผู้ใช้งาน</b> ใช้จัดการบัญชีและอนุมัติคำขอบัญชีกรรมการภายนอก แท็บ <b>ตั้งค่าระบบ</b>
+ใช้กำหนดหัวหน้าภาควิชา ประธานหลักสูตรของแต่ละหลักสูตร และผู้รับเอกสารการเงิน</p>
+<div class="fullstack">
+  <figure class="fullw"><img width="950" src="img/06.jpg" alt="แท็บจัดการคำร้อง"><figcaption>จัดการคำร้อง</figcaption></figure>
+  <figure class="fullw"><img width="950" src="img/07.jpg" alt="แท็บจัดการผู้ใช้งาน"><figcaption>จัดการผู้ใช้งาน</figcaption></figure>
+  <figure class="fullw"><img width="950" src="img/08.jpg" alt="แท็บตั้งค่าระบบ"><figcaption>ตั้งค่าระบบ</figcaption></figure>
+</div>
+
+<h3 id="p1-files">ไฟล์และแบบฟอร์ม</h3>
+<ul>
+  <li>แบบฟอร์มทุกฉบับที่อัปโหลดต้องเป็น<b>ไฟล์ PDF</b> (ไม่เกิน 20 MB) ยกเว้นเอกสารการเงินซึ่งเป็นไฟล์ Word (.docx) และมีเพียงเจ้าหน้าที่ที่จัดการ</li>
+  <li>แบบฟอร์มเปล่าดาวน์โหลดได้จากหน้าดาวน์โหลดของภาควิชา <a href="https://me.eng.chula.ac.th/download/">me.eng.chula.ac.th/download</a> กล่องอัปโหลดมีลิงก์ไปยังหน้านี้</li>
+  <li><b>ทุกการอัปโหลดคือฉบับใหม่</b> รายการไฟล์แสดงฉบับล่าสุดของแต่ละแบบฟอร์มเสมอ ฉบับก่อนหน้าเก็บไว้ใน <b>ประวัติ</b></li>
+  <li>กดที่ชื่อไฟล์เพื่อเปิดดูในแท็บใหม่ ส่วนปุ่มดาวน์โหลดในการ์ดดำเนินการจะบันทึกไฟล์ลงเครื่อง</li>
+</ul>
+<div class="tablewrap"><table>
+<tr><th>แบบฟอร์ม</th><th>ชื่อเต็ม</th><th>ใช้ในขั้นตอน</th></tr>
+<tr><td>บ.วศ.1 (1ก–1ง)</td><td>แบบขอเสนอหัวข้อโครงร่างวิทยานิพนธ์ — ไฟล์ PDF เดียวที่มีสี่ส่วน</td><td>สอบโครงร่าง ทุกขั้น</td></tr>
+<tr><td>บ.2</td><td>ขอออกหนังสือเชิญกรรมการสอบ</td><td>สอบวิทยานิพนธ์ ขั้นที่ 1, 3</td></tr>
+<tr><td>บ.3</td><td>แบบประเมินวิทยานิพนธ์ก่อนสอบ หนึ่งฉบับต่อกรรมการหนึ่งท่าน</td><td>สอบวิทยานิพนธ์ ขั้นที่ 1</td></tr>
+<tr><td>แบบรายงานการเสนอผลงานฯ</td><td>แบบรายงานการเสนอผลงานทางวิชาการของนิสิต</td><td>สอบวิทยานิพนธ์ ขั้นที่ 6–7</td></tr>
+<tr><td>ใบรายงานผลการสอบ</td><td>ใบรายงานผลการสอบวิทยานิพนธ์</td><td>สอบวิทยานิพนธ์ ขั้นที่ 6–11</td></tr>
+<tr><td>แบบประเมินวิทยานิพนธ์ดีมาก</td><td>แบบประเมินกรณีผลการสอบ ดีมาก</td><td>สอบวิทยานิพนธ์ ขั้นที่ 6</td></tr>
+<tr><td>บ.4</td><td>ขอให้ลงนามอนุมัติวิทยานิพนธ์ — อัปโหลดเป็นไฟล์ PDF เดียวรวมกับวิทยานิพนธ์ 5 หน้าแรกและเอกสารจากระบบ iThesis</td><td>สอบวิทยานิพนธ์ ขั้นที่ 12–15</td></tr>
+<tr><td>บันทึกข้อความ</td><td>บันทึกข้อความส่งคณะวิศวกรรมศาสตร์ ระบบสร้างให้</td><td>สอบโครงร่าง 8–9, สอบวิทยานิพนธ์ 9–10</td></tr>
+<tr><td>เอกสารการเงินแนบกรรมการสอบ</td><td>เอกสารการเงินของคณะกรรมการ ระบบสร้างให้</td><td>ขั้นที่ 2 ของทั้งสองประเภท</td></tr>
+<tr><td>เอกสารเลขรับ LessPaper</td><td>เอกสารที่มีเลขรับโดยคณะฯ ผ่านระบบ LessPaper</td><td>ขั้นนำส่งของเจ้าหน้าที่</td></tr>
+</table></div>
+
+<h3 id="p1-case">ตัวอย่างที่ใช้ในคู่มือ</h3>
+<p>ภาพหน้าจอทั้งหมดมาจากการใช้งานระบบจริงด้วยบัญชีทดสอบ ตั้งแต่ต้นจนจบ: คำร้องสอบโครงร่างของนิสิตปริญญาเอกหนึ่งราย
+และคำร้องสอบวิทยานิพนธ์ที่ตามมา</p>
+<div class="card">
+<div class="tablewrap"><table>
+<tr><th>นิสิต</th><td>นางสาวสมร สะสมทรัพย์ · 7061234522</td></tr>
+<tr><th>หลักสูตร</th><td>วิศวกรรมศาสตรดุษฎีบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล</td></tr>
+<tr><th>หัวข้อวิทยานิพนธ์</th><td>การพัฒนาระบบติดตามเต็มรูปแบบ</td></tr>
+<tr><th>อาจารย์ที่ปรึกษา</th><td>รศ.ดร.กฤษฎา พนมเชิง</td></tr>
+<tr><th>อาจารย์ที่ปรึกษาร่วม</th><td>รศ.ดร.กุณฑินี มณีรัตน์ → อ.ดร.แก้มโต หมาใจดี (บัญชีกรรมการภายนอก)</td></tr>
+<tr><th>ประธานหลักสูตร</th><td>รศ.ดร.จิตติน แตงเที่ยง (กำหนดอัตโนมัติ)</td></tr>
+<tr><th>ประธานกรรมการสอบ</th><td>ผศ.ดร.อรรถวิทย์ สุดแสง (บัญชีกรรมการภายนอก — บังคับสำหรับปริญญาเอก)</td></tr>
+<tr><th>กรรมการสอบ</th><td>อ.ดร.การุ จงศิริภิญโญ → รศ.ดร.จิตติน แตงเที่ยง</td></tr>
+<tr><th>กรรมการภายนอก</th><td>รศ.ดร.นัทที นิภานันท์</td></tr>
+<tr><th>หัวหน้าภาควิชา</th><td>ศ.ดร.ไพโรจน์ สิงหถนัดกิจ</td></tr>
+<tr><th>เจ้าหน้าที่ภาควิชา</th><td>นางสาวสุภาพ หมุดอุบล</td></tr>
+</table></div>
+<p>ในตัวอย่างนี้ประธานหลักสูตรเป็นกรรมการสอบด้วย ซึ่งทำได้ เพราะประธานหลักสูตรเป็นบุคคลเดียวที่ดำรงตำแหน่งที่สอง
+ในคณะกรรมการชุดเดียวกันได้</p>
+</div>
+
+<!-- ============================ PART 2 ============================ -->
+<h2 class="part" id="part2"><small>ส่วนที่ 2</small>ขั้นตอนสอบโครงร่างวิทยานิพนธ์</h2>
+<p class="lead">การสอบโครงร่างมี 10 ขั้นตอน ขั้นที่ 1–3 เกี่ยวกับ บ.วศ.1ก และ 1ข ก่อนการสอบ การสอบโครงร่างจัดขึ้นนอกระบบ
+ระหว่างขั้นที่ 3 และขั้นที่ 4 ส่วนขั้นที่ 4–10 เกี่ยวกับ บ.วศ.1ค และ 1ง หลังการสอบ แต่ละหัวข้อด้านล่างบอกว่าใครเป็นผู้ดำเนินการ
+ต้องทำอะไร และผู้อื่นเห็นอะไรในระหว่างนั้น</p>
+
+<h3 id="p2-map">ภาพรวมขั้นตอน</h3>
+<div class="legend">
+  <span class="role r-student">นิสิต</span><span class="role r-admin">เจ้าหน้าที่</span><span class="role r-chair">ประธานหลักสูตร</span><span class="role r-committee">คณะกรรมการ</span><span class="role r-dept">หัวหน้าภาควิชา</span>
+</div>
+<div class="tablewrap"><table>
+<tr><th>ขั้น</th><th>ผู้ดำเนินการ</th><th>สิ่งที่ทำ</th></tr>
+<tr><td>1</td><td><span class="role r-student">นิสิต</span></td><td>อัปโหลด บ.วศ.1 ที่กรอก 1ก + 1ข แล้ว (นิสิตและอาจารย์ที่ปรึกษาลงนามแล้ว)</td></tr>
+<tr><td>2</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ตรวจสอบ สร้างเอกสารการเงิน แล้วอนุมัติ → ระบบส่งอีเมลถึงฝ่ายการเงิน</td></tr>
+<tr><td>3</td><td><span class="role r-chair">ประธานหลักสูตร</span></td><td>ลงนาม บ.วศ.1ก</td></tr>
+<tr><td colspan="3" style="text-align:center;color:var(--muted)">— สอบโครงร่างวิทยานิพนธ์ (นอกระบบ) —</td></tr>
+<tr><td>4</td><td><span class="role r-student">นิสิต</span></td><td>กรอก บ.วศ.1ค + 1ง แล้วอัปโหลด</td></tr>
+<tr><td>5.1</td><td><span class="role r-committee">อาจารย์ที่ปรึกษา</span></td><td>ลงนาม บ.วศ.1ค</td></tr>
+<tr><td>5.2</td><td><span class="role r-committee">อาจารย์ที่ปรึกษาร่วม</span></td><td>ลงนาม บ.วศ.1ค ทีละท่าน (ข้ามไปหากไม่มี)</td></tr>
+<tr><td>5.3</td><td><span class="role r-committee">กรรมการสอบ</span></td><td>ลงนาม บ.วศ.1ค ทีละท่าน</td></tr>
+<tr><td>5.4</td><td><span class="role r-committee">ประธานกรรมการสอบ</span></td><td>บันทึกผล ผ่าน/ไม่ผ่าน และลงนาม บ.วศ.1ค</td></tr>
+<tr><td>5.5</td><td><span class="role r-committee">กรรมการภายนอก</span></td><td>ลงนาม บ.วศ.1ค ทีละท่าน</td></tr>
+<tr><td>6</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ตรวจเอกสารที่ลงนามครบ และแก้ไขชื่อหัวข้อวิทยานิพนธ์ในระบบ</td></tr>
+<tr><td>7</td><td><span class="role r-chair">ประธานหลักสูตร</span></td><td>ลงนาม บ.วศ.1ค + 1ง</td></tr>
+<tr><td>8</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>สร้างบันทึกข้อความ แล้วอัปโหลดเป็น PDF</td></tr>
+<tr><td>9</td><td><span class="role r-dept">หัวหน้าภาควิชา</span></td><td>ลงนามบันทึกข้อความ</td></tr>
+<tr><td>10</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>นำส่งคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper → <b>เสร็จสิ้น</b></td></tr>
+</table></div>
+<p>ตลอดการสอบโครงร่าง นิสิตและคณะกรรมการใช้<b>ไฟล์ PDF เดียวกัน</b> คือ บ.วศ.1 (1ก–1ง) ผู้ลงนามแต่ละท่าน
+ดาวน์โหลดฉบับล่าสุด ลงนามในส่วนของตน แล้วอัปโหลดกลับเป็นฉบับถัดไป</p>
+
+<h3 id="p2-create">การสร้างคำร้อง <span class="role r-student">นิสิต</span></h3>
+<div class="step wide">
+  <div>
+    <p>ในแท็บ <b>สอบโครงร่าง</b> นิสิตที่ยังไม่มีคำร้องจะเห็นแบบฟอร์มเปล่าเป็นสีจาง เพื่อให้เห็นว่าต้องกรอกอะไรบ้าง
+    กด <b>+ สร้างร่างคำร้อง</b> เพื่อเริ่มฉบับร่าง</p>
+    <ol>
+      <li><b>ข้อมูลวิทยานิพนธ์</b> — ชื่อหัวข้อวิทยานิพนธ์</li>
+      <li><b>ข้อมูลนิสิต</b> — เลือกหลักสูตร ระบบจะแสดงประธานหลักสูตรให้อัตโนมัติ ชื่อ รหัสนิสิต และอีเมลมาจากบัญชี ให้กรอกเบอร์โทรศัพท์เพิ่ม</li>
+      <li><b>ผู้รับผิดชอบวิทยานิพนธ์</b> — คณะกรรมการ (ดูหัวข้อถัดไป)</li>
+      <li><b>ข้อมูลการสอบ</b> — วันและเวลาสอบ และความต้องการห้องประชุมหรือที่จอดรถสำหรับกรรมการภายนอก</li>
+    </ol>
+    <p>ปุ่ม <b>บันทึกฉบับร่าง</b> บันทึกข้อมูลที่กรอกไว้ ออกจากหน้าแล้วกลับมาทำต่อได้ ระบบจะยังไม่ส่งให้ใคร
+    จนกว่าท่านจะทำเครื่องหมายยืนยันและกด <b>ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์</b></p>
+  </div>
+  <figure><img width="950" src="img/09.jpg" alt="ส่วนข้อมูลนิสิต"><figcaption>เลือกหลักสูตรแล้ว ระบบแสดงประธานหลักสูตรให้อัตโนมัติ</figcaption></figure>
+</div>
+<div class="step wide">
+  <div>
+    <h4>การเลือกคณะกรรมการ</h4>
+    <p>แต่ละแถวคือบุคคลหนึ่งท่าน เลือกบทบาททางซ้าย แล้วเลือกบุคคลทางขวา เลือกได้เฉพาะผู้ที่มีบัญชีในระบบแล้วเท่านั้น
+    ใช้ <b>+ เพิ่มบุคคล</b> เพื่อเพิ่มแถว และ <b>×</b> เพื่อลบแถว</p>
+    <ul>
+      <li>ต้องมี: อาจารย์ที่ปรึกษา 1 ท่าน ประธานกรรมการสอบ 1 ท่าน กรรมการสอบอย่างน้อย 1 ท่าน และกรรมการภายนอกอย่างน้อย 1 ท่าน อาจารย์ที่ปรึกษาร่วมไม่บังคับ ป้ายสีเขียวด้านบนจะขึ้นเครื่องหมายถูกเมื่อครบแต่ละข้อ</li>
+      <li><b>ลำดับแถวคือลำดับการลงนาม</b> หากมีหลายท่านในบทบาทเดียวกัน จะลงนามตามลำดับแถว ลากที่จับด้านซ้ายของแถว (⋮⋮) เพื่อเปลี่ยนลำดับ</li>
+      <li>ข้อความใต้แต่ละแถว ("เลือกจาก: …") บอกประเภทบัญชีที่บทบาทนั้นรับ สำหรับ<b>ปริญญาเอก</b> ประธานกรรมการสอบต้องเป็นกรรมการภายนอก สำหรับปริญญาโทเป็นอาจารย์ภายในหรือกรรมการภายนอกก็ได้ ดู <a href="#qa-degree">ถาม–ตอบ</a></li>
+      <li>หนึ่งคนหนึ่งตำแหน่ง ยกเว้นประธานหลักสูตรซึ่งดำรงตำแหน่งอื่นได้อีกหนึ่งตำแหน่ง</li>
+      <li>หากไม่พบชื่อกรรมการภายนอกในรายชื่อ ให้ยื่นคำขอเพิ่มบัญชีที่แท็บ <b>กรรมการภายนอก</b> ก่อน (ดู <a href="#qa-external">ถาม–ตอบ</a>)</li>
+    </ul>
+  </div>
+  <figure class="fullw"><img width="950" src="img/10.jpg" alt="ส่วนเลือกคณะกรรมการ"><figcaption>คณะกรรมการในตัวอย่าง 7 แถว ป้ายเงื่อนไขทั้งสี่เป็นสีเขียวครบ</figcaption></figure>
+</div>
+<div class="step wide">
+  <div>
+    <h4>ข้อมูลการสอบและการยืนยัน</h4>
+    <p>กรอกวันและเวลาสอบที่วางแผนไว้ ทำเครื่องหมายยืนยัน แล้วกด <b>ยืนยัน — ขอสอบโครงร่างวิทยานิพนธ์</b>
+    คำร้องจะเปลี่ยนเป็น <b>กำลังดำเนินการ</b> และขั้นที่ 1 จะเปิดให้นิสิตดำเนินการ</p>
+    <p>หากเปลี่ยนใจก่อนยืนยัน ปุ่ม <b>ไม่ต้องการยื่นขอสอบโครงร่างวิทยานิพนธ์ตอนนี้</b> จะยกเลิกฉบับร่าง</p>
+    <div class="others"><b>ระหว่างนี้:</b> ไม่มีผู้อื่นเห็นฉบับร่าง เมื่อยืนยันแล้ว ระบบจะแจ้งเจ้าหน้าที่ภาควิชา</div>
+  </div>
+  <figure class="fullw"><img width="950" src="img/11.jpg" alt="ส่วนยืนยัน"><figcaption>ข้อมูลการสอบ ช่องยืนยัน และปุ่มทั้งสอง ข้อความสีน้ำเงินมุมขวาแจ้งว่าบันทึกฉบับร่างแล้ว</figcaption></figure>
+</div>
+
+<h3 id="p2-s1">ขั้นที่ 1–3 · บ.วศ.1ก + 1ข</h3>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">1</span><h3>อัปโหลด บ.วศ.1</h3><span class="role r-student">นิสิต</span></div>
+    <p class="thname">นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ก + บ.วศ.1ข)</p>
+    <dl><dt>ก่อนเริ่ม</dt><dd>กรอกส่วน 1ก และ 1ข ในแบบฟอร์ม ลงนามทั้งสองส่วน และให้อาจารย์ที่ปรึกษาลงนามใน 1ก — บนกระดาษหรือแบบอิเล็กทรอนิกส์ นอกระบบ</dd>
+    <dt>ในระบบ</dt><dd>เลือกไฟล์ PDF ทำเครื่องหมายรายการตรวจสอบ 5 ข้อ แล้วกด <b>ส่งต่อ</b></dd></dl>
+    <div class="others"><b>ระหว่างนี้:</b> เจ้าหน้าที่ภาควิชาได้รับแจ้ง "ถึงคิวของท่าน" คณะกรรมการเห็นคำร้องในหน้าแรกของตน แต่ยังไม่มีสิ่งที่ต้องทำ</div>
+  </div>
+  <figure><img width="500" src="img/12.jpg" alt="การ์ดขั้นที่ 1"><figcaption>ขั้นที่ 1 — กล่องอัปโหลดเดียวสำหรับไฟล์ บ.วศ.1 ที่รวมทุกส่วน</figcaption></figure>
+</div>
+
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">2</span><h3>ตรวจสอบและสร้างเอกสารการเงิน</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ</p>
+    <ol>
+      <li>เปิดคำร้อง (จากกล่องงานที่ต้องดำเนินการ) ดาวน์โหลด บ.วศ.1 แล้วตรวจสอบ</li>
+      <li>ในการ์ด <b>เอกสารการเงินแนบกรรมการสอบ</b> กด <b>สร้างเอกสารการเงินแนบกรรมการสอบ</b> ระบบจะกรอกแบบฟอร์มการเงินของภาควิชาด้วยข้อมูลนิสิตและรายชื่อกรรมการทีละแถว หากต้องการแก้ไข ให้ดาวน์โหลด แก้ไขใน Word แล้วอัปโหลดด้วยปุ่ม <b>เปลี่ยนไฟล์</b> ระบบเก็บเฉพาะฉบับล่าสุด</li>
+      <li>ทำเครื่องหมายรายการตรวจสอบ 6 ข้อ แล้วกด <b>อนุมัติ</b></li>
+    </ol>
+    <div class="note"><b>การอนุมัติจะส่งอีเมลถึงฝ่ายการเงิน</b> ผู้รับเอกสารการเงินที่กำหนดไว้จะได้รับเอกสารการเงินเป็นไฟล์แนบโดยอัตโนมัติ</div>
+    <div class="others"><b>นิสิตจะไม่เห็นเอกสารการเงิน</b> ลำดับขั้นตอนของนิสิตแสดงเพียงว่าคำร้องรอเจ้าหน้าที่ดำเนินการ</div>
+  </div>
+  <figure><img width="438" src="img/13.jpg" alt="การ์ดขั้นที่ 2"><figcaption>ขั้นที่ 2 — รายการตรวจสอบของเจ้าหน้าที่ กล่องสีน้ำเงินเตือนว่าการอนุมัติจะส่งอีเมลเอกสารการเงิน</figcaption></figure>
+</div>
+<div class="fullstack">
+  <figure><img width="438" src="img/14.jpg" alt="การ์ดเอกสารการเงิน"><figcaption>การ์ดเอกสารการเงินก่อนกดสร้าง</figcaption></figure>
+  <figure class="fullw"><img width="950" src="img/15.jpg" alt="หน้าคำร้องของเจ้าหน้าที่"><figcaption>หน้าคำร้องของเจ้าหน้าที่: รายละเอียดและคณะกรรมการพร้อมอีเมลด้านบน ลำดับขั้นตอนทางซ้าย สรุปงานและการ์ดทางขวา</figcaption></figure>
+</div>
+
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">3</span><h3>ประธานหลักสูตรลงนาม บ.วศ.1ก</h3><span class="role r-chair">ประธานหลักสูตร</span></div>
+    <p class="thname">ประธานหลักสูตรลงนาม บ.วศ.1ก</p>
+    <p>ดาวน์โหลด บ.วศ.1 ลงนามในส่วน 1ก (หนึ่งตำแหน่ง) อัปโหลดไฟล์ที่ลงนามแล้ว ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b></p>
+    <div class="others"><b>ถัดไป:</b> นิสิตได้รับแจ้งว่าถึงคิวขั้นที่ 4 แต่ขั้นที่ 4 ต้องทำ<b>หลังสอบโครงร่างแล้ว</b>เท่านั้น</div>
+  </div>
+  <figure><img width="522" src="img/16.jpg" alt="การ์ดขั้นที่ 3"><figcaption>ขั้นที่ 3 — การ์ดของประธานหลักสูตร</figcaption></figure>
+</div>
+
+<h3 id="p2-s4">ขั้นที่ 4 · หลังสอบโครงร่าง</h3>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">4</span><h3>กรอก บ.วศ.1ค + 1ง</h3><span class="role r-student">นิสิต</span></div>
+    <p class="thname">หลังสอบโครงร่างแล้ว — นิสิตอัปโหลด บ.วศ.1 (กรอก บ.วศ.1ค + บ.วศ.1ง)</p>
+    <ol>
+      <li>ดาวน์โหลด บ.วศ.1 ฉบับล่าสุด ซึ่งมีลายมือชื่อประธานหลักสูตรแล้ว</li>
+      <li>กรอก 1ค และ 1ง ตามความเห็นของคณะกรรมการในการสอบ พิมพ์รายชื่อคณะกรรมการ แต่<b>เว้นช่องลงนามและวันที่ทั้งหมดว่างไว้</b></li>
+      <li>ตรวจสอบให้หัวข้อวิทยานิพนธ์ใน 1ง ตรงกับที่คณะกรรมการเห็นชอบทุกตัวอักษร เพราะหัวข้อนี้จะถูกส่งไปยังคณะฯ และลงทะเบียนในระบบของจุฬาฯ ตามที่เขียนไว้</li>
+      <li>อัปโหลดเป็นฉบับใหม่ ทำเครื่องหมายรายการตรวจสอบ 9 ข้อ แล้วกด <b>ส่งต่อ</b></li>
+    </ol>
+    <p>ไฟล์ที่อัปโหลดต้องใหม่กว่าการลงนามของประธานหลักสูตร ไฟล์เก่าจะไม่นับ</p>
+  </div>
+  <figure><img width="500" src="img/17.jpg" alt="การ์ดขั้นที่ 4"><figcaption>ขั้นที่ 4 — ดาวน์โหลดฉบับล่าสุด กรอก แล้วอัปโหลด</figcaption></figure>
+</div>
+
+<h3 id="p2-s5">ขั้นที่ 5.1–5.5 · คณะกรรมการลงนาม บ.วศ.1ค</h3>
+<p>ขั้นที่ 5 เป็นขั้นเดียวที่มีขั้นย่อยตามบทบาทของคณะกรรมการ เรียงตามลำดับที่กำหนดไว้ กรรมการแต่ละท่านลงนาม
+<b>หนึ่งตำแหน่ง</b>ใน บ.วศ.1ค ตามลำดับ: อาจารย์ที่ปรึกษา → อาจารย์ที่ปรึกษาร่วม → กรรมการสอบ → ประธานกรรมการสอบ → กรรมการภายนอก บทบาทที่มีหลายท่านจะลงนามทีละท่านตามลำดับที่นิสิตกำหนด
+และแต่ละท่านจะได้รับแจ้งเมื่อถึงคิวของตนเท่านั้น</p>
+<div class="step s5a">
+  <div>
+    <div class="step-head"><span class="num">5.1</span><h3>อาจารย์ที่ปรึกษา</h3><span class="role r-committee">คณะกรรมการ</span></div>
+    <p class="thname">อาจารย์ที่ปรึกษาลงนาม บ.วศ.1ค</p>
+    <p>การ์ดเหมือนของประธานหลักสูตร: ดาวน์โหลด ลงนาม อัปโหลด ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b> หากเอกสารไม่ถูกต้อง
+    ให้กด <b>ปฏิเสธ</b> และระบุสิ่งที่ต้องแก้ไข ในตัวอย่างนี้อาจารย์ที่ปรึกษาได้ปฏิเสธหนึ่งครั้ง
+    ดู <a href="#qa-reject">ถาม–ตอบ: ขั้นตอนถูกปฏิเสธ</a></p>
+  </div>
+  <figure><img width="522" src="img/18.jpg" alt="การ์ดขั้นที่ 5.1"><figcaption>ขั้นที่ 5.1 — การ์ดของอาจารย์ที่ปรึกษา</figcaption></figure>
+</div>
+<div class="step s5a">
+  <div>
+    <div class="step-head"><span class="num">5.2</span><h3>อาจารย์ที่ปรึกษาร่วม ตามลำดับ</h3><span class="role r-committee">คณะกรรมการ</span></div>
+    <p class="thname">อาจารย์ที่ปรึกษาร่วมลงนาม บ.วศ.1ค</p>
+    <p>การ์ดของขั้นที่มีหลายท่านจะใช้ชื่อบทบาทเป็นหัวข้อ แสดงความคืบหน้า (ลงนาม 0/2) และรายชื่อกรรมการ
+    ท่านที่ถึงคิวจะมีคำว่า <b>(ท่าน)</b> และ <b>กำลังรอ</b> ท่านที่ยังไม่ถึงคิวจะเห็นรายชื่อเดียวกันพร้อมข้อความให้รอ และยังกดปุ่มไม่ได้</p>
+    <p>หากนิสิตไม่ได้ระบุอาจารย์ที่ปรึกษาร่วม ขั้นย่อยนี้จะถูกข้ามทั้งหมดและไม่นับลำดับเลข</p>
+  </div>
+  <figure><img width="522" src="img/19.jpg" alt="การ์ดขั้นที่ 5.2"><figcaption>ขั้นที่ 5.2 — อาจารย์ที่ปรึกษาร่วมท่านแรกจากสองท่านกำลังลงนาม</figcaption></figure>
+</div>
+<div class="step s5b s5b-start">
+  <div>
+    <div class="step-head"><span class="num">5.4</span><h3>ประธานกรรมการสอบ</h3><span class="role r-committee">คณะกรรมการ</span></div>
+    <p class="thname">ประธานกรรมการสอบลงนาม บ.วศ.1ค</p>
+    <p>เลือกผลการสอบ <b>ผ่าน</b> หรือ <b>ไม่ผ่าน</b> ผลนี้จะบันทึกไว้ในลำดับขั้นตอนให้ทุกคนเห็น จากนั้นดาวน์โหลด
+    ลงนาม บ.วศ.1ค อัปโหลด ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b></p>
+    <div class="others"><b>ขั้นที่ 5.3 (กรรมการสอบ) และ 5.5 (กรรมการภายนอก)</b> ทำเช่นเดียวกับขั้นที่ 5.2
+    กรรมการสอบลงนามก่อนประธานกรรมการสอบ และกรรมการภายนอกลงนามท้ายสุด ในตัวอย่าง กรรมการสอบคือ อ.ดร.การุ แล้วจึงเป็น รศ.ดร.จิตติน</div>
+  </div>
+  <figure><img width="522" src="img/20.jpg" alt="การ์ดขั้นที่ 5.4"><figcaption>ขั้นที่ 5.4 — ปุ่มเลือกผลการสอบอยู่ด้านบนของการ์ด</figcaption></figure>
+</div>
+<div class="shots s5b">
+  <figure><img width="522" src="img/21.jpg" alt="การ์ดขั้นที่ 5.3"><figcaption>5.3 — กรรมการสอบท่านที่สอง (ลงนามแล้ว 1/2)</figcaption></figure>
+  <figure><img width="522" src="img/22.jpg" alt="การ์ดขั้นที่ 5.5"><figcaption>5.5 — กรรมการภายนอก ผู้ลงนามท่านสุดท้าย</figcaption></figure>
+</div>
+
+<h3 id="p2-s6">ขั้นที่ 6–10 · จากภาควิชาสู่คณะฯ</h3>
+<div class="step p6a">
+  <div>
+    <div class="step-head"><span class="num">6</span><h3>เจ้าหน้าที่ตรวจสอบ (รอบ 2)</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ตรวจสอบ (รอบ 2)</p>
+    <p>ดาวน์โหลด บ.วศ.1 ที่ลงนามครบแล้ว และตรวจว่ากรรมการลงนามใน 1ค ครบทุกท่าน 1ค และ 1ง ครบถ้วน
+    และหัวข้อใน 1ง ตรงตามความเห็นของคณะกรรมการ</p>
+    <div class="note"><b>แก้ไขชื่อหัวข้อวิทยานิพนธ์ในระบบ</b>ให้ตรงกับ บ.วศ.1ง ก่อนอนุมัติ โดยใช้ปุ่ม <b>แก้ไข</b>
+    ด้านบนของหน้าคำร้อง หัวข้อนี้จะพิมพ์ลงในบันทึกข้อความขั้นที่ 8 และนำไปใช้ในการสอบวิทยานิพนธ์</div>
+    <p>หากต้องให้ทำใหม่ ปุ่ม <b>ส่งกลับ</b> จะส่งคำร้องกลับไปยังผู้ลงนามก่อนหน้า</p>
+  </div>
+  <figure><img width="438" src="img/23.jpg" alt="การ์ดขั้นที่ 6"><figcaption>ขั้นที่ 6 — การตรวจสอบของเจ้าหน้าที่ก่อนประธานหลักสูตรลงนามครั้งสุดท้าย</figcaption></figure>
+</div>
+<div class="step p6a">
+  <div>
+    <div class="step-head"><span class="num">7</span><h3>ประธานหลักสูตรลงนาม 1ค + 1ง</h3><span class="role r-chair">ประธานหลักสูตร</span></div>
+    <p class="thname">ประธานหลักสูตรลงนาม บ.วศ.1ค + บ.วศ.1ง</p>
+    <p>ดาวน์โหลด ลงนามใน บ.วศ.1ค และ บ.วศ.1ง (แห่งละหนึ่งตำแหน่ง) อัปโหลด ทำเครื่องหมายทั้งสองข้อ แล้วกด <b>ส่งต่อ</b></p>
+  </div>
+  <figure><img width="522" src="img/24.jpg" alt="การ์ดขั้นที่ 7"><figcaption>ขั้นที่ 7 — ลงนามสองตำแหน่ง ตรวจสอบสองข้อ</figcaption></figure>
+</div>
+<div class="step p8">
+  <div>
+    <div class="step-head"><span class="num">8</span><h3>สร้างบันทึกข้อความ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ตรวจสอบเอกสารทั้งหมด และอัปโหลดบันทึกข้อความส่งคณะฯ</p>
+    <ol>
+      <li>กด <b>สร้างบันทึกข้อความ</b> ระบบจะกรอกบันทึกข้อความแบบหัวกระดาษภาควิชาด้วยวันที่ปัจจุบัน ชื่อนิสิต หลักสูตร หัวข้อ และชื่อหัวหน้าภาควิชา และแสดงข้อมูลที่ใช้กรอก</li>
+      <li>กด <b>ดาวน์โหลดบันทึกข้อความ (.docx)</b> ตรวจสอบใน Word แล้วบันทึกเป็น PDF (หากข้อมูลผิด ให้แก้ไขในคำร้องแล้วกด <b>สร้างใหม่จากข้อมูลในระบบ</b>)</li>
+      <li>เลือกไฟล์ PDF ในกล่องอัปโหลด (ยังไม่ลงนาม) ทำเครื่องหมาย 3 ข้อ แล้วกด <b>อนุมัติ</b></li>
+    </ol>
+    <div class="others"><b>ถัดไป:</b> หัวหน้าภาควิชาได้รับแจ้งให้ลงนามบันทึกข้อความ</div>
+  </div>
+  <figure><img width="438" src="img/25.jpg" alt="การ์ดขั้นที่ 8"><figcaption>ขั้นที่ 8 — สร้างบันทึกข้อความแล้ว ดาวน์โหลด แปลงเป็น PDF แล้วเลือกไฟล์ด้านล่าง</figcaption></figure>
+</div>
+<div class="step p9a p9-start">
+  <div>
+    <div class="step-head"><span class="num">9</span><h3>หัวหน้าภาควิชาลงนามบันทึกข้อความ</h3><span class="role r-dept">หัวหน้าภาควิชา</span></div>
+    <p class="thname">หัวหน้าภาควิชาลงนามบันทึกข้อความ</p>
+    <p>ดาวน์โหลดบันทึกข้อความ ลงนาม อัปโหลดไฟล์ PDF ที่ลงนามแล้ว (แทนฉบับที่ยังไม่ลงนาม) ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b></p>
+  </div>
+  <figure><img width="522" src="img/26.jpg" alt="การ์ดขั้นที่ 9"><figcaption>ขั้นที่ 9 — การ์ดของหัวหน้าภาควิชา</figcaption></figure>
+</div>
+<div class="step p9a">
+  <div>
+    <div class="step-head"><span class="num">10</span><h3>นำส่งคณะฯ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่นำส่งคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper</p>
+    <p>นำส่ง บ.วศ.1 และบันทึกข้อความที่ลงนามแล้ว (ทั้งสองไฟล์อยู่ในส่วน ①) ไปยังคณะฯ ผ่านระบบ LessPaper
+    อัปโหลดเอกสารที่มีเลขรับจากคณะฯ ทำเครื่องหมาย 3 ข้อ แล้วกด <b>อนุมัติ</b></p>
+    <div class="others"><b>ผลลัพธ์:</b> การสอบโครงร่างเปลี่ยนเป็น <b>เสร็จสิ้น</b> นิสิตได้รับแจ้ง และแท็บ
+    <b>สอบวิทยานิพนธ์</b> จะเตรียมคำร้องสอบวิทยานิพนธ์ให้</div>
+  </div>
+  <figure><img width="438" src="img/27.jpg" alt="การ์ดขั้นที่ 10"><figcaption>ขั้นที่ 10 — ขั้นสุดท้ายของการสอบโครงร่าง</figcaption></figure>
+</div>
+
+<!-- ============================ PART 3 ============================ -->
+<h2 class="part" id="part3"><small>ส่วนที่ 3</small>ขั้นตอนสอบวิทยานิพนธ์</h2>
+<p class="lead">การสอบวิทยานิพนธ์มี 17 ขั้นตอน ขั้นที่ 1–5 เตรียมการสอบ (ส่ง บ.2 และ บ.3 ไปคณะฯ) การสอบจัดขึ้นระหว่างขั้นที่ 5
+และขั้นที่ 6 ขั้นที่ 6–11 ส่งผลการสอบ และขั้นที่ 12–17 ส่งวิทยานิพนธ์และปิดท้ายในระบบ iThesis</p>
+
+<h3 id="p3-map">ภาพรวมขั้นตอน</h3>
+<div class="tablewrap"><table>
+<tr><th>ขั้น</th><th>ผู้ดำเนินการ</th><th>สิ่งที่ทำ</th></tr>
+<tr><td>1</td><td><span class="role r-student">นิสิต</span></td><td>อัปโหลด บ.2 (นิสิต อาจารย์ที่ปรึกษา และประธานกรรมการสอบลงนามแล้ว) + บ.3 ของกรรมการทุกท่าน</td></tr>
+<tr><td>2</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ตรวจสอบ สร้างเอกสารการเงิน แล้วอนุมัติ → ระบบส่งอีเมลถึงฝ่ายการเงิน</td></tr>
+<tr><td>3</td><td><span class="role r-chair">ประธานหลักสูตร</span></td><td>ลงนาม บ.2</td></tr>
+<tr><td>4</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>นำส่ง บ.2 + บ.3 ไปคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper</td></tr>
+<tr><td>5</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ส่งต่ออีเมลจากคณะฯ ให้นิสิต แล้วยืนยัน</td></tr>
+<tr><td colspan="3" style="text-align:center;color:var(--muted)">— สอบวิทยานิพนธ์ (นอกระบบ) —</td></tr>
+<tr><td>6</td><td><span class="role r-student">นิสิต</span></td><td>อัปโหลดแบบรายงานฯ (ลงนามแล้ว) ใบรายงานผลการสอบ (ฉบับว่าง) และแบบประเมินดีมาก</td></tr>
+<tr><td>7</td><td><span class="role r-committee">อาจารย์ที่ปรึกษา</span></td><td>เลือกผลการสอบ ลงนามแบบรายงานฯ กรอกและลงนามใบรายงานผลการสอบ</td></tr>
+<tr><td>8.1</td><td><span class="role r-committee">อาจารย์ที่ปรึกษาร่วม</span></td><td>ลงนามใบรายงานผลการสอบ ตามลำดับ (ข้ามไปหากไม่มี)</td></tr>
+<tr><td>8.2</td><td><span class="role r-committee">กรรมการสอบ</span></td><td>ลงนามใบรายงานผลการสอบ ตามลำดับ</td></tr>
+<tr><td>8.3</td><td><span class="role r-committee">ประธานกรรมการสอบ</span></td><td>ลงนามใบรายงานผลการสอบ</td></tr>
+<tr><td>8.4</td><td><span class="role r-committee">กรรมการภายนอก</span></td><td>ลงนามใบรายงานผลการสอบ ตามลำดับ</td></tr>
+<tr><td>9</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ตรวจสอบ สร้างบันทึกข้อความขอส่งผลสอบ แล้วอัปโหลดเป็น PDF</td></tr>
+<tr><td>10</td><td><span class="role r-dept">หัวหน้าภาควิชา</span></td><td>ลงนามใบรายงานผลการสอบ + บันทึกข้อความ</td></tr>
+<tr><td>11</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>นำส่งคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper</td></tr>
+<tr><td>12</td><td><span class="role r-student">นิสิต</span></td><td>อัปโหลด บ.4 + วิทยานิพนธ์ 5 หน้าแรก + เอกสารจากระบบ iThesis รวมเป็นไฟล์ PDF เดียว</td></tr>
+<tr><td>13</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ตรวจสอบไฟล์ บ.4 + วิทยานิพนธ์ + เอกสารจากระบบ iThesis</td></tr>
+<tr><td>14</td><td><span class="role r-dept">หัวหน้าภาควิชา</span></td><td>ลงนามเฉพาะหน้า บ.4 แล้วอัปโหลดทั้งไฟล์กลับ</td></tr>
+<tr><td>15</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>นำส่งไฟล์ บ.4 ไปคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper</td></tr>
+<tr><td>16</td><td><span class="role r-admin">เจ้าหน้าที่</span></td><td>ส่งต่อเอกสารจากคณะฯ (คณบดีลงนามแล้ว) ให้นิสิต</td></tr>
+<tr><td>17</td><td><span class="role r-student">นิสิต</span></td><td>ยืนยันว่าส่งเอกสารเข้าระบบ iThesis ครบแล้ว → <b>เสร็จสิ้น</b></td></tr>
+</table></div>
+
+<h3 id="p3-create">การสร้างคำร้อง <span class="role r-student">นิสิต</span></h3>
+<div class="step">
+  <div>
+    <p>เมื่อการสอบโครงร่างเสร็จสิ้นแล้ว การเปิดแท็บ <b>สอบวิทยานิพนธ์</b> จะสร้างฉบับร่างให้อัตโนมัติ
+    โดย<b>นำหัวข้อ ข้อมูลนิสิต และคณะกรรมการทั้งหมดมาจากคำร้องสอบโครงร่าง</b></p>
+    <ul>
+      <li>ยังแก้ไขคณะกรรมการได้ — เพิ่ม ลบ หรือเรียงลำดับใหม่ได้เช่นเดียวกับการสอบโครงร่าง การแก้ไขมีผลเฉพาะคำร้องสอบวิทยานิพนธ์ คำร้องสอบโครงร่างที่เสร็จแล้วจะไม่ถูกเปลี่ยน</li>
+      <li>ข้อมูลนิสิตและหลักสูตรมาจากคำร้องสอบโครงร่าง และแก้ไขในหน้านี้ไม่ได้</li>
+      <li>กรอกวันและเวลาสอบวิทยานิพนธ์ ความต้องการห้องประชุมและที่จอดรถ (พร้อมเลขทะเบียนรถหากต้องการที่จอดรถ) ทำเครื่องหมายยืนยัน แล้วกด <b>ยืนยัน — ขอสอบวิทยานิพนธ์</b></li>
+    </ul>
+    <div class="others"><b>ระหว่างนี้:</b> เมื่อยืนยันแล้ว ระบบจะแจ้งเจ้าหน้าที่ และขั้นที่ 1 จะเปิดให้นิสิตดำเนินการ</div>
+  </div>
+  <figure class="fit-draft"><img width="950" src="img/28.jpg" alt="ฉบับร่างคำร้องสอบวิทยานิพนธ์"><figcaption>ฉบับร่างคำร้องสอบวิทยานิพนธ์ ที่กรอกข้อมูลจากคำร้องสอบโครงร่างไว้แล้ว</figcaption></figure>
+</div>
+
+<h3 id="p3-s1">ขั้นที่ 1–5 · ก่อนสอบ</h3>
+<div class="step d1">
+  <div>
+    <div class="step-head"><span class="num">1</span><h3>อัปโหลด บ.2 + บ.3 ทุกฉบับ</h3><span class="role r-student">นิสิต</span></div>
+    <p class="thname">นิสิตอัปโหลด บ.2 + บ.3 ของกรรมการทุกท่าน</p>
+    <dl><dt>บ.2</dt><dd>กรอกครบถ้วน และลงนามโดยนิสิต อาจารย์ที่ปรึกษา และประธานกรรมการสอบ — นอกระบบ เว้นช่องลงนามของประธานหลักสูตรว่างไว้ ประธานหลักสูตรจะลงนามในขั้นที่ 3</dd>
+    <dt>บ.3</dt><dd>หนึ่งฉบับต่อกรรมการหนึ่งท่าน นิสิตกรอกข้อมูลของตน หัวข้อ รายชื่อคณะกรรมการ และวันที่ นิสิตและอาจารย์ที่ปรึกษาติดต่อกรรมการแต่ละท่านเพื่อประเมินและลงนาม ส่วนอัปโหลดจะแสดงกล่องหนึ่งกล่องต่อกรรมการหนึ่งท่าน พร้อมชื่อและบทบาท</dd></dl>
+    <p>ทำเครื่องหมายรายการตรวจสอบ 9 ข้อ แล้วกด <b>ส่งต่อ</b> ระบบจะไม่รับขั้นนี้จนกว่าจะมี บ.3 ของกรรมการครบทุกท่าน</p>
+  </div>
+  <figure><img width="500" src="img/29.jpg" alt="การ์ดขั้นที่ 1 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 1 — กล่อง บ.2 หนึ่งกล่อง ตามด้วยกล่อง บ.3 ของกรรมการแต่ละท่านทั้ง 7 ท่าน</figcaption></figure>
+</div>
+<div class="step d2 d-brk">
+  <div>
+    <div class="step-head"><span class="num">2</span><h3>ตรวจสอบและสร้างเอกสารการเงิน</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ตรวจรับ สร้างเอกสารการเงิน และอนุมัติ</p>
+    <p>เหมือนขั้นที่ 2 ของการสอบโครงร่าง: สร้างเอกสารการเงิน (แก้ไขและอัปโหลดใหม่ได้หากจำเป็น) ตรวจ บ.2 และ บ.3
+    ทุกฉบับ แล้วกด <b>อนุมัติ</b> การอนุมัติจะส่งอีเมลเอกสารการเงินถึงผู้รับเอกสารการเงิน</p>
+  </div>
+  <figure><img width="438" src="img/30.jpg" alt="การ์ดขั้นที่ 2 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 2 — การตรวจสอบของเจ้าหน้าที่</figcaption></figure>
+</div>
+<div class="step d3">
+  <div>
+    <div class="step-head"><span class="num">3</span><h3>ประธานหลักสูตรลงนาม บ.2</h3><span class="role r-chair">ประธานหลักสูตร</span></div>
+    <p class="thname">ประธานหลักสูตรลงนาม บ.2</p>
+    <p>ดาวน์โหลด บ.2 ลงนาม อัปโหลด ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b></p>
+  </div>
+  <figure><img width="522" src="img/31.jpg" alt="การ์ดขั้นที่ 3 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 3</figcaption></figure>
+</div>
+<div class="step d4 d-brk">
+  <div>
+    <div class="step-head"><span class="num">4</span><h3>นำส่ง บ.2 + บ.3 ไปคณะฯ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่นำส่ง บ.2 + บ.3 ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper</p>
+    <p>นำส่งเอกสารผ่านระบบ LessPaper อัปโหลดเอกสารที่มีเลขรับจากคณะฯ ทำเครื่องหมาย แล้วกด <b>อนุมัติ</b></p>
+  </div>
+  <figure><img width="438" src="img/32.jpg" alt="การ์ดขั้นที่ 4 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 4</figcaption></figure>
+</div>
+<div class="step d5">
+  <div>
+    <div class="step-head"><span class="num">5</span><h3>ส่งต่ออีเมลจากคณะฯ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ส่งต่ออีเมลจากคณะให้นิสิต</p>
+    <p>เมื่อคณะฯ ตอบกลับพร้อมเอกสารการสอบ (ใบรายงานผลการสอบ แบบรายงานฯ หนังสือเชิญ) ให้ส่งต่ออีเมลนั้นให้นิสิตนอกระบบ
+    แล้วยืนยันในระบบ ขั้นนี้ไม่มีการอัปโหลด</p>
+    <div class="others"><b>ถัดไป:</b> นิสิตสอบวิทยานิพนธ์ แล้วดำเนินการขั้นที่ 6 ด้วยแบบฟอร์มจากอีเมลนั้น</div>
+  </div>
+  <figure><img width="438" src="img/33.jpg" alt="การ์ดขั้นที่ 5 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 5 — ยืนยันเท่านั้น</figcaption></figure>
+</div>
+
+<h3 id="p3-s6">ขั้นที่ 6–8 · ผลการสอบ</h3>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">6</span><h3>อัปโหลดเอกสารหลังสอบ</h3><span class="role r-student">นิสิต</span></div>
+    <p class="thname">นิสิตอัปโหลดแบบรายงานฯ + ใบรายงานผลการสอบ (ฉบับว่าง) + แบบประเมินวิทยานิพนธ์ดีมาก</p>
+    <ul>
+      <li><b>แบบรายงานการเสนอผลงานฯ</b> — กรอกและลงนามโดยนิสิต เว้นช่องลงนามของอาจารย์ที่ปรึกษาว่างไว้</li>
+      <li><b>ใบรายงานผลการสอบ</b> — อัปโหลด<b>ฉบับว่าง</b> ไม่ต้องกรอกและไม่ต้องลงนาม อาจารย์ที่ปรึกษาจะเป็นผู้กรอก</li>
+      <li><b>แบบประเมินวิทยานิพนธ์ดีมาก</b> — อัปโหลดทุกกรณี: กรอกให้ครบหากผลการสอบเป็น ดีมาก หากไม่ใช่ให้อัปโหลดฉบับว่าง</li>
+    </ul>
+    <p>นิสิตไม่ต้องเลือกผลการสอบ อาจารย์ที่ปรึกษาเป็นผู้เลือกในขั้นที่ 7</p>
+  </div>
+  <figure><img width="500" src="img/34.jpg" alt="การ์ดขั้นที่ 6 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 6 — สามไฟล์</figcaption></figure>
+</div>
+<div class="step d7">
+  <div>
+    <div class="step-head"><span class="num">7</span><h3>อาจารย์ที่ปรึกษาบันทึกผลการสอบ</h3><span class="role r-committee">อาจารย์ที่ปรึกษา</span></div>
+    <p class="thname">อาจารย์ที่ปรึกษาเลือกผลการสอบ + ลงนามแบบรายงานฯ + กรอกและลงนามใบรายงานผล</p>
+    <ol>
+      <li>เลือกผลการสอบ: <b>ดีมาก</b> <b>ดี</b> <b>ผ่าน</b> หรือ <b>ไม่ผ่าน</b> ผลจะแสดงในลำดับขั้นตอน</li>
+      <li>ดาวน์โหลดไฟล์ของนิสิต ลงนามในแบบรายงานฯ <b>กรอกใบรายงานผลการสอบให้ครบถ้วน</b>และลงนาม หากผลเป็น ดีมาก ให้ตรวจแบบประเมินของนิสิตด้วย</li>
+      <li>อัปโหลดไฟล์ที่ลงนามแล้วทั้งสองไฟล์ ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b></li>
+    </ol>
+    <p>หากเอกสารของนิสิตไม่ถูกต้อง ให้กด <b>ปฏิเสธ</b> นิสิตจะอัปโหลดใหม่และยื่นอีกครั้ง</p>
+    <div class="others"><b>ถัดไป:</b> คณะกรรมการลงนามในใบรายงานผลการสอบฉบับที่อาจารย์ที่ปรึกษากรอก</div>
+  </div>
+  <figure><img width="522" src="img/35.jpg" alt="การ์ดขั้นที่ 7 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 7 — เลือกผล ดีมาก แล้ว กล่องสีม่วงเตือนให้ตรวจแบบประเมิน</figcaption></figure>
+</div>
+<div class="step d8">
+  <div>
+    <div class="step-head"><span class="num">8.x</span><h3>คณะกรรมการลงนามใบรายงานผลการสอบ</h3><span class="role r-committee">คณะกรรมการ</span></div>
+    <p class="thname">8.1 อาจารย์ที่ปรึกษาร่วม → 8.2 กรรมการสอบ → 8.3 ประธานกรรมการสอบ → 8.4 กรรมการภายนอก</p>
+    <p>กรรมการแต่ละท่านดาวน์โหลดใบรายงานผลการสอบฉบับล่าสุด ลงนามในตำแหน่งของตน อัปโหลด ทำเครื่องหมาย
+    "ท่านลงนามในใบรายงานผลการสอบแล้ว" แล้วกด <b>ส่งต่อ</b> บทบาทที่มีหลายท่านลงนามตามลำดับรายชื่อ
+    เช่นเดียวกับขั้นที่ 5 ของการสอบโครงร่าง (อาจารย์ที่ปรึกษาลงนามไปแล้วในขั้นที่ 7)</p>
+    <p>ประธานหลักสูตรและนิสิตไม่ต้องลงนามในใบรายงานผลการสอบ</p>
+  </div>
+  <figure><img width="522" src="img/36.jpg" alt="การ์ดขั้นที่ 8.3"><figcaption>8.3 — ประธานกรรมการสอบ</figcaption></figure>
+</div>
+<div class="shots d8grid">
+  <figure><img width="522" src="img/37.jpg" alt="8.1"><figcaption>8.1 — อาจารย์ที่ปรึกษาร่วมท่านที่สอง (ลงนามแล้ว 1/2)</figcaption></figure>
+  <figure><img width="522" src="img/38.jpg" alt="8.4"><figcaption>8.4 — กรรมการภายนอก ผู้ลงนามท่านสุดท้าย</figcaption></figure>
+</div>
+
+<h3 id="p3-s9">ขั้นที่ 9–11 · ส่งผลสอบไปคณะฯ</h3>
+<div class="step d9">
+  <div>
+    <div class="step-head"><span class="num">9</span><h3>ตรวจสอบและสร้างบันทึกข้อความขอส่งผลสอบ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ตรวจสอบเอกสารผลการสอบ และอัปโหลดบันทึกข้อความขอส่งผลสอบ</p>
+    <p>ตรวจใบรายงานผลการสอบที่คณะกรรมการลงนามครบ และแบบรายงานฯ หากอาจารย์ที่ปรึกษาเลือกผล ดีมาก
+    การ์ดงานจะมีกล่องสีม่วงเตือนให้ตรวจแบบประเมินวิทยานิพนธ์ดีมากด้วย จากนั้นสร้างบันทึกข้อความ ("ขอส่งผลสอบวิทยานิพนธ์")
+    เช่นเดียวกับขั้นที่ 8 ของการสอบโครงร่าง: <b>สร้างบันทึกข้อความ</b> → ดาวน์โหลด .docx → บันทึกเป็น PDF →
+    เลือกไฟล์ → ทำเครื่องหมาย → <b>อนุมัติ</b></p>
+  </div>
+  <figure><img width="438" src="img/39.jpg" alt="การ์ดขั้นที่ 9 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 9 — สร้างบันทึกข้อความขอส่งผลสอบแล้ว</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">10</span><h3>หัวหน้าภาควิชาลงนาม</h3><span class="role r-dept">หัวหน้าภาควิชา</span></div>
+    <p class="thname">หัวหน้าภาควิชาลงนาม ใบรายงานผล + บันทึกข้อความ</p>
+    <p>มีเอกสารสองฉบับ: ดาวน์โหลดบันทึกข้อความและใบรายงานผลการสอบ ลงนามทั้งสองฉบับ อัปโหลดทั้งสองไฟล์
+    ทำเครื่องหมายทั้งสองข้อ แล้วกด <b>ส่งต่อ</b></p>
+  </div>
+  <figure><img width="522" src="img/40.jpg" alt="การ์ดขั้นที่ 10 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 10 — อัปโหลดสองไฟล์ ตรวจสอบสองข้อ</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">11</span><h3>นำส่งผลการสอบไปคณะฯ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่นำส่งใบรายงานผลการสอบพร้อมบันทึกข้อความไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper</p>
+    <p>นำส่งใบรายงานผลการสอบและบันทึกข้อความที่ลงนามแล้วผ่านระบบ LessPaper อัปโหลดเอกสารเลขรับฉบับใหม่
+    ทำเครื่องหมาย แล้วกด <b>อนุมัติ</b></p>
+  </div>
+  <figure><img width="438" src="img/41.jpg" alt="การ์ดขั้นที่ 11 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 11</figcaption></figure>
+</div>
+
+<h3 id="p3-s12">ขั้นที่ 12–17 · ส่งวิทยานิพนธ์และ iThesis</h3>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">12</span><h3>อัปโหลด บ.4 วิทยานิพนธ์ และเอกสารจาก iThesis</h3><span class="role r-student">นิสิต</span></div>
+    <p class="thname">นิสิตอัปโหลด บ.4 + วิทยานิพนธ์ 5 หน้าแรก + เอกสารจากระบบ iThesis (ไฟล์เดียว)</p>
+    <p>รวมเอกสารทั้งสามส่วนเป็น<b>ไฟล์ PDF ไฟล์เดียว</b> เรียงตามลำดับ แล้วอัปโหลดในกล่อง บ.4:</p>
+    <ol>
+      <li><b>บ.4</b> — กรอกครบถ้วนและลงนามโดยนิสิต</li>
+      <li><b>วิทยานิพนธ์ — เฉพาะ 5 หน้าแรก</b> ที่ดาวน์โหลดจาก iThesis: ปกภาษาไทย ปกภาษาอังกฤษ หน้าลายมือชื่อคณะกรรมการสอบ บทคัดย่อภาษาไทย และบทคัดย่อภาษาอังกฤษ ต้องมีบาร์โค้ดจาก iThesis และ<b>ลายมือชื่อคณะกรรมการสอบครบทุกท่าน</b> ซึ่งรวบรวมนอกระบบ</li>
+      <li><b>DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS</b> — เอกสาร 2 หน้าจาก iThesis ที่นิสิตและอาจารย์ที่ปรึกษาลงนามแล้ว</li>
+    </ol>
+    <p>ห้ามแก้ไขวิทยานิพนธ์ในระบบ iThesis หลังดาวน์โหลดแล้ว ทำเครื่องหมายรายการตรวจสอบ 11 ข้อ แล้วกด <b>ส่งต่อ</b></p>
+  </div>
+  <figure><img width="500" src="img/42.jpg" alt="การ์ดขั้นที่ 12 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 12</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">13</span><h3>ตรวจสอบไฟล์ บ.4</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ตรวจสอบ บ.4 + วิทยานิพนธ์ + เอกสารจากระบบ iThesis</p>
+    <p>ตรวจไฟล์ที่นิสิตอัปโหลดทั้งสามส่วน (บ.4 วิทยานิพนธ์ 5 หน้าแรก และเอกสาร DOCUMENTS FOR SUBMISSION OF COMPLETE THESIS)
+    ทำเครื่องหมายรายการตรวจสอบ 4 ข้อ แล้วกด <b>อนุมัติ</b></p>
+    <p>หากเอกสารไม่ถูกต้อง ปุ่ม <b>ส่งกลับ</b> จะส่งคำร้องกลับไปให้นิสิตแก้ไข</p>
+  </div>
+  <figure><img width="438" src="img/43.jpg" alt="การ์ดขั้นที่ 13 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 13 — การตรวจสอบของเจ้าหน้าที่</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">14</span><h3>หัวหน้าภาควิชาลงนาม บ.4</h3><span class="role r-dept">หัวหน้าภาควิชา</span></div>
+    <p class="thname">หัวหน้าภาควิชาลงนาม บ.4</p>
+    <p>ดาวน์โหลดไฟล์ บ.4 ลงนาม<b>เฉพาะหน้า บ.4</b> (ไม่ใช่วิทยานิพนธ์หรือเอกสารจาก iThesis) แล้วอัปโหลด<b>ทั้งไฟล์</b>กลับเป็นฉบับใหม่ ทำเครื่องหมาย แล้วกด <b>ส่งต่อ</b></p>
+  </div>
+  <figure><img width="522" src="img/44.jpg" alt="การ์ดขั้นที่ 14 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 14 — หัวหน้าภาควิชาลงนาม บ.4</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">15</span><h3>นำส่งไฟล์ บ.4 ไปคณะฯ</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่นำส่ง บ.4 + วิทยานิพนธ์ไปคณะ และอัปโหลดเอกสารเลขรับ LessPaper</p>
+    <p>นำส่งไฟล์ บ.4 ที่หัวหน้าภาควิชาลงนามแล้ว (ไฟล์เดียวในส่วน ① ซึ่งรวมวิทยานิพนธ์และเอกสารจาก iThesis ไว้แล้ว) ไปยังคณะฯ ผ่านระบบ LessPaper
+    อัปโหลดเอกสารเลขรับฉบับใหม่ ทำเครื่องหมาย 2 ข้อ แล้วกด <b>อนุมัติ</b></p>
+  </div>
+  <figure><img width="438" src="img/45.jpg" alt="การ์ดขั้นที่ 15 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 15 — นำส่งคณะฯ และอัปโหลดเอกสารเลขรับ LessPaper</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">16</span><h3>ส่งต่อเอกสารที่คณบดีลงนามแล้ว</h3><span class="role r-admin">เจ้าหน้าที่</span></div>
+    <p class="thname">เจ้าหน้าที่ส่งต่อเอกสารจากคณะ (คณบดีลงนามแล้ว) ให้นิสิต</p>
+    <p>เมื่อคณะฯ ส่งเอกสารที่คณบดีลงนามแล้วกลับมา ให้ส่งต่อให้นิสิต แล้วยืนยันในระบบ</p>
+  </div>
+  <figure><img width="438" src="img/46.jpg" alt="การ์ดขั้นที่ 16 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 16 — ยืนยันเท่านั้น</figcaption></figure>
+</div>
+<div class="step">
+  <div>
+    <div class="step-head"><span class="num">17</span><h3>ยืนยันการส่งเข้า iThesis</h3><span class="role r-student">นิสิต</span></div>
+    <p class="thname">นิสิตยืนยันการส่งเอกสารเข้าระบบ iThesis</p>
+    <p>ส่งเอกสารที่ต้องใช้ทั้งหมดเข้าระบบ iThesis แล้วทำเครื่องหมายยืนยันและกด <b>ยืนยัน</b> ขั้นนี้ไม่มีการอัปโหลด
+    คำร้องสอบวิทยานิพนธ์จะเปลี่ยนเป็น <b>เสร็จสิ้น</b></p>
+  </div>
+  <figure><img width="500" src="img/47.jpg" alt="การ์ดขั้นที่ 17 สอบวิทยานิพนธ์"><figcaption>ขั้นที่ 17 — ขั้นสุดท้าย</figcaption></figure>
+</div>
+<div class="full"><figure><img width="950" src="img/48.jpg" alt="คำร้องสอบวิทยานิพนธ์ที่เสร็จสิ้น"><figcaption>คำร้องสอบวิทยานิพนธ์ที่เสร็จสิ้นแล้ว ในหน้าแรกของนิสิต</figcaption></figure></div>
+
+<!-- ============================ PART 4 ============================ -->
+<h2 class="part" id="part4"><small>ส่วนที่ 4</small>ถาม–ตอบ</h2>
+
+<h3>บัญชีผู้ใช้และการเข้าสู่ระบบ</h3>
+<details class="qa"><summary>ลืมรหัสเข้าใช้งาน</summary>
+<p>ติดต่อเจ้าหน้าที่ภาควิชา เจ้าหน้าที่จะรีเซ็ตรหัสจากรายชื่อผู้ใช้งาน และระบบจะส่งรหัสใหม่ไปทางอีเมล
+ไม่มีการรีเซ็ตรหัสด้วยตนเอง</p></details>
+<details class="qa"><summary>จะได้บัญชีผู้ใช้อย่างไร</summary>
+<p>เจ้าหน้าที่ภาควิชาเป็นผู้สร้างบัญชีทุกบัญชี บัญชีนิสิตสร้างก่อนยื่นคำร้องครั้งแรก กรรมการภายนอกจะได้บัญชี
+เมื่อเจ้าหน้าที่อนุมัติคำขอของนิสิต (ดูข้อถัดไป)</p></details>
+<details class="qa" id="qa-external"><summary>ไม่พบชื่อกรรมการภายนอกในรายชื่อ</summary>
+<p>กรรมการภายนอกต้อง<b>ได้รับการอนุมัติในระบบ iThesis แล้ว</b>ก่อนจึงจะยื่นคำขอได้ ในหน้าแรกของนิสิต เปิดแท็บ <b>กรรมการภายนอก</b> แล้วกรอกคำนำหน้าชื่อ ชื่อ-นามสกุล อีเมล สังกัด และเบอร์โทรศัพท์
+ของกรรมการ เจ้าหน้าที่จะพิจารณาในแท็บจัดการผู้ใช้งาน เมื่ออนุมัติแล้ว บัญชีจะถูกสร้าง กรรมการจะได้รับอีเมลต้อนรับพร้อมรหัสเข้าใช้งาน
+และนิสิตเลือกชื่อนั้นในรายชื่อคณะกรรมการได้ นิสิตจะได้รับแจ้งผลการพิจารณาไม่ว่าจะอนุมัติหรือไม่ ส่วนบัญชีอาจารย์ภายใน
+เจ้าหน้าที่เป็นผู้สร้างโดยตรง หากไม่พบชื่ออาจารย์ กรุณาติดต่อเจ้าหน้าที่</p>
+<figure class="full"><img width="950" src="img/49.jpg" alt="แท็บกรรมการภายนอก"><figcaption>แท็บกรรมการภายนอก กล่องสีเหลืองแจ้งว่ากรรมการต้องได้รับการอนุมัติในระบบ iThesis ก่อน</figcaption></figure></details>
+<details class="qa"><summary>ทำไมลิงก์ในอีเมลพาไปหน้าเข้าสู่ระบบ ไม่ใช่หน้าคำร้อง</summary>
+<p>เพื่อความปลอดภัย อีเมลจะไม่พาเข้าสู่ระบบโดยอัตโนมัติ ให้เข้าสู่ระบบด้วยอีเมลและรหัสเข้าใช้งาน
+แล้วใช้กระดิ่งแจ้งเตือนเพื่อไปยังคำร้องได้ทันที</p></details>
+
+<h3>คณะกรรมการ</h3>
+<details class="qa" id="qa-degree"><summary>ทำไมเลือกบุคคลนี้ในบทบาทนี้ไม่ได้</summary>
+<p>ประเภทบัญชีที่ดำรงแต่ละบทบาทได้ขึ้นอยู่กับระดับปริญญา:</p>
+<div class="tablewrap"><table>
+<tr><th>บทบาท</th><th>ปริญญาโท</th><th>ปริญญาเอก</th><th>จำนวน</th></tr>
+<tr><td>อาจารย์ที่ปรึกษา</td><td>อาจารย์ภายใน</td><td>อาจารย์ภายใน</td><td>1 ท่าน</td></tr>
+<tr><td>อาจารย์ที่ปรึกษาร่วม</td><td>อาจารย์ภายในหรือกรรมการภายนอก</td><td>อาจารย์ภายในหรือกรรมการภายนอก</td><td>0 ท่านขึ้นไป</td></tr>
+<tr><td>ประธานกรรมการสอบ</td><td>อาจารย์ภายในหรือกรรมการภายนอก</td><td><b>กรรมการภายนอกเท่านั้น</b></td><td>1 ท่าน</td></tr>
+<tr><td>กรรมการสอบ</td><td>อาจารย์ภายใน</td><td>อาจารย์ภายใน</td><td>1 ท่านขึ้นไป</td></tr>
+<tr><td>กรรมการภายนอก</td><td>กรรมการภายนอก</td><td>กรรมการภายนอก</td><td>1 ท่านขึ้นไป</td></tr>
+</table></div>
+<p>นอกจากนี้ บุคคลที่ถูกเลือกในบทบาทหนึ่งแล้วจะไม่แสดงในบทบาทอื่น เพราะหนึ่งคนดำรงได้หนึ่งตำแหน่ง
+ยกเว้นประธานหลักสูตรที่ดำรงตำแหน่งอื่นได้อีกหนึ่งตำแหน่ง</p></details>
+<details class="qa"><summary>แถวคณะกรรมการเป็นสีแดงเมื่อเปิดฉบับร่างอีกครั้ง</summary>
+<p>บุคคลในแถวนั้นใช้ไม่ได้แล้ว — บัญชีถูกลบ หรือท่านเปลี่ยนหลักสูตรจนบุคคลนั้นไม่ตรงเงื่อนไขของบทบาท
+(เช่น ประธานกรรมการสอบที่เป็นอาจารย์ภายใน หลังเปลี่ยนเป็นปริญญาเอก) ให้เลือกบุคคลอื่นหรือลบแถวนั้น
+ระบบจะไม่ให้บันทึกหรือยืนยันฉบับร่างจนกว่าจะแก้ไข เพื่อไม่ให้รายชื่อหายไปโดยไม่รู้ตัว</p></details>
+<details class="qa"><summary>ใครเป็นผู้กำหนดลำดับการลงนาม</summary>
+<p>ลำดับแถวในรายชื่อคณะกรรมการ ลากที่จับของแถวเพื่อเปลี่ยนลำดับก่อนยืนยัน หลังจากคำร้องเริ่มดำเนินการแล้ว
+มีเพียงเจ้าหน้าที่ที่แก้ไขคณะกรรมการได้ (ใช้ส่วนแก้ไขแบบเดียวกัน) ขั้นที่ยังไม่เสร็จจะปรับตามรายชื่อใหม่
+และการลงนามของผู้ที่ยังอยู่ในรายชื่อจะยังคงอยู่</p></details>
+<details class="qa"><summary>ใครเป็นประธานหลักสูตรในคำร้องของฉัน</summary>
+<p>ระบบกำหนดให้อัตโนมัติตามหลักสูตรของท่าน ตามที่เจ้าหน้าที่ตั้งไว้ในแท็บตั้งค่าระบบ นิสิตเปลี่ยนเองไม่ได้
+หากช่องนี้แจ้งว่ายังไม่มีประธานหลักสูตร กรุณาติดต่อเจ้าหน้าที่ เพราะจะยืนยันคำร้องไม่ได้จนกว่าจะมี</p></details>
+
+<h3>การดำเนินคำร้อง</h3>
+<details class="qa" id="qa-reject"><summary>ขั้นตอนถูกปฏิเสธ จะเกิดอะไรขึ้น</summary>
+<p>เมื่อผู้พิจารณากด <b>ปฏิเสธ</b> ต้องระบุเหตุผล คำร้องจะยังอยู่ที่ขั้นเดิมและเปลี่ยนเป็น <b>ถูกปฏิเสธ</b>
+นิสิตจะเห็นกล่องสีแดงระบุผู้ปฏิเสธและเหตุผล พร้อมการ์ด <b>แก้ไขเอกสาร</b> ให้แก้ไขเอกสาร อัปโหลดในการ์ดนั้น
+แล้วกด <b>ยื่นใหม่อีกครั้ง</b> ผู้พิจารณาท่านเดิมจะได้รับแจ้งและพิจารณาขั้นนั้นอีกครั้ง คำร้องจะไม่ย้อนกลับไปเริ่มต้นใหม่</p>
+<div class="shots">
+  <figure><img width="522" src="img/50.jpg" alt="ฟอร์มปฏิเสธ"><figcaption>1 · อาจารย์ที่ปรึกษากดปฏิเสธและระบุเหตุผล</figcaption></figure>
+  <figure><img width="950" src="img/51.jpg" alt="นิสิตเห็นการปฏิเสธ"><figcaption>2 · นิสิตเห็นเหตุผลและการ์ดแก้ไขเอกสาร</figcaption></figure>
+  <figure><img width="500" src="img/52.jpg" alt="ยื่นใหม่"><figcaption>3 · อัปโหลดไฟล์ที่แก้ไขแล้ว และกดยื่นใหม่อีกครั้ง</figcaption></figure>
+</div></details>
+<details class="qa"><summary>ส่งกลับ คืออะไร</summary>
+<p>เป็นการดำเนินการของเจ้าหน้าที่เท่านั้น เปิดขั้นปัจจุบัน<b>และขั้นก่อนหน้า</b>ใหม่ ผู้ดำเนินการขั้นก่อนหน้าต้องทำอีกครั้ง
+เช่น เมื่อผู้ลงนามอัปโหลดไฟล์ผิด เจ้าหน้าที่ยังเปิดขั้นก่อนหน้าใดก็ได้ใหม่จาก "จัดการแต่ละขั้นตอน" ในหน้าคำร้อง
+เหตุผลไม่บังคับและจะแสดงในการแจ้งเตือน</p>
+<p>ผู้ลงนามที่ถูกส่งกลับไม่ต้องอัปโหลดใหม่หากไฟล์เดิมถูกต้องแล้ว การ์ดจะแสดงไฟล์ที่ท่านอัปโหลดไว้ก่อนหน้า
+ให้กด <b>เปลี่ยนไฟล์</b> เฉพาะเมื่อต้องการแก้ไข (ยกเว้นขั้นที่มีผู้ลงนามหลายท่าน ซึ่งต้องเลือกไฟล์ใหม่ทุกครั้ง)</p></details>
+<details class="qa"><summary>ปุ่มสีเขียวเป็นสีเทาและกดไม่ได้</summary>
+<p>ต้องเลือกไฟล์ที่ต้องใช้ครบและทำเครื่องหมายรายการตรวจสอบครบทุกข้อ ในการ์ดของนิสิตและเจ้าหน้าที่ ข้อความสีเหลืองเหนือปุ่มจะบอกว่ายังขาดอะไร
+ในขั้นที่ 4 ของการสอบโครงร่างและบางขั้นต่อจากนั้น ไฟล์ต้องใหม่กว่าขั้นก่อนหน้าด้วย หากเลือกไฟล์เก่าไว้ ให้เลือกใหม่</p></details>
+<details class="qa"><summary>เลือกไฟล์ผิด</summary>
+<p>ก่อนกดปุ่ม ให้กด <b>× เลือกไฟล์ใหม่</b> แล้วเลือกอีกครั้ง ไฟล์ยังไม่ถูกอัปโหลดจนกว่าจะกดปุ่ม หากกดปุ่มไปแล้ว
+ไฟล์จะถูกอัปโหลด ให้แจ้งผู้พิจารณาขั้นถัดไปให้ปฏิเสธ (หรือแจ้งเจ้าหน้าที่ให้ส่งกลับ) เพื่ออัปโหลดไฟล์ที่ถูกต้อง
+ฉบับก่อนหน้าทั้งหมดยังดูได้ในประวัติ</p></details>
+<details class="qa"><summary>มีกรรมการหลายท่านในบทบาทเดียวกัน ทำไมยังลงนามไม่ได้</summary>
+<p>กรรมการลงนามทีละท่านตามลำดับรายชื่อ การ์ดของท่านแสดงรายชื่อทั้งหมด เมื่อท่านก่อนหน้าลงนามแล้ว
+ท่านจะได้รับแจ้ง "ถึงคิวของท่าน" ทางอีเมลและกระดิ่งแจ้งเตือน</p></details>
+<details class="qa"><summary>จะยกเลิกคำร้องได้อย่างไร</summary>
+<p>กด <b>ขอยกเลิกคำร้องนี้</b> ใต้คำร้อง ซึ่งเป็นเพียงการส่งคำขอถึงเจ้าหน้าที่ คำร้องจะแสดง "รออนุมัติยกเลิก"
+และหยุดการดำเนินการทั้งหมดจนกว่าเจ้าหน้าที่จะอนุมัติหรือไม่อนุมัติ หากอนุมัติ คำร้องจะเป็น ยกเลิกแล้ว และ (กรณีสอบโครงร่าง)
+นิสิตเริ่มคำร้องใหม่ได้ การยกเลิกคำร้องสอบโครงร่างจะยกเลิกคำร้องสอบวิทยานิพนธ์ที่สร้างจากคำร้องนั้นและยังไม่เสร็จไปด้วย หากไม่อนุมัติ คำร้องจะดำเนินต่อจากเดิม คำร้องที่เสร็จสิ้นแล้วยกเลิกไม่ได้</p></details>
+
+<h3>เอกสาร</h3>
+<details class="qa"><summary>หาแบบฟอร์มเปล่าได้ที่ไหน</summary>
+<p>จากหน้าดาวน์โหลดของภาควิชา <a href="https://me.eng.chula.ac.th/download/">me.eng.chula.ac.th/download</a>
+(กล่องอัปโหลดมีลิงก์ไปยังหน้านี้) ส่วนแบบฟอร์มหลังสอบวิทยานิพนธ์ — แบบรายงานฯ และใบรายงานผลการสอบ —
+มาในอีเมลของคณะฯ ที่เจ้าหน้าที่ส่งต่อให้ในขั้นที่ 5 ของการสอบวิทยานิพนธ์</p></details>
+<details class="qa"><summary>ระบบลงนามในเอกสารให้หรือไม่</summary>
+<p>ไม่ ให้ลงนามในไฟล์ PDF ที่ดาวน์โหลดด้วยตนเอง (ลายมือชื่ออิเล็กทรอนิกส์ หรือพิมพ์ ลงนาม แล้วสแกน)
+บันทึกเป็น PDF แล้วอัปโหลด รายการตรวจสอบเป็นการยืนยันว่าท่านลงนามในส่วนใดแล้ว</p></details>
+<details class="qa"><summary>ทำไมนิสิตไม่เห็นเอกสารการเงิน</summary>
+<p>เอกสารการเงินของคณะกรรมการเป็นเอกสารภายในของภาควิชาและฝ่ายการเงิน จึงซ่อนจากนิสิตโดยเจตนา</p></details>
+<details class="qa"><summary>เอกสารเลขรับ LessPaper คืออะไร</summary>
+<p>ระบบ LessPaper ของคณะฯ จะประทับเลขรับให้กับเอกสารแต่ละชุดที่เจ้าหน้าที่นำส่ง เจ้าหน้าที่อัปโหลดเอกสารที่มีเลขรับนั้น
+ในทุกขั้นนำส่ง (ขั้นที่ 10 ของการสอบโครงร่าง และขั้นที่ 4, 11 และ 15 ของการสอบวิทยานิพนธ์) เป็นหลักฐานการนำส่ง</p></details>
+<details class="qa"><summary>กรณีผลการสอบ ดีมาก ต้องทำอะไรเพิ่ม</summary>
+<p>นิสิตกรอกแบบประเมินวิทยานิพนธ์ดีมาก (ในขั้นที่ 6 ของการสอบวิทยานิพนธ์ต้องอัปโหลดแบบนี้ทุกกรณี —
+เป็นฉบับว่างหากผลไม่ใช่ ดีมาก) อาจารย์ที่ปรึกษายืนยันในขั้นที่ 7 และเจ้าหน้าที่ตรวจในขั้นที่ 9</p></details>
+<details class="qa"><summary>ใครเห็นคำร้องของฉันได้บ้าง</summary>
+<p>นิสิตเจ้าของคำร้อง คณะกรรมการทุกท่านในคำร้อง ประธานหลักสูตร หัวหน้าภาควิชา และเจ้าหน้าที่ภาควิชา
+ผู้ดูแลระบบสูงสุดเห็นรายการคำร้องทั้งหมดได้เช่นกัน แต่ดูได้อย่างเดียว ไม่มีสิทธิ์ดำเนินการใด ๆ ในคำร้อง ไม่มีผู้อื่น</p></details>
+</main>
+</body>
+</html>

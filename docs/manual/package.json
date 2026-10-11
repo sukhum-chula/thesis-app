@@ -1,0 +1,12 @@
+{
+  "name": "thesis-app-manual",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "pagedjs": "0.4.3",
+    "playwright-core": "1.63.0"
+  }
+}
