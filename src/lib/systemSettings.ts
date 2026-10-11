@@ -11,6 +11,7 @@ const PROGRAM_CHAIR_PREFIX = "programChair:";
 const FINANCE_CONTACT_KEY = "financeContact";
 const DEPARTMENT_CHAIR_KEY = "departmentChair";
 const COMMITTEE_RULES_KEY = "committeeRules";
+const MAIN_ADMIN_KEY = "mainAdmin";
 
 const programChairKey = (program: string) => `${PROGRAM_CHAIR_PREFIX}${program}`;
 
@@ -96,6 +97,23 @@ export async function setFinanceContact(userId: string | null): Promise<void> {
   });
 }
 
+// ผู้รับผิดชอบหลัก — one ADMIN account, for the places that need a named staff member rather than
+// the generic "เจ้าหน้าที่ภาควิชา" (which the UI uses everywhere else). Display only: every ADMIN
+// can still act on every ADMIN step.
+export async function getMainAdminUserId(): Promise<string | null> {
+  const row = await prisma.systemSetting.findUnique({ where: { key: MAIN_ADMIN_KEY } });
+  return row?.userId ?? null;
+}
+
+// The row is never deleted — clearing (userId: null) just upserts a null value.
+export async function setMainAdmin(userId: string | null): Promise<void> {
+  await prisma.systemSetting.upsert({
+    where: { key: MAIN_ADMIN_KEY },
+    update: { userId },
+    create: { key: MAIN_ADMIN_KEY, userId },
+  });
+}
+
 // The committee composition table (src/lib/committeeRules.ts). No row yet = the built-in
 // defaults, which are the rules as they were hard-coded before 2026-10-11.
 export async function getCommitteeRules(): Promise<CommitteeRules> {
@@ -121,17 +139,18 @@ export async function clearUserFromSystemSettings(userId: string): Promise<void>
 }
 
 // Decorates already-fetched users with the computed programChairFor/isFinanceContact/
-// isDepartmentChair fields the
+// isDepartmentChair/isMainAdmin fields the
 // rest of the app (client-side MockUser objects, session/JWT) expects — sourced from
 // SystemSetting instead of a column. Used by GET /api/users and auth.ts.
 // programChairFor is an array since one professor may chair several programs at once.
 export async function attachSystemSettings<T extends { id: string }>(
   users: T[]
-): Promise<(T & { programChairFor: string[]; isFinanceContact: boolean; isDepartmentChair: boolean })[]> {
-  const [chairs, financeContactUserId, departmentChairUserId] = await Promise.all([
+): Promise<(T & { programChairFor: string[]; isFinanceContact: boolean; isDepartmentChair: boolean; isMainAdmin: boolean })[]> {
+  const [chairs, financeContactUserId, departmentChairUserId, mainAdminUserId] = await Promise.all([
     getAllProgramChairs(),
     getFinanceContactUserId(),
     getDepartmentChairUserId(),
+    getMainAdminUserId(),
   ]);
   const chairsByUserId = new Map<string, string[]>();
   for (const [program, userId] of Object.entries(chairs)) {
@@ -144,5 +163,6 @@ export async function attachSystemSettings<T extends { id: string }>(
     programChairFor: chairsByUserId.get(u.id) ?? [],
     isFinanceContact: u.id === financeContactUserId,
     isDepartmentChair: u.id === departmentChairUserId,
+    isMainAdmin: u.id === mainAdminUserId,
   }));
 }

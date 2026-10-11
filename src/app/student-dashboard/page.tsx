@@ -63,7 +63,7 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
         ?? (sub.program ? users.find((u: any) => u.programChairFor?.includes(sub.program)) : null);
       return u ? formatUserName(u) : null;
     }
-    case "ADMIN":               return "เจ้าหน้าที่";
+    case "ADMIN":               return "เจ้าหน้าที่ภาควิชา";
     case "DEPARTMENT_CHAIR":    { const u = users.find((u: any) => u.isDepartmentChair); return u ? formatUserName(u) : null; }
     case "EXAM_COMMITTEE": {
       const memberIds: string[] = step.committeeMembers?.length ? step.committeeMembers : (sub.committeeIds ?? []);

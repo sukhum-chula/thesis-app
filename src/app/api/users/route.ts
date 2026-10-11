@@ -15,6 +15,7 @@ function mapUser(u: any) {
     programChairFor: u.programChairFor ?? [],
     isFinanceContact: u.isFinanceContact ?? false,
     isDepartmentChair: u.isDepartmentChair ?? false,
+    isMainAdmin: u.isMainAdmin ?? false,
     affiliation: u.affiliation ?? null,
     phone: u.phone ?? null,
     professorType: u.professorType ?? null,

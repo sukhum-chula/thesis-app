@@ -53,10 +53,7 @@ function resolveAssignees(
       const u = users.find((u) => u.isDepartmentChair);
       return u ? [{ id: u.id, name: formatUserName(u) }] : [];
     }
-    case "ADMIN": {
-      const u = users.find((u) => u.roles.includes("ADMIN"));
-      return u ? [{ id: u.id, name: formatUserName(u) }] : [];
-    }
+    // ADMIN: no person listed — staff steps are shown as "เจ้าหน้าที่ภาควิชา", not by name.
     case "CO_ADVISOR": {
       const ids: string[] = (step.committeeMembers?.length
         ? step.committeeMembers

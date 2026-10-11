@@ -1109,7 +1109,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 // Resolve who is assigned to this step
                 let assignedName: string | null = null;
                 if (step.role === "STUDENT") assignedName = student ? formatUserName(student) : null;
-                else if (step.role === "ADMIN") { const u = allUsers.find((u) => u.roles.includes("ADMIN")); assignedName = u ? formatUserName(u) : null; }
+                // ADMIN: no name — the card already shows "เจ้าหน้าที่ภาควิชา" as the role.
                 else if (step.role === "ADVISOR") assignedName = advisor ? formatUserName(advisor) : null;
                 else if (step.role === "CO_ADVISOR") assignedName = (sub.coAdvisorIds ?? []).map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; }).join(", ") || null;
                 else if (step.role === "HEAD_EXAM_COMMITTEE") { const u = allUsers.find((u) => u.id === sub.headCommitteeId); assignedName = u ? formatUserName(u) : null; }

@@ -122,6 +122,7 @@ interface AppContextType {
   adminSetFinanceContact: (userId: string | null) => Promise<void>;
   adminSetDepartmentChair: (userId: string | null) => Promise<void>;
   adminSetCommitteeRules: (rules: CommitteeRules) => Promise<void>;
+  adminSetMainAdmin: (userId: string | null) => Promise<void>;
   submitExternalRequest: (data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
   rejectExternalRequest: (id: string, reviewNote?: string) => Promise<void>;
 }
@@ -480,6 +481,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh(); // clears the previous holder + sets the new one across the user list
   }
 
+  async function adminSetMainAdmin(userId: string | null) {
+    await api("/api/admin/main-admin", "POST", { userId });
+    await refresh(); // clears the previous holder + sets the new one across the user list
+  }
+
   async function adminSetCommitteeRules(rules: CommitteeRules) {
     setCommitteeRules(await api<CommitteeRules>("/api/admin/committee-rules", "POST", rules));
   }
@@ -518,7 +524,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair, adminSetCommitteeRules,
+      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair, adminSetCommitteeRules, adminSetMainAdmin,
       submitExternalRequest, rejectExternalRequest,
     }}>
       {children}

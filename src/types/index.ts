@@ -24,6 +24,8 @@ export interface MockUser {
   isFinanceContact?: boolean;
   // Admin-designated หัวหน้าภาควิชา — at most one PROFESSOR account system-wide.
   isDepartmentChair?: boolean;
+  // Admin-designated ผู้รับผิดชอบหลัก — the one ADMIN named where a specific staff member is needed.
+  isMainAdmin?: boolean;
   affiliation?: string | null;
   phone?: string | null;
   professorType?: ProfessorType | null;

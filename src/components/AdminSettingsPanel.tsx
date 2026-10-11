@@ -10,7 +10,7 @@ import {
   type CommitteeRules, type CountRule, type DegreeLevel, type MemberType, type RuledRole,
 } from "@/lib/committeeRules";
 import { ProgramType } from "@/types";
-import { Landmark, Mail, Loader2, Building2 } from "lucide-react";
+import { Landmark, Mail, Loader2, Building2, UserCheck } from "lucide-react";
 
 const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
 
@@ -21,15 +21,17 @@ const PROGRAMS: ProgramType[] = ["PHD", "ME_MECH", "ME_CPS"];
 // standalone below AdminUsersPanel at /dashboard/admin/users. Callers are responsible for
 // their own ADMIN-role guard before rendering this.
 export function AdminSettingsPanel() {
-  const { users: allUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair } = useApp();
+  const { users: allUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair, adminSetMainAdmin } = useApp();
   const { showToast } = useToast();
   const [savingProgram, setSavingProgram] = useState<ProgramType | null>(null);
   const [savingFinanceContact, setSavingFinanceContact] = useState(false);
   const [savingDepartmentChair, setSavingDepartmentChair] = useState(false);
+  const [savingMainAdmin, setSavingMainAdmin] = useState(false);
 
   const professors = allUsers.filter((u) => u.roles.includes("PROFESSOR"));
   const adminAccounts = allUsers.filter((u) => u.roles.includes("ADMIN"));
   const financeContact = allUsers.find((u) => u.isFinanceContact);
+  const mainAdmin = allUsers.find((u) => u.isMainAdmin);
   const departmentChair = allUsers.find((u) => u.isDepartmentChair);
 
   async function handleSetDepartmentChair(userId: string) {
@@ -53,6 +55,18 @@ export function AdminSettingsPanel() {
       showToast(err.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
     } finally {
       setSavingProgram(null);
+    }
+  }
+
+  async function handleSetMainAdmin(userId: string) {
+    setSavingMainAdmin(true);
+    try {
+      await adminSetMainAdmin(userId || null);
+      showToast("บันทึกผู้รับผิดชอบหลักสำเร็จ", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+    } finally {
+      setSavingMainAdmin(false);
     }
   }
 
@@ -134,6 +148,34 @@ export function AdminSettingsPanel() {
             </div>
           );
         })}
+      </div>
+
+      <div className="space-y-3 pt-2 border-t border-gray-100">
+        <div>
+          <p className="text-sm font-medium text-gray-700">ผู้รับผิดชอบหลัก</p>
+          <p className="text-sm text-gray-400">
+            เลือกเจ้าหน้าที่ (ADMIN) ที่ระบบจะแสดงชื่อในกรณีที่ต้องระบุตัวบุคคล ส่วนที่อื่นจะแสดงเป็น &quot;เจ้าหน้าที่ภาควิชา&quot;
+            (เจ้าหน้าที่ทุกท่านยังดำเนินการได้ตามปกติ)
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+          <div className="flex-1 flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-gray-400 shrink-0" />
+            <select
+              value={mainAdmin?.id ?? ""}
+              onChange={(e) => handleSetMainAdmin(e.target.value)}
+              disabled={savingMainAdmin}
+              aria-label="ผู้รับผิดชอบหลัก"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-60"
+            >
+              <option value="">— ไม่มี —</option>
+              {adminAccounts.map((a) => (
+                <option key={a.id} value={a.id} translate="no">{formatUserName(a)} ({a.email})</option>
+              ))}
+            </select>
+          </div>
+          {savingMainAdmin && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
+        </div>
       </div>
 
       <div className="space-y-3 pt-2 border-t border-gray-100">

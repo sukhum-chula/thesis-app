@@ -13,6 +13,11 @@ than leaving both.
 
 ## 2026-10-11
 
+- **ผู้รับผิดชอบหลัก setting** ("ตั้งค่าระบบ", before ผู้รับผิดชอบด้านการเงิน): one ADMIN account, key
+  `mainAdmin`, exposed as `isMainAdmin`; display only, for places that need a named staff member.
+  Set to นางสาวสุภาพ หมุดอุบล. ADMIN steps now always say "เจ้าหน้าที่ภาควิชา" — the timeline and the
+  admin step list used to name whichever ADMIN account came first, and the student dashboard said
+  "เจ้าหน้าที่".
 - **Committee rules are an admin setting.** The hard-coded composition rules (`committeeRoleScope`
   / `accountFitsScope` in `utils.ts`) are replaced by a table in "ตั้งค่าระบบ" → "เงื่อนไขคณะกรรมการ":
   for advisor, co-advisor, exam chair, exam committee and external, and separately for master's and
