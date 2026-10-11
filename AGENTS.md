@@ -59,7 +59,7 @@ NEXT_PUBLIC_DEMO_MODE # "true" shows demo reset tools in AdminUsersPanel; unset 
 
 Account-management tiers (`src/lib/accountScope.ts`): a SUPER_ADMIN account is managed only by SUPER_ADMIN; an ADMIN account by SUPER_ADMIN or ADMIN; STUDENT/PROFESSOR/EXTERNAL only by ADMIN. `GET /api/users` scopes its list the same way.
 
-`src/lib/roleRoutes.ts` is the single source of each role's landing page. `DETAIL_BASE` in `NotificationBell.tsx` maps roles whose detail pages live elsewhere.
+`src/lib/roleRoutes.ts` is the single source of each role's landing page. Every landing page sends an account without its role (`roles.includes`, so multi-role accounts may open each of theirs) to `ROLE_ROUTES[user.role]`. `DETAIL_BASE` in `NotificationBell.tsx` maps roles whose detail pages live elsewhere.
 
 ### Contextual roles (per submission — plain strings, not the `Role` enum)
 | Role | Thai | Source / notes |

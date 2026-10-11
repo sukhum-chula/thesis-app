@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { getStepName, formatDate } from "@/lib/utils";
 import { stepNumbering } from "@/lib/stepNumbering";
@@ -26,6 +28,13 @@ const STATUS_TABS: { label: string; value: SubmissionStatus | "ALL" }[] = [
 export default function ProfessorDashboard() {
   const { submissions, user, users } = useApp();
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "ALL">("ALL");
+  const router = useRouter();
+  const isFaculty = user?.roles.some((r) => r === "PROFESSOR" || r === "EXTERNAL") ?? false;
+
+  // Faculty only — any other account is sent to its own landing page.
+  useEffect(() => {
+    if (user && !isFaculty) router.replace(ROLE_ROUTES[user.role] ?? "/login");
+  }, [user, isFaculty, router]);
 
   // `submissions` from context is already server-scoped to submissions this professor is a
   // committee member on (advisor/co-advisor/head/exam committee/invited/program chair) — see
@@ -76,6 +85,8 @@ export default function ProfessorDashboard() {
       if (turnDiff !== 0) return turnDiff;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
+
+  if (user && !isFaculty) return null;
 
   return (
     <div className="space-y-6">

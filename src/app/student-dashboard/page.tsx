@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
+import { ROLE_ROUTES } from "@/lib/roleRoutes";
 import { ROLE_LABELS, formatDate, formatUserName } from "@/lib/utils";
 import { SubmissionStatusBadge } from "@/components/StatusBadge";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
@@ -74,6 +76,14 @@ function resolveStepPerson(sub: any, step: any, users: any[]): string | null {
 
 export default function StudentDashboard() {
   const { user, submissions, users, getOrCreateDefenseDraft, getOrCreateProposalDraft } = useApp();
+  const router = useRouter();
+  const isStudent = user?.roles.includes("STUDENT") ?? false;
+
+  // Students only — any other account is sent to its own landing page.
+  useEffect(() => {
+    if (user && !isStudent) router.replace(ROLE_ROUTES[user.role] ?? "/login");
+  }, [user, isStudent, router]);
+
   const mine = submissions.filter((s) => s.studentId === user?.id);
   // null until the student clicks a tab — until then the landing tab follows their progress
   const [tabChoice, setTab] = useState<"proposal" | "defense" | "external" | null>(null);
@@ -118,6 +128,8 @@ export default function StudentDashboard() {
     getOrCreateDefenseDraft().catch(() => {}).finally(() => setCreatingDefenseDraft(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, currentDefense, eligibleProposals.length]);
+
+  if (user && !isStudent) return null;
 
   return (
     <div className="space-y-6">

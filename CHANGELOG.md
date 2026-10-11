@@ -13,6 +13,11 @@ than leaving both.
 
 ## 2026-10-11
 
+- **Wrong-role dashboards redirect.** `/student-dashboard` and `/professor-dashboard` only
+  required a login, so e.g. an admin could open the student layout (with a create-draft button
+  the API refuses) or a student the professor layout. They now send an account without the
+  page's role (STUDENT; PROFESSOR/EXTERNAL) to its own landing page, like `/admin-dashboard` and
+  `/super-dashboard` already did. Display only — the API was always scoped per account.
 - **Fix: switching to English froze the page.** Since 2026-10-10 the translator also watches
   `placeholder`/`title` attributes, and it re-set any such value that still contained Thai — always
   the case for the toggle's own "เปลี่ยนเป็นภาษาไทย" — which fired another mutation, forever.
