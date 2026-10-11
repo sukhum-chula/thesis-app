@@ -12,9 +12,24 @@ email-redirect safety net).
 
 ## Read this before touching real accounts or sending email
 
-Live DB state, checked 2026-10-10: 29 users (1 SUPER_ADMIN, 2 ADMIN, 21 PROFESSOR, 3 EXTERNAL,
-2 STUDENT) and 3 submissions, all `COMPLETED` (นางสาวสมร สะสมทรัพย์'s proposal + defense, นายสมชาย
-ตั้งใจดี's proposal).
+Live DB state, checked 2026-10-11: 29 users (1 SUPER_ADMIN, 2 ADMIN, 21 PROFESSOR, 3 EXTERNAL,
+2 STUDENT; none multi-role), 54 uploads, 332 notifications, no pending EXTERNAL-account requests,
+and 3 submissions:
+
+| Submission | Student | Status |
+| --- | --- | --- |
+| PROPOSAL `cmuwemvdk…` | นางสาวสมร สะสมทรัพย์ | `COMPLETED` |
+| THESIS_DEFENSE `cmuwf68lo…` (from that proposal) | นางสาวสมร สะสมทรัพย์ | `REJECTED` at stepOrder 9 (8.x, EXAM_COMMITTEE), waiting for the student's resubmit |
+| PROPOSAL `cmuz9mkjz…` | นายสมชาย ตั้งใจดี | `IN_PROGRESS`, reset to step 1 — every step PENDING, nothing acted on yet |
+
+- **The two open submissions were moved onto the 2026-10-10 signing order on 2026-10-11** (by a
+  one-off script, since deleted). นายสมชาย's proposal rows 5–9 were rewritten in place (none had
+  been acted on). In the defense, rows 9 (head, APPROVED) and 10 (exam committee, REJECTED) swapped
+  contents, so every real sign-off and the rejection reason were kept — after the resubmit the exam
+  committee signs, then the externals; the head, who already signed, isn't asked again.
+  นางสาวสมร's COMPLETED proposal still has the **old** rows 5–9 (head → advisor → co-advisor →
+  external → exam committee), so its finished steps show mismatched names (`getStepName()` labels by
+  `stepOrder`); harmless while it stays completed — rebuild it only if it's ever reopened.
 
 - **⚠️ 20 of the 29 accounts share the passcode `A00a00`**, from a bulk reset for testing
   (`CHANGELOG.md` 2026-09-07). Anyone who knows it can log in as those users. Fix: reset each real

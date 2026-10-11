@@ -13,6 +13,10 @@ than leaving both.
 
 ## 2026-10-11
 
+- **The two open submissions were moved onto the 2026-10-10 signing order** (one-off script, not
+  committed). Proposal `cmuz9mkj…`'s untouched rows 5–9 were rewritten; in defense `cmuwf68l…`
+  rows 9/10 swapped contents (exam committee REJECTED at 9, head APPROVED at 10), keeping every
+  sign-off and the rejection. The COMPLETED proposal `cmuwemvd…` keeps its old rows.
 - **Wrong-role dashboards redirect.** `/student-dashboard` and `/professor-dashboard` only
   required a login, so e.g. an admin could open the student layout (with a create-draft button
   the API refuses) or a student the professor layout. They now send an account without the
