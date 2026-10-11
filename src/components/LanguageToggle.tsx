@@ -67,15 +67,19 @@ function translateNode(root: Node) {
       if (translated !== text) node.nodeValue = translated;
     }
   }
-  // Placeholders / titles on inputs and buttons
+  // Placeholders / titles on inputs and buttons. Only write a value that changed: the observer
+  // watches these attributes, and re-setting one that still has Thai (no dictionary key, e.g. the
+  // toggle's own "เปลี่ยนเป็นภาษาไทย") fires another mutation — an endless loop that freezes the page.
   if (root instanceof Element || root instanceof Document) {
     const els = [...(root instanceof Element ? [root] : []), ...root.querySelectorAll("[placeholder], [title]")];
     els.forEach((el) => {
       if (isExcluded(el)) return;
-      const ph = el.getAttribute("placeholder");
-      if (ph && THAI_CHARS.test(ph)) el.setAttribute("placeholder", translateString(ph));
-      const ti = el.getAttribute("title");
-      if (ti && THAI_CHARS.test(ti)) el.setAttribute("title", translateString(ti));
+      for (const attr of ["placeholder", "title"]) {
+        const value = el.getAttribute(attr);
+        if (!value || !THAI_CHARS.test(value)) continue;
+        const translated = translateString(value);
+        if (translated !== value) el.setAttribute(attr, translated);
+      }
     });
   }
 }

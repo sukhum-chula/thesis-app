@@ -1,6 +1,6 @@
 // Thai → English translation dictionary for the DOM-walker in LanguageToggle.tsx.
 // Order does not matter: LanguageToggle sorts by length so a full phrase always wins over a
-// word inside it, and keys shorter than 6 characters only match at Thai word boundaries.
+// word inside it, and keys shorter than 8 characters only match at Thai word boundaries.
 // Add the whole sentence as it appears in one DOM text node; for a template string, add each
 // static piece around the ${…} values. User data (names, titles) is wrapped in translate="no".
 export const TH_EN: [string, string][] = [
@@ -10,6 +10,8 @@ export const TH_EN: [string, string][] = [
   ["ลบคำร้อง", "Delete request"],
   ["ยืนยันลบ", "Confirm delete"],
   ["ยืนยันปฏิเสธ", "Confirm reject"],
+  ["ไม่สามารถเปลี่ยนบทบาทของตัวเองได้", "You can't change your own role"],
+  ["เปลี่ยนบทบาท", "Change role"],
 
   // ── Student dashboard ───────────────────────────────────────────────────────────
   ["สอบโครงร่าง", "Proposal Exam"],

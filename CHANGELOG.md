@@ -11,6 +11,14 @@ Write an entry for anything that changes behavior, permissions, routes or schema
 typo/formatting fixes. When a change replaces an earlier entry, edit or remove that entry rather
 than leaving both.
 
+## 2026-10-11
+
+- **Fix: switching to English froze the page.** Since 2026-10-10 the translator also watches
+  `placeholder`/`title` attributes, and it re-set any such value that still contained Thai — always
+  the case for the toggle's own "เปลี่ยนเป็นภาษาไทย" — which fired another mutation, forever.
+  Because EN is remembered in `localStorage`, every later page load froze too. It now writes an
+  attribute only when the translation changed it.
+
 ## 2026-10-10
 
 - **A committee member's rejection reason now shows on the progress cards.** `POST /sign` with
