@@ -293,9 +293,12 @@ model Notification {
 // `userId` to null instead, so the key always stays present in the table. Each key holds at most
 // one user, but the same user id may appear under multiple "programChair:*" keys — one professor
 // can chair several programs at once (see setProgramChair() in systemSettings.ts).
+// `value` holds a setting that isn't a user: today only "committeeRules", the admin-configured
+// committee composition table (src/lib/committeeRules.ts; no row = the built-in defaults).
 model SystemSetting {
   key       String   @id
   userId    String?
+  value     Json?
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")

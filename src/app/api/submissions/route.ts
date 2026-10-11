@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { isValidEmail, isValidStudentId, isValidThaiPhone, isHiddenFromStudent } from "@/lib/utils";
 import { buildWorkflowSteps } from "@/lib/workflowSteps";
 import { validatePeople, validateCommitteeAccountRoles, resolvePeople, type PersonInput } from "@/lib/committee";
-import { getProgramChairsOfUser, getDepartmentChairUserId } from "@/lib/systemSettings";
+import { getProgramChairsOfUser, getDepartmentChairUserId, getCommitteeRules } from "@/lib/systemSettings";
 
 function mapSub(s: any, viewerId: string) {
   return {
@@ -159,13 +159,13 @@ export async function POST(req: NextRequest) {
   //    is saved as a DRAFT (no committee fields, no workflow steps) until an admin creates the
   //    missing account(s) and the student explicitly continues (`action: "continue_draft"`).
   const people: PersonInput[] = Array.isArray(data.people) ? data.people : [];
-  const peopleError = validatePeople(people, studentOwnEmails);
+  // The committee rules depend on the degree level, so they're checked against the program the
+  // submission will actually be stored with — the source proposal's for a defense (the client
+  // cannot override it), the submitted one for a proposal.
+  const programForRules = isDefense && sourceProposal ? sourceProposal.program : data.program;
+  const peopleError = validatePeople(people, studentOwnEmails, await getCommitteeRules(), programForRules);
   if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
 
-  // Which account type may fill which role depends on the degree level, so this is checked against
-  // the program the submission will actually be stored with — the source proposal's for a defense
-  // (the client cannot override it), the submitted one for a proposal.
-  const programForRules = isDefense && sourceProposal ? sourceProposal.program : data.program;
   const accountRoleError = await validateCommitteeAccountRoles(people, programForRules);
   if (accountRoleError) return NextResponse.json({ error: accountRoleError }, { status: 400 });
 

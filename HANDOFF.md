@@ -41,8 +41,8 @@ and 3 submissions:
   names are printed on the generated memos. Set the real people in "ตั้งค่าระบบ" before real
   submissions reach those steps. The finance contact is a real address.
 - **Every submission needs an EXTERNAL account** for กรรมการภายนอก, and a `PHD` one needs a second
-  to chair the exam committee (one person, one role) — see "Committee composition by degree" in
-  `AGENTS.md`. Only 3 exist.
+  to chair the exam committee (one person, one role) — see "Committee composition" in
+  `AGENTS.md` (now admin-configurable in "ตั้งค่าระบบ"). Only 3 exist.
 - **Never run `npm run db:seed` against the production database.** `prisma/seed.ts` creates
   accounts named after real faculty at real-looking `@eng.chula.ac.th` addresses, all with the
   passcode `password123`. Only safe on a throwaway local database; it should be reworked to use

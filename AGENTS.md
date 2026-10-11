@@ -74,18 +74,22 @@ Account-management tiers (`src/lib/accountScope.ts`): a SUPER_ADMIN account is m
 
 **PROGRAM_CHAIR resolution**: prefer `sub.programChairId`; fall back to the PROFESSOR whose `programChairFor` array includes `sub.program` (`.includes()`, a professor may chair several programs). Applied everywhere the chair is resolved (email, notify, approve auth, list scoping, sign, uploads, AppContext, UI).
 
-### Committee composition by degree
-`PHD` is doctoral; `ME_MECH`/`ME_CPS` master's (`degreeOfProgram()` — an unset program counts as master's).
+### Committee composition (admin-configurable)
+`PHD` is doctoral; `ME_MECH`/`ME_CPS` master's (`degreeOfProgram()` — an unset program counts as master's). Account kinds: **ME** = PROFESSOR with `professorType` ME, **CU** = PROFESSOR with CU (or none), **EX** = EXTERNAL.
 
-| Role | Master's | PhD | Count |
-|---|---|---|---|
-| ADVISOR | PROFESSOR | PROFESSOR | 1 |
-| CO_ADVISOR | PROFESSOR or EXTERNAL | PROFESSOR or EXTERNAL | 0+ |
-| HEAD_EXAM_COMMITTEE | PROFESSOR or EXTERNAL | **EXTERNAL only** | 1 |
-| EXAM_COMMITTEE | PROFESSOR | PROFESSOR | ≥1 |
-| INVITED_EXAM_COMMITTEE | EXTERNAL | EXTERNAL | ≥1 |
+ADMIN edits the table in "ตั้งค่าระบบ" → "เงื่อนไขคณะกรรมการ" (`CommitteeRulesTable` in `AdminSettingsPanel`): per role **and per degree**, a count (`1` / `≥0` / `≥1`) and which of ME/CU/EX may fill it. Stored as one JSON `SystemSetting` (`committeeRules`, the `value` column) via `getCommitteeRules()`/`setCommitteeRules()`; `GET /api/admin/committee-rules` (any signed-in user — students need it) / `POST` (ADMIN, validated by `parseCommitteeRules()`). No row = `DEFAULT_COMMITTEE_RULES`:
 
-One source of truth: `degreeOfProgram` / `committeeRoleScope(role, degree)` / `accountFitsScope` / `ACCOUNT_SCOPE_LABELS` in `src/lib/utils.ts`, used by the editor, the client validator and `validateCommitteeAccountRoles` (`src/lib/committee.ts`).
+| Role | Master's count | Master's accounts | PhD count | PhD accounts |
+|---|---|---|---|---|
+| ADVISOR | 1 (fixed) | ME, CU | 1 (fixed) | ME, CU |
+| CO_ADVISOR | ≥0 | ME, CU, EX | ≥0 | ME, CU, EX |
+| HEAD_EXAM_COMMITTEE | 1 (fixed) | ME, CU, EX | 1 (fixed) | **EX only** |
+| EXAM_COMMITTEE | ≥1 | ME, CU | ≥1 | ME, CU |
+| INVITED_EXAM_COMMITTEE | ≥1 | EX | ≥1 | EX |
+
+ADVISOR and HEAD_EXAM_COMMITTEE are fixed at 1 (`FIXED_COUNT_ROLES`): one id column each, and the workflow needs exactly one (the advisor picks the defense result, the head the proposal result). Every degree must allow at least one kind. A multi-member role with nobody in it gets its steps SKIPPED (`buildWorkflowSteps`, `planCommitteeStepSync`). A change applies to committees saved afterwards — existing submissions aren't re-checked.
+
+One source of truth: `src/lib/committeeRules.ts` (`accountFitsRole`, `allowedMemberTypes`, `memberTypesLabel`, `countRuleError`), used by the editor, the client validators (from `useApp().committeeRules`) and the server validators in `src/lib/committee.ts` (`validatePeople`, `validateResolvedCommitteeCounts`, `validateCommitteeAccountRoles`, `validateResolvedCommitteeAccountRoles`).
 
 **One person, one committee role**: an account may hold only one position on a submission (not two roles, not the same role twice) — except the PROGRAM_CHAIR, who may also fill one other position. `findDuplicateCommitteeMember()` (`utils.ts`) is the one definition; enforced by `validatePeople` and `validatePeopleLenient` (drafts too), on `admin_update`, and in the editor (already-picked accounts are not offered; carried-in duplicates show red).
 
@@ -212,12 +216,12 @@ The ADMIN's ① download list per step is `ADMIN_STEP_FORMS` in `AdminSubmission
 - **Re-opening heals unusable members**: `buildPeopleFromSubmission` clears a row whose account was deleted or no longer fits (`Person.invalid: "MISSING" | "SCOPE"`); `rowInvalidReason()` also derives it live when the หลักสูตร changes. While any row is invalid, `validateNoInvalidRows` blocks both save and confirm. Nothing is marked while `users` is still empty (first fetch pending).
 
 ### Committee editor (`CommitteePeopleEditor`, `src/components/SubmissionForms.tsx`)
-- Shared by `ProposalForm`, `DefenseForm`, both draft reviews and the admin edit form. Each row: role `<select>` + account `<select>` (existing accounts only, filtered by `committeeRoleScope` for the `program` prop). A no-longer-fitting account stays visible marked "(ไม่ตรงตามเงื่อนไข)".
+- Shared by `ProposalForm`, `DefenseForm`, both draft reviews and the admin edit form. Each row: role `<select>` + account `<select>` (existing accounts only, filtered by the committee rules for the `program` prop). A no-longer-fitting account stays visible marked "(ไม่ตรงตามเงื่อนไข)".
 - Row order (drag handle) **is the sign order** for multi-member roles (`committeeIds`/`coAdvisorIds`/`invitedCommitteeIds`).
 - Default rows: ADVISOR, HEAD_EXAM_COMMITTEE, EXAM_COMMITTEE, INVITED_EXAM_COMMITTEE.
 - PROGRAM_CHAIR is never a row — `ProgramChairAutoField` shows it read-only and it's injected into `people[]` before validation; submit is blocked if the program has no chair.
 - Submitted shape: `{name, email, role, phone?}[]`; `resolvePeople` looks accounts up by email and **never creates one** — an unresolved email is a 400.
-- Validation (form + API): counts per the composition table, valid emails, no member equal to the student's own email, one person one role. Exam date + time required on confirm.
+- Validation (form + API): counts per the committee rules, valid emails, no member equal to the student's own email, one person one role. Exam date + time required on confirm.
 
 ### Exam logistics (`ExamLogisticsSection`)
 วันที่สอบ + เวลา (`TimeSelect`: hour 00–23, minute 00/15/30/45 → `"HH:MM"`), ห้องประชุม / ที่จอดรถ checkboxes, เลขทะเบียนรถ inline when ที่จอดรถ is checked. `allowPastDate` only on the admin edit form.

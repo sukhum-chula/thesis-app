@@ -19,7 +19,7 @@ import {
  *  editable form, as opposed to the template preview. Saving keeps it DRAFT (safe to leave and
  *  come back to); confirming starts the real workflow. */
 export function ProposalDraftReview({ submissionId }: { submissionId: string }) {
-  const { submissions, users, saveProposalDraft, requestCancelSubmission } = useApp();
+  const { submissions, users, committeeRules, saveProposalDraft, requestCancelSubmission } = useApp();
   const { showToast } = useToast();
   const sub = submissions.find((s) => s.id === submissionId);
 
@@ -31,7 +31,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
   const [program,       setProgram]       = useState<ProgramType | "">((sub?.program as ProgramType) ?? "");
   const [studentPhone,  setStudentPhone]  = useState(sub?.studentPhone ?? "");
   const [people,        setPeople]        = useState<Person[]>(() =>
-    hasCommittee && sub ? buildPeopleFromSubmission(sub, users, program) : initialPeople()
+    hasCommittee && sub ? buildPeopleFromSubmission(sub, users, committeeRules, program) : initialPeople()
   );
   const [examDate,      setExamDate]      = useState(sub?.examDate ?? "");
   const [examTime,      setExamTime]      = useState(sub?.examTime ?? "");
@@ -54,7 +54,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
     if (studentPhone.trim() && !isValidThaiPhone(studentPhone)) return "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
     if (!chair) return "ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา";
     const ownEmails = [sub!.studentEmail?.toLowerCase()].filter((e): e is string => !!e);
-    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails, program, users);
+    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails, program, users, committeeRules);
     if (peopleError) return peopleError;
     if (!examDate.trim()) return "กรุณาระบุวันที่สอบ";
     if (examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
@@ -68,7 +68,7 @@ export function ProposalDraftReview({ submissionId }: { submissionId: string }) 
   // that's a mistake rather than something left for later. Full completeness is only required to
   // confirm (see validate() above).
   function validateForSave(): string | null {
-    const invalidError = validateNoInvalidRows(people, program, users);
+    const invalidError = validateNoInvalidRows(people, program, users, committeeRules);
     if (invalidError) return invalidError;
     if (studentPhone.trim() && !isValidThaiPhone(studentPhone)) return "เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)";
     if (examDate.trim() && examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";

@@ -19,12 +19,12 @@ import { PROGRAM_LABELS } from "@/lib/utils";
  *  this is purely "check, fix if needed, then confirm" rather than filling a blank form. Saving
  *  keeps it DRAFT (safe to leave and come back to); confirming starts the real workflow. */
 export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
-  const { submissions, users, saveDefenseDraft, requestCancelSubmission } = useApp();
+  const { submissions, users, committeeRules, saveDefenseDraft, requestCancelSubmission } = useApp();
   const { showToast } = useToast();
   const sub = submissions.find((s) => s.id === submissionId);
 
   const [title,         setTitle]         = useState(sub?.title ?? "");
-  const [people,        setPeople]        = useState<Person[]>(sub ? buildPeopleFromSubmission(sub, users, sub?.program ?? "") : []);
+  const [people,        setPeople]        = useState<Person[]>(sub ? buildPeopleFromSubmission(sub, users, committeeRules, sub?.program ?? "") : []);
   const [examDate,      setExamDate]      = useState(sub?.examDate ?? "");
   const [examTime,      setExamTime]      = useState(sub?.examTime ?? "");
   const [roomNeeded,    setRoomNeeded]    = useState(sub?.roomNeeded ?? false);
@@ -44,7 +44,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
     if (!title.trim()) return "กรุณาระบุชื่อหัวข้อ";
     if (!chair) return "ยังไม่ได้กำหนดประธานหลักสูตรสำหรับหลักสูตรนี้ กรุณาติดต่อเจ้าหน้าที่ภาควิชา";
     const ownEmails = [sub!.studentEmail?.toLowerCase()].filter((e): e is string => !!e);
-    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails, sub?.program ?? "", users);
+    const peopleError = validatePeopleClient(withProgramChair(people, chair), ownEmails, sub?.program ?? "", users, committeeRules);
     if (peopleError) return peopleError;
     if (!examDate.trim()) return "กรุณาระบุวันที่สอบ";
     if (examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
@@ -56,7 +56,7 @@ export function DefenseDraftReview({ submissionId }: { submissionId: string }) {
   // A plain save is allowed to be incomplete — only checks that a filled-in exam date isn't
   // outright wrong (in the past). Full completeness is only required to confirm (see validate()).
   function validateForSave(): string | null {
-    const invalidError = validateNoInvalidRows(people, sub?.program ?? "", users);
+    const invalidError = validateNoInvalidRows(people, sub?.program ?? "", users, committeeRules);
     if (invalidError) return invalidError;
     if (examDate.trim() && examDate < new Date().toISOString().split("T")[0]) return "วันที่สอบต้องเป็นวันนี้หรือวันในอนาคต";
     return null;

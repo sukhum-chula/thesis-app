@@ -90,6 +90,8 @@ src/lib/
   email.ts                   nodemailer step/finance/account emails
   supabase.ts                storage helpers (private `thesis-files` bucket, service-role key);
                              getSignedUrl mints the 1h URLs served by upload/[uploadId]/signed-url
+  committeeRules.ts          the admin-configurable committee composition table — defaults,
+                             accountFitsRole/countRuleError/memberTypesLabel, degreeOfProgram
   committee.ts               validatePeople/validatePeopleLenient/resolvePeople(Partial) — account
                              lookup only, never creates one; validateCommitteeAccountRoles and the
                              resolved-committee checks used by admin_update
@@ -110,7 +112,7 @@ src/lib/
                              row + storage object on a new copy
   docxText.ts                docxText() — body text of a .docx, for "did the content change" checks
   utils.ts                   getStepName, ROLE_LABELS/ROLE_GRADIENT/ROLE_EMOJI, formatUserName,
-                             degreeOfProgram/committeeRoleScope/accountFitsScope, the checklists
+                             the checklists
                              (B1_CHECKS, SIGN_CHECKS, …), formFileKind/checkFormFile,
                              freshUploadCutoff, isHiddenFromStudent, isSingleVersionForm,
                              previewFile/downloadFile, …

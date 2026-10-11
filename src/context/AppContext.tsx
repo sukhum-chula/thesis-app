@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { DEFAULT_COMMITTEE_RULES, type CommitteeRules } from "@/lib/committeeRules";
 import {
   MockUser, MockSubmission, MockNotification, MockExternalRequest, Role, FormType, ProgramType, NameTitle, ProfessorType,
 } from "@/types";
@@ -46,6 +47,9 @@ interface AppContextType {
   submissions: MockSubmission[];
   notifications: MockNotification[];
   externalRequests: MockExternalRequest[];
+  // Admin-configured committee composition table (src/lib/committeeRules.ts) — the defaults until
+  // the first fetch lands.
+  committeeRules: CommitteeRules;
   unreadCount: number;
   loading: boolean;
   logout: () => Promise<void>;
@@ -117,6 +121,7 @@ interface AppContextType {
   adminSetProgramChair: (program: ProgramType, userId: string | null) => Promise<void>;
   adminSetFinanceContact: (userId: string | null) => Promise<void>;
   adminSetDepartmentChair: (userId: string | null) => Promise<void>;
+  adminSetCommitteeRules: (rules: CommitteeRules) => Promise<void>;
   submitExternalRequest: (data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) => Promise<void>;
   rejectExternalRequest: (id: string, reviewNote?: string) => Promise<void>;
 }
@@ -142,6 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<MockNotification[]>([]);
   const [users,         setUsers]         = useState<MockUser[]>([]);
   const [externalRequests, setExternalRequests] = useState<MockExternalRequest[]>([]);
+  const [committeeRules, setCommitteeRules] = useState<CommitteeRules>(DEFAULT_COMMITTEE_RULES);
   const [loading,       setLoading]       = useState(true);
 
   const user: MockUser | null = session?.user
@@ -161,16 +167,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function refresh() {
     if (status !== "authenticated") return;
-    const [subs, notifs, usrs, extReqs] = await Promise.all([
+    const [subs, notifs, usrs, extReqs, rules] = await Promise.all([
       api<MockSubmission[]>("/api/submissions"),
       api<MockNotification[]>("/api/notifications"),
       api<MockUser[]>("/api/users"),
       api<MockExternalRequest[]>("/api/external-requests"),
+      api<CommitteeRules>("/api/admin/committee-rules"),
     ]);
     setSubmissions(subs);
     setNotifications(notifs);
     setUsers(usrs);
     setExternalRequests(extReqs);
+    setCommitteeRules(rules);
   }
 
   useEffect(() => {
@@ -472,6 +480,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refresh(); // clears the previous holder + sets the new one across the user list
   }
 
+  async function adminSetCommitteeRules(rules: CommitteeRules) {
+    setCommitteeRules(await api<CommitteeRules>("/api/admin/committee-rules", "POST", rules));
+  }
+
   async function submitExternalRequest(data: { title?: NameTitle | null; name: string; email: string; affiliation?: string; phone?: string }) {
     const req = await api<MockExternalRequest>("/api/external-requests", "POST", data);
     setExternalRequests((prev) => [req, ...prev]);
@@ -495,7 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      user, users, submissions, notifications, externalRequests, unreadCount, loading,
+      user, users, submissions, notifications, externalRequests, committeeRules, unreadCount, loading,
       logout, refresh,
       createSubmission, approveCurrentStep, rejectCurrentStep, returnToPrevStep,
       addUpload, getPendingCount, studentResubmit, requestCancelSubmission, adminAcceptCancel, adminDeclineCancel,
@@ -506,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       adminSetNote, adminUpdateSubmission, adminDeleteSubmission,
       adminResetSubmission, adminOverrideStep,
       superAdminUpdateUserRole, superAdminDeleteUser, superAdminAddUser, superAdminResetPasscode,
-      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair,
+      adminUpdateUserInfo, adminReorderUsers, adminSetProgramChair, adminSetFinanceContact, adminSetDepartmentChair, adminSetCommitteeRules,
       submitExternalRequest, rejectExternalRequest,
     }}>
       {children}

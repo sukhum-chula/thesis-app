@@ -130,15 +130,16 @@ export function buildWorkflowSteps(
   invitedCommitteeIds: string[]
 ): { stepOrder: number; role: string; status: StepStatus; committeeMembers: string[] }[] {
   const roles = submissionType === "THESIS_DEFENSE" ? THESIS_ROLES : PROPOSAL_ROLES;
-  return roles.map((role, i) => ({
-    stepOrder: i + 1,
-    role,
-    status: role === "CO_ADVISOR" && !coAdvisorIds.length ? "SKIPPED" : "PENDING",
-    committeeMembers:
+  return roles.map((role, i) => {
+    const committeeMembers =
       role === "EXAM_COMMITTEE"          ? committeeIds :
       role === "CO_ADVISOR"              ? coAdvisorIds :
-      role === "INVITED_EXAM_COMMITTEE"  ? invitedCommitteeIds : [],
-  }));
+      role === "INVITED_EXAM_COMMITTEE"  ? invitedCommitteeIds : [];
+    // A multi-member role with nobody in it (co-advisors by default; any of them if the
+    // committee rules allow ≥0) has no one to sign, so its step is skipped.
+    const empty = (MULTI_MEMBER_ROLES as readonly string[]).includes(role) && committeeMembers.length === 0;
+    return { stepOrder: i + 1, role, status: empty ? "SKIPPED" : "PENDING", committeeMembers };
+  });
 }
 
 // ─── Keeping multi-member steps in step with an edited committee ──────────────
@@ -185,8 +186,9 @@ const ALL_APPROVED_LABEL: Record<string, string> = {
  *    Sign-offs by members who are still on it are kept; those of removed members are dropped. If
  *    everyone left on the current step has already approved, it's approved on the spot — it
  *    would otherwise sit waiting for a signature nobody can give.
- *  - CO_ADVISOR is optional: removing every co-advisor SKIPS its open steps, and adding one
- *    re-opens the SKIPPED co-advisor steps that are still ahead.
+ *  - A multi-member role may be empty (always CO_ADVISOR; the others if the committee rules allow
+ *    ≥0): removing every member SKIPS its open steps, and adding one re-opens the SKIPPED steps of
+ *    that role that are still ahead.
  *  - A CANCELLED/COMPLETED/DRAFT submission is left alone (nothing open, or no steps yet);
  *    admin_reset refreshes the member lists when a cancelled one is revived. */
 export function planCommitteeStepSync(
@@ -214,14 +216,14 @@ export function planCommitteeStepSync(
     const actions = ((step.committeeActions as CommitteeAction[] | null) ?? []);
 
     if (step.status === "SKIPPED") {
-      if (step.role === "CO_ADVISOR" && members.length > 0 && step.stepOrder > currentOrder)
+      if (members.length > 0 && step.stepOrder > currentOrder)
         patches.push({ id: step.id, data: { status: "PENDING", committeeMembers: members, ...cleared } });
       continue;
     }
     if (step.status !== "PENDING" && step.status !== "REJECTED") continue; // APPROVED — history
 
     if (members.length === 0) {
-      // Only reachable for CO_ADVISOR: the admin edit's count check requires ≥1 of the others.
+      // CO_ADVISOR, or another role the committee rules allow to be empty.
       patches.push({ id: step.id, data: { status: "SKIPPED", committeeMembers: [], ...cleared } });
       continue;
     }

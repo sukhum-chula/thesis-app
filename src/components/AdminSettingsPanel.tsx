@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
-import { PROGRAM_LABELS, formatUserName } from "@/lib/utils";
+import { PROGRAM_LABELS, formatUserName, ROLE_LABELS } from "@/lib/utils";
+import {
+  RULED_ROLES, MEMBER_TYPES, DEGREE_LEVELS, COUNT_RULES, COUNT_RULE_LABELS, DEGREE_LABELS, MEMBER_TYPE_LABELS,
+  FIXED_COUNT_ROLES, DEFAULT_COMMITTEE_RULES,
+  type CommitteeRules, type CountRule, type DegreeLevel, type MemberType, type RuledRole,
+} from "@/lib/committeeRules";
 import { ProgramType } from "@/types";
 import { Landmark, Mail, Loader2, Building2 } from "lucide-react";
 
@@ -156,6 +161,134 @@ export function AdminSettingsPanel() {
           </div>
           {savingFinanceContact && <Loader2 className="w-4 h-4 animate-spin text-gray-400 shrink-0" />}
         </div>
+      </div>
+
+      <CommitteeRulesTable />
+    </div>
+  );
+}
+
+// The committee composition table (src/lib/committeeRules.ts): per role, how many people and which
+// kinds of account, per degree level. Edits stay local until บันทึก; a save applies to committees
+// saved from then on (existing submissions are not re-checked).
+function CommitteeRulesTable() {
+  const { committeeRules, adminSetCommitteeRules } = useApp();
+  const { showToast } = useToast();
+  // null = not edited, follow the saved rules (they replace the defaults once the first fetch lands)
+  const [draft, setDraft] = useState<CommitteeRules | null>(null);
+  const [saving, setSaving] = useState(false);
+  const rules = draft ?? committeeRules;
+  const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(committeeRules);
+  const isDefault = JSON.stringify(rules) === JSON.stringify(DEFAULT_COMMITTEE_RULES);
+
+  function setDegree(role: RuledRole, degree: DegreeLevel, patch: Partial<CommitteeRules[RuledRole][DegreeLevel]>) {
+    setDraft({ ...rules, [role]: { ...rules[role], [degree]: { ...rules[role][degree], ...patch } } });
+  }
+  function toggle(role: RuledRole, degree: DegreeLevel, type: MemberType) {
+    const current = rules[role][degree].types;
+    const types = current.includes(type) ? current.filter((t) => t !== type) : MEMBER_TYPES.filter((t) => t === type || current.includes(t));
+    setDegree(role, degree, { types });
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await adminSetCommitteeRules(rules);
+      setDraft(null);
+      showToast("บันทึกเงื่อนไขคณะกรรมการสำเร็จ", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "เกิดข้อผิดพลาด กรุณาลองใหม่", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const cell = "px-2 py-2 text-center border-b border-gray-100";
+  return (
+    <div className="space-y-3 pt-2 border-t border-gray-100">
+      <div>
+        <p className="text-sm font-medium text-gray-700">เงื่อนไขคณะกรรมการ</p>
+        <p className="text-sm text-gray-400">
+          จำนวนบุคคลในแต่ละตำแหน่ง และประเภทบัญชีที่เลือกได้ แยกตามระดับปริญญา — ME = อาจารย์ภาควิชาวิศวกรรมเครื่องกล,
+          CU = อาจารย์จุฬาฯ จากภาควิชาอื่น, EX = กรรมการภายนอก มีผลกับคณะกรรมการที่บันทึกหลังจากนี้ (คำร้องเดิมไม่ถูกตรวจซ้ำ)
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-gray-100">
+        <table className="w-full text-sm min-w-[640px]">
+          <thead className="bg-gray-50 text-gray-500">
+            <tr>
+              <th rowSpan={2} className="px-3 py-2 text-left font-medium border-b border-gray-100">ตำแหน่ง</th>
+              {DEGREE_LEVELS.map((d) => (
+                <th key={d} colSpan={MEMBER_TYPES.length + 1} className="px-2 pt-2 font-medium border-l border-gray-100">{DEGREE_LABELS[d]}</th>
+              ))}
+            </tr>
+            <tr>
+              {DEGREE_LEVELS.map((d) => [
+                <th key={d + "count"} className="px-2 pb-2 font-medium text-xs border-b border-l border-gray-100">จำนวน</th>,
+                ...MEMBER_TYPES.map((t) => (
+                  <th key={d + t} title={MEMBER_TYPE_LABELS[t]} className="px-2 pb-2 font-semibold text-xs border-b border-gray-100">{t}</th>
+                )),
+              ])}
+            </tr>
+          </thead>
+          <tbody>
+            {RULED_ROLES.map((role) => {
+              const fixed = FIXED_COUNT_ROLES.includes(role);
+              return (
+                <tr key={role}>
+                  <td className="px-3 py-2 text-gray-800 border-b border-gray-100 whitespace-nowrap">{ROLE_LABELS[role]}</td>
+                  {DEGREE_LEVELS.map((d) => [
+                    <td key={d + "count"} className={cell + " border-l"}>
+                      <select
+                        value={rules[role][d].count}
+                        onChange={(e) => setDegree(role, d, { count: e.target.value as CountRule })}
+                        disabled={fixed || saving}
+                        title={fixed ? "ตำแหน่งนี้มีได้ 1 คนเสมอ" : undefined}
+                        aria-label={`จำนวน${ROLE_LABELS[role]} ${DEGREE_LABELS[d]}`}
+                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                      >
+                        {COUNT_RULES.map((c) => <option key={c} value={c}>{COUNT_RULE_LABELS[c]}</option>)}
+                      </select>
+                    </td>,
+                    ...MEMBER_TYPES.map((t) => (
+                      <td key={d + t} className={cell}>
+                        <input
+                          type="checkbox"
+                          checked={rules[role][d].types.includes(t)}
+                          onChange={() => toggle(role, d, t)}
+                          disabled={saving}
+                          aria-label={`${ROLE_LABELS[role]} ${DEGREE_LABELS[d]} ${MEMBER_TYPE_LABELS[t]}`}
+                          className="w-4 h-4 accent-indigo-600"
+                        />
+                      </td>
+                    )),
+                  ])}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-400">อาจารย์ที่ปรึกษาและประธานกรรมการสอบมีได้ 1 คนเสมอ · ตำแหน่งที่ตั้งเป็น ≥0 และไม่มีผู้ใดจะข้ามขั้นตอนลงนามของตำแหน่งนั้นไป</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={save}
+          disabled={!dirty || saving}
+          className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 transition flex items-center gap-2"
+        >
+          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+          บันทึก
+        </button>
+        {dirty && (
+          <button onClick={() => setDraft(null)} disabled={saving} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
+            ยกเลิกการแก้ไข
+          </button>
+        )}
+        {!isDefault && (
+          <button onClick={() => setDraft(DEFAULT_COMMITTEE_RULES)} disabled={saving} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition">
+            คืนค่าเริ่มต้น
+          </button>
+        )}
       </div>
     </div>
   );

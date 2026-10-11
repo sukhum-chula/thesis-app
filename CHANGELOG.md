@@ -13,6 +13,14 @@ than leaving both.
 
 ## 2026-10-11
 
+- **Committee rules are an admin setting.** The hard-coded composition rules (`committeeRoleScope`
+  / `accountFitsScope` in `utils.ts`) are replaced by a table in "ตั้งค่าระบบ" → "เงื่อนไขคณะกรรมการ":
+  for advisor, co-advisor, exam chair, exam committee and external, and separately for master's and
+  doctoral, a count (1 / ≥0 / ≥1) and which kinds of account may fill it (ME / CU professors, EX
+  externals). Defaults = the old
+  rules; the advisor and chair counts are fixed at 1. Stored as JSON in the new
+  `SystemSetting.value` column (added by a one-off SQL script). A multi-member step with nobody in
+  it is now SKIPPED for any role, not only co-advisors.
 - **Professor type (ME / CU).** New `User.professorType` (`ProfessorType` enum, nullable): ME =
   this department's faculty, CU = Chula faculty from another department. Set when creating a
   PROFESSOR account (default CU), editable by ADMIN, shown as a chip on the profile; display only.

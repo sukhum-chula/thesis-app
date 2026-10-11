@@ -3,8 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp, SubmissionFormData } from "@/context/AppContext";
 import {
+  degreeOfProgram, accountFitsRole, allowedMemberTypes, memberTypesLabel, countRuleError, RULED_ROLES,
+  type CommitteeRules,
+} from "@/lib/committeeRules";
+import {
   PROGRAM_LABELS, ROLE_LABELS, isValidEmail, isValidThaiPhone, formatDate, formatUserName,
-  degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
   findDuplicateCommitteeMember,
 } from "@/lib/utils";
 import { ProgramType } from "@/types";
@@ -26,11 +29,9 @@ const PERSON_ROLES = [
   "INVITED_EXAM_COMMITTEE",
 ] as const;
 
-// Which account list each role is filled from (internal PROFESSOR / external EXTERNAL / both) is
-// degree-dependent and lives in one place, committeeRoleScope() in src/lib/utils.ts — the same
-// function the server-side validator uses, so this picker and the API can never disagree. The one
-// role that differs between degrees is ประธานกรรมการสอบ: either kind for a master's, external
-// only for a doctoral submission.
+// Which accounts may fill each role, and how many people it takes, is the admin-configured
+// committee rules table (src/lib/committeeRules.ts, from useApp().committeeRules) — the same
+// rules the server-side validator reads, so this picker and the API can never disagree.
 
 export interface Person {
   name: string;
@@ -114,7 +115,8 @@ export function ProgramChairAutoField({ program, users }: {
 export function rowInvalidReason(
   p: Person,
   program: string | "",
-  users: ReturnType<typeof useApp>["users"]
+  users: ReturnType<typeof useApp>["users"],
+  rules: CommitteeRules
 ): Person["invalid"] {
   // Marked at re-open by buildPeopleFromSubmission() — the account was already cleared off the row.
   if (p.invalid) return p.invalid;
@@ -124,18 +126,17 @@ export function rowInvalidReason(
   if (!p.role || !p.email.trim() || users.length === 0) return undefined;
   const account = users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase());
   if (!account) return undefined; // a vanished account is reported by the save path, not here
-  return accountFitsScope(account.roles, committeeRoleScope(p.role, degreeOfProgram(program)))
-    ? undefined
-    : "SCOPE";
+  return accountFitsRole(account, p.role, degreeOfProgram(program), rules) ? undefined : "SCOPE";
 }
 
 export function validateNoInvalidRows(
   people: Person[],
   program: string | "",
-  users: ReturnType<typeof useApp>["users"]
+  users: ReturnType<typeof useApp>["users"],
+  rules: CommitteeRules
 ): string | null {
   for (const [i, p] of people.entries()) {
-    const invalid = rowInvalidReason(p, program, users);
+    const invalid = rowInvalidReason(p, program, users, rules);
     if (!invalid) continue;
     const role = ROLE_LABELS[p.role] ?? p.role;
     return invalid === "MISSING"
@@ -167,9 +168,10 @@ export function validatePeopleClient(
   people: Person[],
   ownEmails: string[],
   program: string | "",
-  users: ReturnType<typeof useApp>["users"]
+  users: ReturnType<typeof useApp>["users"],
+  rules: CommitteeRules
 ): string | null {
-  const invalidError = validateNoInvalidRows(people, program, users);
+  const invalidError = validateNoInvalidRows(people, program, users, rules);
   if (invalidError) return invalidError;
   const degree = degreeOfProgram(program);
   for (const [i, p] of people.entries()) {
@@ -180,19 +182,18 @@ export function validatePeopleClient(
     if (p.phone.trim() && !isValidThaiPhone(p.phone)) return `บุคคลที่ ${i + 1}: เบอร์โทรศัพท์ไม่ถูกต้อง (ตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0)`;
     // Degree-dependent account-type criterion — mirrors validateCommitteeAccountRoles() on the
     // server. An account that no longer exists client-side is left to the server to reject.
-    const scope = committeeRoleScope(p.role, degree);
     const account = users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase());
-    if (account && !accountFitsScope(account.roles, scope))
-      return `${ROLE_LABELS[p.role] ?? p.role} ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${p.name.trim() || p.email.trim()}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
+    if (account && !accountFitsRole(account, p.role, degree, rules))
+      return `${ROLE_LABELS[p.role] ?? p.role} ต้องเป็น${memberTypesLabel(allowedMemberTypes(p.role, degree, rules))} — "${p.name.trim() || p.email.trim()}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
     const email = p.email.trim().toLowerCase();
     if (ownEmails.includes(email)) return `บุคคลที่ ${i + 1}: ไม่สามารถใช้อีเมลของท่านเองเป็นกรรมการได้`;
   }
   const count = (r: string) => people.filter((p) => p.role === r).length;
   if (count("PROGRAM_CHAIR") !== 1)          return "ต้องระบุประธานหลักสูตร 1 คน (เพิ่มได้เพียง 1 คนเท่านั้น)";
-  if (count("ADVISOR") !== 1)                return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
-  if (count("HEAD_EXAM_COMMITTEE") !== 1)    return "ต้องระบุประธานกรรมการสอบ 1 คน";
-  if (count("EXAM_COMMITTEE") < 1)           return "ต้องระบุกรรมการสอบอย่างน้อย 1 คน";
-  if (count("INVITED_EXAM_COMMITTEE") < 1)   return "ต้องระบุกรรมการภายนอกอย่างน้อย 1 คน";
+  for (const role of RULED_ROLES) {
+    const err = countRuleError(role, count(role), degree, rules);
+    if (err) return err;
+  }
   return null;
 }
 
@@ -219,7 +220,7 @@ export function ProposalForm({
   readOnlyPreview?: boolean;
   onCreateDraft?: () => Promise<unknown>;
 }) {
-  const { createSubmission, user, users } = useApp();
+  const { createSubmission, user, users, committeeRules } = useApp();
 
   const activeProposal = mine.find((s) => s.submissionType === "PROPOSAL" && s.status !== "CANCELLED");
 
@@ -247,7 +248,7 @@ export function ProposalForm({
 
     const ownEmails = [user?.email?.toLowerCase()].filter(Boolean) as string[];
     const fullPeople = withProgramChair(people, chair);
-    const peopleError = validatePeopleClient(fullPeople, ownEmails, program, users);
+    const peopleError = validatePeopleClient(fullPeople, ownEmails, program, users, committeeRules);
     if (peopleError) { setError(peopleError); return; }
 
     if (!examDate.trim()) { setError("กรุณาระบุวันที่สอบ"); return; }
@@ -422,6 +423,7 @@ export function ProposalForm({
 export function buildPeopleFromSubmission(
   p: ReturnType<typeof useApp>["submissions"][number],
   users: ReturnType<typeof useApp>["users"],
+  rules: CommitteeRules,
   program: string | "" = p.program ?? ""
 ): Person[] {
   const degree = degreeOfProgram(program);
@@ -439,7 +441,7 @@ export function buildPeopleFromSubmission(
         ? { name: "", email: "", role, phone: "", invalid: "MISSING" }
         : { name: "", email: "", role, phone: "" };
     }
-    if (loaded && !accountFitsScope(u.roles, committeeRoleScope(role, degree)))
+    if (loaded && !accountFitsRole(u, role, degree, rules))
       return { name: "", email: "", role, phone: "", invalid: "SCOPE" };
     return { name: formatUserName(u), email: u.email, role, phone: u.phone ?? "" };
   };
@@ -463,7 +465,7 @@ export function DefenseForm({
   onCreated: (sub: MockSubmission) => void;
   onCancel?: () => void;
 }) {
-  const { createSubmission, users, user } = useApp();
+  const { createSubmission, users, user, committeeRules } = useApp();
 
   // Eligible: COMPLETED, and no existing non-cancelled defense already sourced from it
   const eligibleProposals = mine.filter(
@@ -492,7 +494,7 @@ export function DefenseForm({
   useEffect(() => {
     if (!selected) { setPeople([]); return; }
     setTitle((v) => v || selected.title);
-    setPeople(buildPeopleFromSubmission(selected, users, selected.program ?? ""));
+    setPeople(buildPeopleFromSubmission(selected, users, committeeRules, selected.program ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
@@ -518,7 +520,7 @@ export function DefenseForm({
 
     const ownEmails = [user?.email?.toLowerCase(), selected.studentEmail?.toLowerCase()].filter(Boolean) as string[];
     const fullPeople = withProgramChair(people, chair);
-    const peopleError = validatePeopleClient(fullPeople, ownEmails, selected.program ?? "", users);
+    const peopleError = validatePeopleClient(fullPeople, ownEmails, selected.program ?? "", users, committeeRules);
     if (peopleError) { setError(peopleError); return; }
 
     if (!examDate.trim()) { setError("กรุณาระบุวันที่สอบ"); return; }
@@ -839,23 +841,23 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
   clearError: () => void;
   /** The submission's หลักสูตร — decides the degree level, which decides who may fill
-   *  ประธานกรรมการสอบ (either kind for a master's, external only for a doctoral). */
+   *  ประธานกรรมการสอบ (see the committee rules in src/lib/committeeRules.ts). */
   program: string | "";
 }) {
-  const { users } = useApp();
+  const { users, committeeRules } = useApp();
   const degree = degreeOfProgram(program);
-  const professors = users.filter((u) => u.roles.includes("PROFESSOR"));
-  const externals  = users.filter((u) => u.roles.includes("EXTERNAL"));
+  // Professors first, then externals — the order the picker has always listed them in.
+  const faculty = [
+    ...users.filter((u) => u.roles.includes("PROFESSOR")),
+    ...users.filter((u) => u.roles.includes("EXTERNAL") && !u.roles.includes("PROFESSOR")),
+  ];
 
   // Tracks the row being dragged — a plain ref (not state) since it never needs to trigger a
   // re-render on its own, only on drop (via setPeople).
   const dragIndex = useRef<number | null>(null);
 
   function accountsFor(role: string) {
-    const scope = committeeRoleScope(role, degree);
-    if (scope === "EXTERNAL") return externals;
-    if (scope === "INTERNAL") return professors;
-    return [...professors, ...externals];
+    return faculty.filter((u) => accountFitsRole(u, role, degree, committeeRules));
   }
 
   function updatePerson(index: number, patch: Partial<Person>) {
@@ -915,7 +917,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
 
       <div className="space-y-2">
         {people.map((p, i) => {
-          const rowScope = committeeRoleScope(p.role, degree);
+          const rowScopeLabel = memberTypesLabel(allowedMemberTypes(p.role, degree, committeeRules));
           const ownEmail = p.email.trim().toLowerCase();
           // One person, one committee role: an account already picked on another row isn't
           // offered again. The row's own pick always stays listed, so a duplicate carried in from
@@ -933,7 +935,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
           // selected but made illegal by a หลักสูตร switch since it was picked — rowInvalidReason()
           // covers both. In the second case the account is still on the row, so keep it listed
           // (marked) rather than showing a blank picker with no clue who has to be replaced.
-          const invalid = rowInvalidReason(p, program, users);
+          const invalid = rowInvalidReason(p, program, users, committeeRules);
           const stillSelected = invalid === "SCOPE" && p.email.trim()
             ? users.find((u) => u.email.toLowerCase() === p.email.trim().toLowerCase())
             : undefined;
@@ -977,7 +979,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                     onChange={(e) => selectAccount(i, e.target.value)}
                     disabled={!p.role}
                     className={INPUT + " bg-white disabled:opacity-50" + (invalid || isDuplicate ? " border-red-400 bg-red-50" : "")}
-                    aria-label={p.role ? ACCOUNT_SCOPE_LABELS[rowScope] : "รายชื่อ"}
+                    aria-label={p.role ? rowScopeLabel : "รายชื่อ"}
                   >
                     <option value="">— เลือกจากรายชื่อ —</option>
                     {stillSelected && (
@@ -993,7 +995,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                     <p className="text-xs text-red-600 font-medium">
                       {invalid === "MISSING"
                         ? "บัญชีที่เคยเลือกไว้ถูกลบออกจากระบบแล้ว"
-                        : `บัญชีที่เคยเลือกไว้ไม่ตรงตามเงื่อนไขของหลักสูตรที่เลือก (ต้องเป็น${ACCOUNT_SCOPE_LABELS[rowScope]})`}
+                        : `บัญชีที่เคยเลือกไว้ไม่ตรงตามเงื่อนไขของหลักสูตรที่เลือก (ต้องเป็น${rowScopeLabel})`}
                       {" "}— กรุณาเลือกผู้อื่นหรือลบแถวนี้ ก่อนจึงจะบันทึกได้
                     </p>
                   ) : isDuplicate ? (
@@ -1001,7 +1003,7 @@ export function CommitteePeopleEditor({ people, setPeople, clearError, program }
                       บุคคลนี้ถูกระบุในตำแหน่งอื่นแล้ว — กรรมการแต่ละท่านดำรงตำแหน่งได้เพียงตำแหน่งเดียว กรุณาเลือกผู้อื่นหรือลบแถวนี้
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-400">เลือกจาก: {ACCOUNT_SCOPE_LABELS[rowScope]}</p>
+                    <p className="text-xs text-gray-400">เลือกจาก: {rowScopeLabel}</p>
                   )
                 )}
               </div>

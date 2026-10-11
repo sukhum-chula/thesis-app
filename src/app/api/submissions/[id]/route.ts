@@ -8,7 +8,7 @@ import { deleteFolder } from "@/lib/supabase";
 import { buildWorkflowSteps, planCommitteeStepSync, currentTurn, THESIS_STEP, PROPOSAL_STEP, committeeRoster, previousActiveStep } from "@/lib/workflowSteps";
 import { stepNumbering } from "@/lib/stepNumbering";
 import { validatePeople, validateCommitteeAccountRoles, validateResolvedCommitteeAccountRoles, validateResolvedCommitteeCounts, resolvePeople, validatePeopleLenient, resolvePeoplePartial, type PersonInput } from "@/lib/committee";
-import { getProgramChairUserId, getProgramChairsOfUser, getDepartmentChairUserId } from "@/lib/systemSettings";
+import { getProgramChairUserId, getProgramChairsOfUser, getDepartmentChairUserId, getCommitteeRules } from "@/lib/systemSettings";
 
 function mapSub(s: any, viewerId: string) {
   return {
@@ -634,7 +634,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       };
       // Role counts — only past DRAFT: a draft is allowed to be incomplete (the student's own draft
       // save skips counts for the same reason), and it gets the full check when it's confirmed.
-      const countError = sub.status === "DRAFT" ? null : validateResolvedCommitteeCounts(next);
+      const countError = sub.status === "DRAFT" ? null : validateResolvedCommitteeCounts(next, await getCommitteeRules(), b.program !== undefined ? (b.program || null) : sub.program);
       if (countError) return NextResponse.json({ error: countError }, { status: 400 });
       const committeeError = await validateResolvedCommitteeAccountRoles(
         next,
@@ -929,7 +929,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         },
       });
     } else {
-      const peopleError = validatePeople(people, studentOwnEmails);
+      const peopleError = validatePeople(people, studentOwnEmails, await getCommitteeRules(), program);
       if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
       const accountRoleError = await validateCommitteeAccountRoles(people, program);
       if (accountRoleError) return NextResponse.json({ error: accountRoleError }, { status: 400 });
@@ -1040,7 +1040,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         },
       });
     } else {
-      const peopleError = validatePeople(people, studentOwnEmails);
+      const peopleError = validatePeople(people, studentOwnEmails, await getCommitteeRules(), sub.program);
       if (peopleError) return NextResponse.json({ error: peopleError }, { status: 400 });
       // A defense inherits its program from the source proposal and never edits it here.
       const accountRoleError = await validateCommitteeAccountRoles(people, sub.program);

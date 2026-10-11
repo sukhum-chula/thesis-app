@@ -490,7 +490,7 @@ function ProposalFinanceGeneratePanel({ submissionId, submissionTitle, latest }:
 // pattern used elsewhere in this app).
 
 export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId: string; onDeleted?: () => void }) {
-  const { submissions, users, adminUpdateSubmission, adminDeleteSubmission, adminOverrideStep, approveCurrentStep, returnToPrevStep, adminAcceptCancel, adminDeclineCancel } = useApp();
+  const { submissions, users, committeeRules, adminUpdateSubmission, adminDeleteSubmission, adminOverrideStep, approveCurrentStep, returnToPrevStep, adminAcceptCancel, adminDeclineCancel } = useApp();
   const { showToast } = useToast();
   const [cancelActionBusy, setCancelActionBusy] = useState(false);
   const [confirmAcceptCancel, setConfirmAcceptCancel] = useState(false);
@@ -670,7 +670,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       parkingNeeded:       sub.parkingNeeded        ?? false,
       carPlate:            sub.carPlate             ?? "",
     });
-    const people = buildPeopleFromSubmission(sub, allUsers, sub.program ?? "");
+    const people = buildPeopleFromSubmission(sub, allUsers, committeeRules, sub.program ?? "");
     setEditPeople(people.length ? people : initialPeople());
     setEditMode(true);
   }
@@ -682,12 +682,13 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
     // blocks it — an unusable or double-booked member); anything past DRAFT needs the full
     // committee, same as the server's admin_update count check.
     const peopleError = sub.status === "DRAFT"
-      ? validateNoInvalidRows(editPeople, editDraft.program, allUsers)
+      ? validateNoInvalidRows(editPeople, editDraft.program, allUsers, committeeRules)
       : validatePeopleClient(
           withProgramChair(editPeople, resolvedProgramChair ?? undefined),
           [editDraft.studentEmail.trim().toLowerCase(), student?.email.toLowerCase() ?? ""].filter(Boolean),
           editDraft.program,
-          allUsers
+          allUsers,
+          committeeRules
         );
     if (peopleError) { showToast(peopleError, "error"); return; }
     // Rows -> id columns. Row order is the sign order for the multi-member roles.

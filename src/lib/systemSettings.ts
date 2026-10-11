@@ -1,4 +1,6 @@
 import { prisma } from "./prisma";
+import type { Prisma } from "@/generated/prisma/client";
+import { committeeRulesOrDefault, type CommitteeRules } from "./committeeRules";
 
 // Shared helpers for the admin-designated single-user assignments stored in SystemSetting —
 // see the model's comment in prisma/schema.prisma. Centralized here so every route/lib that
@@ -8,6 +10,7 @@ import { prisma } from "./prisma";
 const PROGRAM_CHAIR_PREFIX = "programChair:";
 const FINANCE_CONTACT_KEY = "financeContact";
 const DEPARTMENT_CHAIR_KEY = "departmentChair";
+const COMMITTEE_RULES_KEY = "committeeRules";
 
 const programChairKey = (program: string) => `${PROGRAM_CHAIR_PREFIX}${program}`;
 
@@ -90,6 +93,23 @@ export async function setFinanceContact(userId: string | null): Promise<void> {
     where: { key: FINANCE_CONTACT_KEY },
     update: { userId },
     create: { key: FINANCE_CONTACT_KEY, userId },
+  });
+}
+
+// The committee composition table (src/lib/committeeRules.ts). No row yet = the built-in
+// defaults, which are the rules as they were hard-coded before 2026-10-11.
+export async function getCommitteeRules(): Promise<CommitteeRules> {
+  const row = await prisma.systemSetting.findUnique({ where: { key: COMMITTEE_RULES_KEY } });
+  return committeeRulesOrDefault(row?.value);
+}
+
+// `rules` must already have passed parseCommitteeRules().
+export async function setCommitteeRules(rules: CommitteeRules): Promise<void> {
+  const value = rules as unknown as Prisma.InputJsonObject;
+  await prisma.systemSetting.upsert({
+    where: { key: COMMITTEE_RULES_KEY },
+    update: { value },
+    create: { key: COMMITTEE_RULES_KEY, value },
   });
 }
 

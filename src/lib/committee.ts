@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import {
-  isValidEmail, isValidThaiPhone, ROLE_LABELS, formatUserName,
-  degreeOfProgram, committeeRoleScope, accountFitsScope, ACCOUNT_SCOPE_LABELS,
-  findDuplicateCommitteeMember,
+  isValidEmail, isValidThaiPhone, ROLE_LABELS, formatUserName, findDuplicateCommitteeMember,
 } from "@/lib/utils";
+import {
+  degreeOfProgram, accountFitsRole, allowedMemberTypes, memberTypesLabel, countRuleError,
+  RULED_ROLES, type CommitteeRules,
+} from "@/lib/committeeRules";
+import { getCommitteeRules } from "@/lib/systemSettings";
 
 export type PersonInput = { name?: string; email?: string; role?: string; phone?: string };
 
@@ -22,8 +25,15 @@ export const emptyPerson = (role = ""): { name: string; email: string; role: str
 
 /** Shape/format/role-count validation for a committee people[] array. Returns a Thai error
  *  message, or null if the list is well-formed. Does NOT check whether accounts exist —
- *  that's resolvePeople()'s job. Shared by PROPOSAL creation and defense committee edits. */
-export function validatePeople(people: PersonInput[], studentOwnEmails: Set<string>): string | null {
+ *  that's resolvePeople()'s job. Shared by PROPOSAL creation and defense committee edits.
+ *  Role counts come from the admin-configured `rules` (getCommitteeRules()) for the degree of
+ *  `program`. */
+export function validatePeople(
+  people: PersonInput[],
+  studentOwnEmails: Set<string>,
+  rules: CommitteeRules,
+  program: string | null | undefined
+): string | null {
   if (people.length === 0)
     return "กรุณาระบุอาจารย์และกรรมการที่รับผิดชอบวิทยานิพนธ์";
 
@@ -46,10 +56,11 @@ export function validatePeople(people: PersonInput[], studentOwnEmails: Set<stri
   if (dupError) return dupError;
   const count = (r: string) => people.filter((p) => p.role === r).length;
   if (count("PROGRAM_CHAIR") !== 1) return "ต้องระบุประธานหลักสูตร 1 คน (เพิ่มได้เพียง 1 คนเท่านั้น)";
-  if (count("ADVISOR") !== 1) return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
-  if (count("HEAD_EXAM_COMMITTEE") !== 1) return "ต้องระบุประธานกรรมการสอบ 1 คน";
-  if (count("EXAM_COMMITTEE") < 1) return "ต้องระบุกรรมการสอบอย่างน้อย 1 คน";
-  if (count("INVITED_EXAM_COMMITTEE") < 1) return "ต้องระบุกรรมการภายนอกอย่างน้อย 1 คน";
+  const degree = degreeOfProgram(program);
+  for (const role of RULED_ROLES) {
+    const err = countRuleError(role, count(role), degree, rules);
+    if (err) return err;
+  }
   return null;
 }
 
@@ -88,7 +99,7 @@ function duplicateMemberError(people: PersonInput[]): string | null {
 
 /** Degree-dependent account-type criterion: each committee role may only be filled by a certain
  *  kind of account, and ประธานกรรมการสอบ differs between a master's and a doctoral submission
- *  (see committeeRoleScope() in src/lib/utils.ts for the full table). Unlike validatePeople() this
+ *  (the admin-configured table in src/lib/committeeRules.ts). Unlike validatePeople() this
  *  has to hit the DB — the rule is about the *account* behind an email, not the row's own fields.
  *
  *  Rows with no role or no email yet are always skipped — a draft may be incomplete. A row that
@@ -103,27 +114,27 @@ export async function validateCommitteeAccountRoles(
   const degree = degreeOfProgram(program);
   const filled = people.filter((p) => p.role && p.email?.trim());
   if (filled.length === 0) return null;
+  const rules = await getCommitteeRules();
 
   const uniqueEmails = [...new Set(filled.map((p) => p.email!.trim().toLowerCase()))];
   const accounts = await prisma.user.findMany({
     where: { email: { in: uniqueEmails } },
-    select: { email: true, roles: true },
+    select: { email: true, roles: true, professorType: true },
   });
-  const rolesByEmail = new Map(accounts.map((u) => [u.email.toLowerCase(), u.roles as string[]]));
+  const accountByEmail = new Map(accounts.map((u) => [u.email.toLowerCase(), u]));
 
   for (const p of filled) {
-    const accountRoles = rolesByEmail.get(p.email!.trim().toLowerCase());
-    if (!accountRoles) {
+    const account = accountByEmail.get(p.email!.trim().toLowerCase());
+    if (!account) {
       // `requireAccount` is what the otherwise-lenient draft save passes: a filled-in row whose
       // account has vanished used to be dropped silently, quietly shrinking the committee. On
       // every other path a missing account is resolvePeople()'s to report.
       if (!opts.requireAccount) continue;
       return `ไม่พบบัญชีของ "${p.name?.trim() || p.email!.trim()}" ในระบบ (อาจถูกลบไปแล้ว) กรุณาเลือกผู้อื่นหรือลบแถวนี้ก่อนบันทึก`;
     }
-    const scope = committeeRoleScope(p.role!, degree);
-    if (!accountFitsScope(accountRoles, scope))
+    if (!accountFitsRole(account, p.role!, degree, rules))
       return `${ROLE_LABELS[p.role!] ?? p.role} ของ${degree === "DOCTORAL" ? "หลักสูตรปริญญาเอก" : "หลักสูตรปริญญาโท"}` +
-             ` ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${p.name?.trim() || p.email!.trim()}" ไม่ตรงตามเงื่อนไข`;
+             ` ต้องเป็น${memberTypesLabel(allowedMemberTypes(p.role!, degree, rules))} — "${p.name?.trim() || p.email!.trim()}" ไม่ตรงตามเงื่อนไข`;
   }
   return null;
 }
@@ -154,10 +165,11 @@ export async function validateResolvedCommitteeAccountRoles(
   for (const id of committee.committeeIds ?? []) if (id) pairs.push(["EXAM_COMMITTEE", id]);
   for (const id of committee.invitedCommitteeIds ?? []) if (id) pairs.push(["INVITED_EXAM_COMMITTEE", id]);
   if (pairs.length === 0) return null;
+  const rules = await getCommitteeRules();
 
   const accounts = await prisma.user.findMany({
     where: { id: { in: [...new Set(pairs.map(([, id]) => id))] } },
-    select: { id: true, title: true, name: true, roles: true },
+    select: { id: true, title: true, name: true, roles: true, professorType: true },
   });
   const byId = new Map(accounts.map((u) => [u.id, u]));
 
@@ -173,9 +185,8 @@ export async function validateResolvedCommitteeAccountRoles(
   for (const [role, id] of pairs) {
     const u = byId.get(id);
     if (!u) continue; // dangling id — pre-existing drift, not this save's doing
-    const scope = committeeRoleScope(role, degree);
-    if (!accountFitsScope(u.roles as string[], scope))
-      return `${ROLE_LABELS[role] ?? role} ต้องเป็น${ACCOUNT_SCOPE_LABELS[scope]} — "${formatUserName(u)}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
+    if (!accountFitsRole(u, role, degree, rules))
+      return `${ROLE_LABELS[role] ?? role} ต้องเป็น${memberTypesLabel(allowedMemberTypes(role, degree, rules))} — "${formatUserName(u)}" ไม่ตรงตามเงื่อนไขของหลักสูตรนี้`;
   }
   return null;
 }
@@ -183,20 +194,30 @@ export async function validateResolvedCommitteeAccountRoles(
 /** Role-count rule — the same counts validatePeople() enforces on a people[] list — checked
  *  against committee ids already stored on (or about to be written to) a submission row. Used by
  *  the ADMIN submission-edit save on any non-DRAFT submission, so an admin can no longer leave a
- *  running submission with, say, no อาจารย์ที่ปรึกษา. Pure — no DB access. Singular roles are
- *  structurally at most 1 here (one id column each), so only the "missing" side needs checking. */
+ *  running submission with, say, no อาจารย์ที่ปรึกษา. Pure — no DB access; counts come from the
+ *  admin-configured `rules`. Singular roles are one id column each (so 0 or 1 here). */
 export function validateResolvedCommitteeCounts(committee: {
   advisorId?: string | null;
   headCommitteeId?: string | null;
   programChairId?: string | null;
+  coAdvisorIds?: string[];
   committeeIds?: string[];
   invitedCommitteeIds?: string[];
-}): string | null {
+}, rules: CommitteeRules, program: string | null | undefined): string | null {
   if (!committee.programChairId)  return "ต้องระบุประธานหลักสูตร 1 คน (กำหนดประธานหลักสูตรของหลักสูตรนี้ที่แท็บ \"ตั้งค่าระบบ\" ก่อน)";
-  if (!committee.advisorId)       return "ต้องระบุอาจารย์ที่ปรึกษา 1 คน";
-  if (!committee.headCommitteeId) return "ต้องระบุประธานกรรมการสอบ 1 คน";
-  if (!(committee.committeeIds ?? []).some(Boolean))        return "ต้องระบุกรรมการสอบอย่างน้อย 1 คน";
-  if (!(committee.invitedCommitteeIds ?? []).some(Boolean)) return "ต้องระบุกรรมการภายนอกอย่างน้อย 1 คน";
+  const n = (ids?: string[]) => (ids ?? []).filter(Boolean).length;
+  const counts: Record<(typeof RULED_ROLES)[number], number> = {
+    ADVISOR: committee.advisorId ? 1 : 0,
+    CO_ADVISOR: n(committee.coAdvisorIds),
+    HEAD_EXAM_COMMITTEE: committee.headCommitteeId ? 1 : 0,
+    EXAM_COMMITTEE: n(committee.committeeIds),
+    INVITED_EXAM_COMMITTEE: n(committee.invitedCommitteeIds),
+  };
+  const degree = degreeOfProgram(program);
+  for (const role of RULED_ROLES) {
+    const err = countRuleError(role, counts[role], degree, rules);
+    if (err) return err;
+  }
   return null;
 }
 
