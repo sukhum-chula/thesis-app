@@ -175,16 +175,16 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 leading-snug" translate="no">{sub.title}</h1>
           <p className="text-gray-500">
-            นิสิต: <span className="font-medium text-gray-700">{sub.studentFullName ?? (student ? formatUserName(student) : undefined)}</span>
+            นิสิต: <span className="font-medium text-gray-700" translate="no">{sub.studentFullName ?? (student ? formatUserName(student) : undefined)}</span>
             {(sub.studentCode ?? student?.studentId) && (
               <span className="text-gray-400"> ({sub.studentCode ?? student?.studentId})</span>
             )}
           </p>
           {advisor && (
             <p className="text-gray-500 text-sm">
-              อาจารย์ที่ปรึกษา: <span className="text-gray-700">{formatUserName(advisor)}</span>
+              อาจารย์ที่ปรึกษา: <span className="text-gray-700" translate="no">{formatUserName(advisor)}</span>
             </p>
           )}
           <p className="text-sm text-gray-400">{formatDate(sub.createdAt)}</p>
@@ -199,15 +199,16 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
           <div className="grid sm:grid-cols-2 gap-3 text-sm">
             {sub.program && <InfoRow label="หลักสูตร" value={PROGRAM_LABELS[sub.program] ?? sub.program} />}
             {sub.studentPhone && <InfoRow label="เบอร์โทร" value={sub.studentPhone} />}
-            {sub.studentEmail && <InfoRow label="อีเมลนิสิต" value={sub.studentEmail} />}
+            {sub.studentEmail && <InfoRow label="อีเมลนิสิต" value={sub.studentEmail} data />}
             {sub.examDate && (
               <InfoRow label="วันที่สอบ" value={`${sub.examDate}${sub.examTime ? ` เวลา ${sub.examTime} น.` : ""}`} icon={<CalendarDays className="w-4 h-4 text-blue-400" />} />
             )}
             {sub.roomNeeded && <InfoRow label="ห้องประชุม" value="ต้องการ" />}
-            {sub.parkingNeeded && sub.carPlate && <InfoRow label="ที่จอดรถ (ทะเบียน)" value={sub.carPlate} />}
-            {sub.headCommitteeId && <InfoRow label="ประธานกรรมการสอบ" value={(() => { const u = allUsers.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : sub.headCommitteeId; })()} />}
+            {sub.parkingNeeded && sub.carPlate && <InfoRow label="ที่จอดรถ (ทะเบียน)" value={sub.carPlate} data />}
+            {sub.headCommitteeId && <InfoRow data label="ประธานกรรมการสอบ" value={(() => { const u = allUsers.find((u) => u.id === sub.headCommitteeId); return u ? formatUserName(u) : sub.headCommitteeId; })()} />}
             {sub.committeeIds && sub.committeeIds.length > 0 && (
               <InfoRow
+                data
                 label="กรรมการสอบ"
                 value={sub.committeeIds
                   .map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; })
@@ -216,6 +217,7 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
             )}
             {sub.invitedCommitteeIds && sub.invitedCommitteeIds.length > 0 && (
               <InfoRow
+                data
                 label="กรรมการภายนอก"
                 value={sub.invitedCommitteeIds
                   .map((uid: string) => { const u = allUsers.find((u) => u.id === uid); return u ? formatUserName(u) : uid; })
@@ -381,13 +383,13 @@ export function RoleSubmissionDetail({ submissionId, backPath }: Props) {
   );
 }
 
-function InfoRow({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function InfoRow({ label, value, icon, data }: { label: string; value: string; icon?: React.ReactNode; data?: boolean }) {
   return (
     <div className="flex items-start gap-2">
       {icon ?? <span className="w-4 h-4 shrink-0" />}
       <div>
         <p className="text-xs text-gray-400">{label}</p>
-        <p className="font-medium text-gray-800">{value}</p>
+        <p className="font-medium text-gray-800" translate={data ? "no" : undefined}>{value}</p>
       </div>
     </div>
   );

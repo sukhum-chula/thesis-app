@@ -239,7 +239,7 @@ export function AdminUsersPanel() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-sky-900 text-lg">{formatUserName(req)}</p>
+                  <p className="font-semibold text-sky-900 text-lg" translate="no">{formatUserName(req)}</p>
                   <span className="text-xs font-semibold text-sky-700 bg-white px-2 py-0.5 rounded-full border border-sky-200">
                     คำขอกรรมการภายนอกใหม่
                   </span>

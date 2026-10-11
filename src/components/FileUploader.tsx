@@ -63,7 +63,7 @@ export function DownloadRow({ upload, submissionTitle, title }: {
       <Download className="w-4 h-4 text-blue-500 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-gray-700 truncate">{title ?? label}</p>
-        <p className="text-xs text-gray-400 truncate">{upload.fileName} · {formatDate(upload.uploadedAt)}</p>
+        <p className="text-xs text-gray-400 truncate" translate="no">{upload.fileName} · {formatDate(upload.uploadedAt)}</p>
       </div>
     </button>
   );
@@ -323,7 +323,7 @@ export function FileUploader({
             className="min-w-0 flex-1 text-left hover:underline"
             title="เปิดดูไฟล์"
           >
-            <p className="text-sm font-medium text-green-800 truncate">{existingUpload.fileName}</p>
+            <p className="text-sm font-medium text-green-800 truncate" translate="no">{existingUpload.fileName}</p>
             <p className="text-xs text-green-600">{formatBytes(existingUpload.fileSize)} · {formatDate(existingUpload.uploadedAt)}</p>
           </button>
         </div>

@@ -89,7 +89,7 @@ export function AdminSettingsPanel() {
             >
               <option value="">— ไม่มี —</option>
               {professors.map((p) => (
-                <option key={p.id} value={p.id}>{formatUserName(p)}</option>
+                <option key={p.id} value={p.id} translate="no">{formatUserName(p)}</option>
               ))}
             </select>
           </div>
@@ -150,7 +150,7 @@ export function AdminSettingsPanel() {
             >
               <option value="">— ไม่มี —</option>
               {adminAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{formatUserName(a)} ({a.email})</option>
+                <option key={a.id} value={a.id} translate="no">{formatUserName(a)} ({a.email})</option>
               ))}
             </select>
           </div>

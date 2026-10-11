@@ -166,7 +166,7 @@ export function WorkflowTimeline({
                 {/* Single-role acted info */}
                 {!isCommittee && step.actedByName && (
                   <p className="text-sm text-gray-500 mt-0.5">
-                    {step.actedByName}
+                    <span translate="no">{step.actedByName}</span>
                     {step.actedAt && <span className="text-gray-400"> · {formatDate(step.actedAt)}</span>}
                   </p>
                 )}

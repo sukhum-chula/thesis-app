@@ -112,12 +112,12 @@ function StepCard({
           {assignedName && !step.actedByName && (
             <p className="text-sm text-blue-600 flex items-center gap-1">
               <User className="w-3.5 h-3.5" />
-              {assignedName}
+              <span translate="no">{assignedName}</span>
             </p>
           )}
           {step.actedByName && (
             <p className="text-sm text-gray-500">
-              โดย <span className="font-medium text-gray-700">{step.actedByName}</span>
+              โดย <span className="font-medium text-gray-700" translate="no">{step.actedByName}</span>
               {step.actedAt && <span className="text-gray-400"> · {formatDate(step.actedAt)}</span>}
             </p>
           )}
@@ -145,7 +145,7 @@ function StepCard({
           {stepUploads.map((u) => (
             <div key={u.id} className="flex items-center gap-2">
               <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="text-xs text-gray-600 truncate flex-1">{FORM_LABELS[u.formType]} — {u.fileName} <span className="text-gray-400">({formatBytes(u.fileSize)})</span></span>
+              <span className="text-xs text-gray-600 truncate flex-1">{FORM_LABELS[u.formType]} — <span translate="no">{u.fileName}</span> <span className="text-gray-400">({formatBytes(u.fileSize)})</span></span>
               <button
                 onClick={() => previewFile(u.id, u.fileUrl, u.fileName)}
                 className="shrink-0 text-xs text-blue-600 hover:underline flex items-center gap-0.5"
@@ -172,7 +172,7 @@ function StepCard({
                 <Clock className="w-4 h-4 text-gray-300 shrink-0" />
               )}
               <span className={`text-sm ${m.signed ? (m.approved ? "text-green-700" : "text-red-600") : "text-gray-500"}`}>
-                {m.name}
+                <span translate="no">{m.name}</span>
               </span>
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                 m.signed
@@ -818,7 +818,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 space-y-4">
         <div className="flex items-start flex-wrap gap-3">
           <div className="flex-1 min-w-0 space-y-1">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug">{sub.title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-snug" translate="no">{sub.title}</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <SubmissionStatusBadge status={sub.status} />
@@ -899,12 +899,12 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-gray-400 mb-0.5">นิสิต</p>
-              <p className="font-medium text-gray-800">{student ? formatUserName(student) : undefined}</p>
+              <p className="font-medium text-gray-800" translate="no">{student ? formatUserName(student) : undefined}</p>
               {student?.studentId && <p className="text-gray-400 text-xs">{student.studentId}</p>}
             </div>
             <div>
               <p className="text-gray-400 mb-0.5">อาจารย์ที่ปรึกษา</p>
-              <p className="font-medium text-gray-800">{advisor ? formatUserName(advisor) : "—"}</p>
+              <p className="font-medium text-gray-800" translate="no">{advisor ? formatUserName(advisor) : "—"}</p>
             </div>
             <div>
               <p className="text-gray-400 mb-0.5">วันที่ยื่น</p>
@@ -920,10 +920,10 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-sm text-gray-400"><User className="w-3.5 h-3.5" />ข้อมูลนิสิต</div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
-                  {sub.studentFullName && <AdminInfoItem label="ชื่อ-นามสกุล" value={sub.studentFullName} />}
+                  {sub.studentFullName && <AdminInfoItem label="ชื่อ-นามสกุล" value={sub.studentFullName} data />}
                   {sub.studentCode && <AdminInfoItem label="รหัสนิสิต" value={sub.studentCode} />}
                   {sub.program && <AdminInfoItem label="หลักสูตร" value={PROGRAM_LABELS[sub.program] ?? sub.program} />}
-                  {sub.studentEmail && <AdminInfoItem label="อีเมล" value={sub.studentEmail} />}
+                  {sub.studentEmail && <AdminInfoItem label="อีเมล" value={sub.studentEmail} data />}
                   {sub.studentPhone && <AdminInfoItem label="เบอร์โทร" value={sub.studentPhone} />}
                 </div>
               </div>
@@ -945,7 +945,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                       return (
                         <div key={`${label}-${uid}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1 border-b border-gray-50 last:border-0">
                           <p className="text-xs text-gray-400 w-32 shrink-0">{ids.length > 1 ? `${label} ${i + 1}` : label}</p>
-                          <p className="text-sm font-medium text-gray-800">
+                          <p className="text-sm font-medium text-gray-800" translate="no">
                             {u ? formatUserName(u) : uid}
                             {u?.affiliation && <span className="text-gray-400 font-normal"> · {u.affiliation}</span>}
                           </p>
@@ -963,7 +963,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                 <div className="space-y-2">
                   {sub.examDate && <AdminInfoRow label="วันที่สอบ" value={`${sub.examDate}${sub.examTime ? ` เวลา ${sub.examTime} น.` : ""}`} />}
                   {sub.roomNeeded && <AdminInfoRow label="ห้องประชุม" value="ต้องการ" />}
-                  {sub.parkingNeeded && sub.carPlate && <AdminInfoRow label="ทะเบียนรถ" value={sub.carPlate} />}
+                  {sub.parkingNeeded && sub.carPlate && <AdminInfoRow label="ทะเบียนรถ" value={sub.carPlate} data />}
                 </div>
               </div>
             )}
@@ -1298,7 +1298,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                           <p className="text-sm text-gray-600">
                             กดสร้างบันทึกข้อความ{isThesisResultCheckStep ? " (ขอส่งผลสอบวิทยานิพนธ์)" : ""} ระบบจะกรอกข้อมูลจากคำร้องนี้ให้ แล้วดาวน์โหลดไฟล์ Word (.docx)
                             ตรวจสอบ แปลงเป็น PDF แล้วเลือกไฟล์ด้านล่าง (ยังไม่ต้องลงนาม) หัวหน้าภาควิชาจะลงนามในขั้นตอนถัดไป:{" "}
-                            <span className="font-semibold">{deptChair ? formatUserName(deptChair) : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
+                            <span className="font-semibold">{deptChair ? <span translate="no">{formatUserName(deptChair)}</span> : "ยังไม่ได้กำหนด (ตั้งค่าได้ที่แท็บ \"ตั้งค่าระบบ\")"}</span>
                           </p>
                           {memo && (
                             <div className="border-2 border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
@@ -1307,17 +1307,17 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
                               </p>
                               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
                                 <dt className="text-gray-500">ชื่อ-นามสกุล</dt>
-                                <dd className="text-gray-800">{sub.studentFullName ?? (student ? formatUserName(student) : "—")}</dd>
+                                <dd className="text-gray-800" translate="no">{sub.studentFullName ?? (student ? formatUserName(student) : "—")}</dd>
                                 <dt className="text-gray-500">รหัสนิสิต</dt>
                                 <dd className="text-gray-800">{sub.studentCode ?? student?.studentId ?? "—"}</dd>
                                 <dt className="text-gray-500">หลักสูตร</dt>
                                 <dd className="text-gray-800">{(sub.program && PROGRAM_LABELS[sub.program]) || "—"}</dd>
                                 <dt className="text-gray-500">หัวข้อ</dt>
-                                <dd className="text-gray-800">{sub.title || "—"}</dd>
+                                <dd className="text-gray-800" translate="no">{sub.title || "—"}</dd>
                                 <dt className="text-gray-500">วันที่</dt>
                                 <dd className="text-gray-800">{memo.at.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</dd>
                                 <dt className="text-gray-500">ผู้ลงนาม</dt>
-                                <dd className="text-gray-800">{deptChair ? formatUserName(deptChair) : "—"}</dd>
+                                <dd className="text-gray-800" translate="no">{deptChair ? formatUserName(deptChair) : "—"}</dd>
                               </dl>
                               <a
                                 href={memo.url}
@@ -1493,7 +1493,7 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
             <h2 className="font-semibold text-red-700">ลบคำร้อง</h2>
             {linkedDefense ? (
               <p className="text-sm text-gray-600">
-                ไม่สามารถลบคำร้องนี้ได้ เนื่องจากมีคำร้องขอสอบวิทยานิพนธ์ &quot;{linkedDefense.title}&quot; ที่สร้างจากคำร้องนี้ — กรุณาลบคำร้องขอสอบวิทยานิพนธ์ก่อน
+                ไม่สามารถลบคำร้องนี้ได้ เนื่องจากมีคำร้องขอสอบวิทยานิพนธ์ &quot;<span translate="no">{linkedDefense.title}</span>&quot; ที่สร้างจากคำร้องนี้ — กรุณาลบคำร้องขอสอบวิทยานิพนธ์ก่อน
               </p>
             ) : !confirmDel ? (
               <button
@@ -1543,20 +1543,20 @@ export function AdminSubmissionPanel({ submissionId, onDeleted }: { submissionId
   );
 }
 
-function AdminInfoItem({ label, value }: { label: string; value: string }) {
+function AdminInfoItem({ label, value, data }: { label: string; value: string; data?: boolean }) {
   return (
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className="text-sm text-gray-800">{value}</p>
+      <p className="text-sm text-gray-800" translate={data ? "no" : undefined}>{value}</p>
     </div>
   );
 }
 
-function AdminInfoRow({ label, value }: { label: string; value: string }) {
+function AdminInfoRow({ label, value, data }: { label: string; value: string; data?: boolean }) {
   return (
     <div className="flex gap-3">
       <p className="text-xs text-gray-400 w-24 sm:w-32 shrink-0 pt-0.5">{label}</p>
-      <p className="text-sm text-gray-800 flex-1 break-all">{value}</p>
+      <p className="text-sm text-gray-800 flex-1 break-all" translate={data ? "no" : undefined}>{value}</p>
     </div>
   );
 }

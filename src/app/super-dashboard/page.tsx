@@ -240,7 +240,7 @@ export default function SuperDashboardPage() {
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">{formatUserName(u)}</p>
+                  <p className="font-semibold text-gray-900 truncate" translate="no">{formatUserName(u)}</p>
                   <p className="text-sm text-gray-400 truncate">{u.email}</p>
                 </div>
 
@@ -300,7 +300,7 @@ export default function SuperDashboardPage() {
                 <div className="mx-5 mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
                   <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
                     <KeyRound className="w-4 h-4" />
-                    รีเซ็ตรหัสเข้าใช้งานสำหรับ {formatUserName(u)}
+                    รีเซ็ตรหัสเข้าใช้งานสำหรับ <span translate="no">{formatUserName(u)}</span>
                   </p>
                   <p className="text-sm text-amber-700">
                     กำหนดรหัสเข้าใช้งานใหม่เอง หรือกดสุ่มรหัส — ระบบจะส่งอีเมลแจ้ง {u.email} โดยอัตโนมัติ รหัสเดิมจะใช้งานไม่ได้อีกต่อไป
@@ -365,7 +365,7 @@ export default function SuperDashboardPage() {
                     </span>
                   )}
                 </div>
-                <p className="font-semibold text-gray-900 text-sm leading-snug truncate">{sub.title}</p>
+                <p className="font-semibold text-gray-900 text-sm leading-snug truncate" translate="no">{sub.title}</p>
                 <div className="flex items-center justify-between gap-3 mt-1 flex-wrap">
                   <p className="text-sm text-gray-500 truncate">
                     {sub.studentName ?? "—"}
@@ -411,7 +411,7 @@ export default function SuperDashboardPage() {
                     {group.map((u) => (
                       <div key={u.id} className="flex items-center gap-3 pl-8">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{formatUserName(u)}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate" translate="no">{formatUserName(u)}</p>
                         </div>
                         <p className="text-sm text-gray-400 truncate">{u.email}</p>
                         {u.studentId && (

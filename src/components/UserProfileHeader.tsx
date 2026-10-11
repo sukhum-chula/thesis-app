@@ -153,7 +153,7 @@ export function UserProfileHeader({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-gray-900 leading-snug break-words">{formatUserName(user)}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 leading-snug break-words" translate="no">{formatUserName(user)}</h1>
               <span className="text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full whitespace-nowrap">
                 {user.roles.map((r) => ROLE_LABELS[r]).join(" / ")}
               </span>

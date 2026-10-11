@@ -78,7 +78,7 @@ export function SubmissionInfoPanel({
                   {(sub.committeeIds ?? []).map((uid) => {
                     const u = users.find((u) => u.id === uid);
                     return (
-                      <span key={uid} className="bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-lg">
+                      <span key={uid} className="bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-lg" translate="no">
                         {u ? formatUserName(u) : uid}
                       </span>
                     );

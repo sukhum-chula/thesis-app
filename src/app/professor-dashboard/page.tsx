@@ -125,9 +125,9 @@ export default function ProfessorDashboard() {
                       <FileText className="w-5 h-5" />
                     </div>
                     <div className="space-y-1.5 min-w-0">
-                      <p className="text-lg font-semibold text-gray-900 leading-snug truncate">{sub.title}</p>
+                      <p className="text-lg font-semibold text-gray-900 leading-snug truncate" translate="no">{sub.title}</p>
                       {sub.studentFullName && (
-                        <p className="text-sm text-gray-500">{sub.studentFullName}{sub.studentCode && <span className="text-gray-400"> · {sub.studentCode}</span>}</p>
+                        <p className="text-sm text-gray-500" translate="no">{sub.studentFullName}{sub.studentCode && <span className="text-gray-400"> · {sub.studentCode}</span>}</p>
                       )}
                       <div className="flex flex-wrap items-center gap-2">
                         <SubmissionStatusBadge status={sub.status} />

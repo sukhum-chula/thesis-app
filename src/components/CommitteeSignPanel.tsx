@@ -135,7 +135,7 @@ export function CommitteeSignPanel({ submissionId, step, onSuccess, formsToShow,
                 <Clock className="w-4 h-4 text-gray-200 shrink-0" />
               )}
               <span className={`flex-1 ${a ? "text-gray-700" : isActive ? "text-blue-700 font-medium" : "text-gray-300"}`}>
-                {m ? formatUserName(m) : mid}
+                <span translate="no">{m ? formatUserName(m) : mid}</span>
                 {mid === user?.id && <span className="text-blue-500"> (ท่าน)</span>}
               </span>
               {a ? (

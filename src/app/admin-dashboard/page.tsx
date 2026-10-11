@@ -237,7 +237,7 @@ export default function AdminDashboard() {
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900 truncate">{sub.title}</p>
+                    <p className="font-semibold text-gray-900 truncate" translate="no">{sub.title}</p>
                     <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                       <User className="w-3 h-3 shrink-0" />
                       {student ? formatUserName(student) : "—"}
@@ -382,13 +382,13 @@ export default function AdminDashboard() {
                           </span>
                         )}
                       </div>
-                      <p className="font-semibold text-gray-900 text-base leading-snug">{sub.title}</p>
+                      <p className="font-semibold text-gray-900 text-base leading-snug" translate="no">{sub.title}</p>
                       <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
                         <User className="w-3.5 h-3.5 shrink-0" />
                         {student ? (
                           <Link
                             href={`/dashboard/admin/users/${student.id}`}
-                            className="font-medium text-blue-600 hover:underline"
+                            className="font-medium text-blue-600 hover:underline" translate="no"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {formatUserName(student)}
@@ -425,7 +425,7 @@ export default function AdminDashboard() {
                       </span>
                       <span className={`truncate ${isMyTurn ? "text-orange-700" : "text-gray-600"}`}>{stepName}</span>
                       {pendingName && !isMyTurn && (
-                        <span className="text-gray-400 shrink-0 text-xs">— รอ {pendingName}</span>
+                        <span className="text-gray-400 shrink-0 text-xs">— รอ <span translate="no">{pendingName}</span></span>
                       )}
                       {isMyTurn && (
                         <span className="ml-auto text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full shrink-0">

@@ -85,7 +85,7 @@ export function UserDetailPanel({ uid }: { uid: string }) {
                 <div key={sub.id} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                   {/* Title + action button */}
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <p className="font-semibold text-gray-900 text-lg leading-snug min-w-0">{sub.title}</p>
+                    <p className="font-semibold text-gray-900 text-lg leading-snug min-w-0" translate="no">{sub.title}</p>
                     <Link
                       href={`/dashboard/admin/${sub.id}`}
                       className="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
@@ -98,10 +98,10 @@ export function UserDetailPanel({ uid }: { uid: string }) {
                   {/* Meta */}
                   <div className="text-sm text-gray-500 space-y-0.5">
                     {!user.roles.includes("STUDENT") && student && (
-                      <p>นิสิต: <span className="font-medium text-gray-700">{formatUserName(student)}</span></p>
+                      <p>นิสิต: <span className="font-medium text-gray-700" translate="no">{formatUserName(student)}</span></p>
                     )}
                     {!user.roles.includes("PROFESSOR") && advisor && (
-                      <p>ที่ปรึกษา: <span className="text-gray-700">{formatUserName(advisor)}</span></p>
+                      <p>ที่ปรึกษา: <span className="text-gray-700" translate="no">{formatUserName(advisor)}</span></p>
                     )}
                   </div>
 

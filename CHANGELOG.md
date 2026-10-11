@@ -18,6 +18,12 @@ than leaving both.
   the case for the toggle's own "เปลี่ยนเป็นภาษาไทย" — which fired another mutation, forever.
   Because EN is remembered in `localStorage`, every later page load froze too. It now writes an
   attribute only when the translation changed it.
+- **English toggle coverage.** A scan of every Thai string in the UI source found ~220 with no
+  dictionary key or only a word-level match (half-Thai output) — mostly the admin, users,
+  settings and super-admin screens, toasts, and API error messages. They now have whole-sentence
+  keys. Names, thesis titles, affiliations, plates and file names on the admin, professor and
+  super-admin views are wrapped in `translate="no"` (the student views already were); the
+  program-chair dropdown options are the exception, since each also carries translatable text.
 
 ## 2026-10-10
 
